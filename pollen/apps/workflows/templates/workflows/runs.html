@@ -1,0 +1,44 @@
+{% extends "workflows/console_base.html" %}
+
+{% block console_content %}
+<section class="panel">
+  <div class="panel-header">
+    <span>运行实例监控</span>
+    <span class="tag">Latest 20</span>
+  </div>
+  <div class="run-stack">
+    {% for run in runs %}
+    <article class="run-card">
+      <div class="run-card-head">
+        <div>
+          <h3>#{{ run.id }} {{ run.template.name }}</h3>
+          <p>{{ run.business_time|date:"Y-m-d H:i" }} · {{ run.summary }}</p>
+        </div>
+        <div class="action-links">
+          <span class="status-pill {{ run.status }}">{{ run.status }}</span>
+          <a href="{% url 'console-run-refresh' run.id %}">刷新</a>
+          {% if run.status == "failed" %}<a href="{% url 'console-run-resume' run.id %}">续跑</a>{% endif %}
+        </div>
+      </div>
+      <table class="data-table compact">
+        <thead>
+          <tr><th>步骤</th><th>状态</th><th>Job ID</th><th>日志</th></tr>
+        </thead>
+        <tbody>
+          {% for task in run.task_runs.all %}
+          <tr>
+            <td>{{ task.display_name }}</td>
+            <td>{{ task.status }}</td>
+            <td>{{ task.slurm_job_id|default:"-" }}</td>
+            <td><code>{{ task.output_log_path|default:"-" }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </article>
+    {% empty %}
+    <p>暂无运行实例。</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

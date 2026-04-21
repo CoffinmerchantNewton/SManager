@@ -1,0 +1,49 @@
+{% extends "workflows/console_base.html" %}
+
+{% block console_content %}
+<section class="stats-grid">
+  <article class="panel stat-card"><strong>{{ stats.templates }}</strong><span>流程模板</span></article>
+  <article class="panel stat-card"><strong>{{ stats.schedules }}</strong><span>定时任务</span></article>
+  <article class="panel stat-card"><strong>{{ stats.runs }}</strong><span>运行实例</span></article>
+  <article class="panel stat-card"><strong>{{ stats.published_products }}</strong><span>已发布产物</span></article>
+</section>
+
+<section class="console-grid">
+  <article class="panel">
+    <div class="panel-header">
+      <span>手工触发业务流程</span>
+      <span class="tag">Slurm</span>
+    </div>
+    <form method="post" class="stack-form">
+      {% csrf_token %}
+      <input type="hidden" name="trigger_run" value="1">
+      {{ run_form.as_p }}
+      <button type="submit" class="primary-button">立即运行</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <div class="panel-header">
+      <span>最近运行</span>
+      <span class="tag">Top 8</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr><th>ID</th><th>模板</th><th>业务时间</th><th>状态</th></tr>
+      </thead>
+      <tbody>
+        {% for run in recent_runs %}
+        <tr>
+          <td>#{{ run.id }}</td>
+          <td>{{ run.template.name }}</td>
+          <td>{{ run.business_time|date:"Y-m-d H:i" }}</td>
+          <td><span class="status-pill {{ run.status }}">{{ run.status }}</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">暂无运行记录。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

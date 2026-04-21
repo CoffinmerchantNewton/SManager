@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="console-layout">
+  <aside class="console-nav panel">
+    <h2>预报管理模块</h2>
+    <nav>
+      <a href="{% url 'console-dashboard' %}" class="{% if request.resolver_match.url_name == 'console-dashboard' %}active{% endif %}">总览</a>
+      <a href="{% url 'console-templates' %}" class="{% if 'templates' in request.resolver_match.url_name %}active{% endif %}">流程模板</a>
+      <a href="{% url 'console-schedules' %}" class="{% if 'schedules' in request.resolver_match.url_name %}active{% endif %}">定时任务</a>
+      <a href="{% url 'console-runs' %}" class="{% if 'runs' in request.resolver_match.url_name %}active{% endif %}">运行监控</a>
+      <a href="{% url 'console-publications' %}" class="{% if 'publications' in request.resolver_match.url_name %}active{% endif %}">产物发布</a>
+      <a href="{% url 'console-logout' %}">退出</a>
+    </nav>
+  </aside>
+  <div class="console-content">
+    {% block console_content %}{% endblock %}
+  </div>
+</section>
+{% endblock %}

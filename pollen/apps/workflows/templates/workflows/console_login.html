@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="login-shell panel narrow-panel">
+  <div class="panel-header">
+    <span>Console Access</span>
+    <span class="tag">Admin</span>
+  </div>
+  <h2>进入预报管理模块</h2>
+  <p>输入管理员密码以配置定时业务预报、手工触发流程和发布首页产物。</p>
+  <form method="post" class="stack-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <label>
+      管理员密码
+      {{ form.password }}
+      {{ form.password.errors }}
+    </label>
+    <button type="submit" class="primary-button">进入控制台</button>
+  </form>
+</section>
+{% endblock %}

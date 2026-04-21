@@ -1,0 +1,35 @@
+{% extends "workflows/console_base.html" %}
+
+{% block console_content %}
+<section class="panel">
+  <div class="panel-header">
+    <span>发布管理</span>
+    <span class="tag">Homepage</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr><th>运行</th><th>模板</th><th>状态</th><th>产物数</th><th>发布时间</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td>#{{ run.id }}<br>{{ run.business_time|date:"Y-m-d H:i" }}</td>
+        <td>{{ run.template.name }}</td>
+        <td><span class="status-pill {{ run.status }}">{{ run.status }}</span></td>
+        <td>{{ run.products.count }}</td>
+        <td>{% if run.published_at %}{{ run.published_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+        <td class="action-links">
+          {% if run.status == "succeeded" %}
+          <a href="{% url 'console-publish-run' run.id %}">设为首页发布</a>
+          {% else %}
+          <span class="muted">未成功完成</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">暂无可发布运行。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

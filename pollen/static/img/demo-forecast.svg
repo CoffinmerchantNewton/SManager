@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#06263f" stop-opacity="0.0"/>
+      <stop offset="100%" stop-color="#3fb8ff" stop-opacity="0.18"/>
+    </linearGradient>
+    <radialGradient id="hotspot" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#ffd166" stop-opacity="0.92"/>
+      <stop offset="35%" stop-color="#ff7f50" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#ff7f50" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="coolspot" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#7ce7ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#7ce7ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <ellipse cx="330" cy="340" rx="220" ry="160" fill="url(#hotspot)"/>
+  <ellipse cx="640" cy="260" rx="260" ry="190" fill="url(#coolspot)"/>
+  <ellipse cx="850" cy="430" rx="300" ry="220" fill="url(#hotspot)"/>
+  <ellipse cx="980" cy="180" rx="160" ry="100" fill="url(#coolspot)"/>
+  <path d="M90,680 C220,590 370,640 450,570 C560,470 680,480 760,520 C870,575 1030,560 1120,430" fill="none" stroke="#eff7ff" stroke-opacity="0.18" stroke-width="12" stroke-linecap="round"/>
+  <path d="M170,170 C320,110 440,170 540,120 C720,30 880,120 1030,210" fill="none" stroke="#7ce7ff" stroke-opacity="0.13" stroke-width="10" stroke-linecap="round"/>
+</svg>

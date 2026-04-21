@@ -1,0 +1,45 @@
+{% extends "workflows/console_base.html" %}
+
+{% block console_content %}
+<section class="console-grid">
+  <article class="panel">
+    <div class="panel-header">
+      <span>{% if editing %}编辑流程模板{% else %}新建流程模板{% endif %}</span>
+      <span class="tag">Template DAG</span>
+    </div>
+    <form method="post" class="stack-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="primary-button">{% if editing %}保存修改{% else %}创建模板{% endif %}</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <div class="panel-header">
+      <span>模板列表</span>
+      <span class="tag">{{ templates|length }}</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr><th>名称</th><th>域</th><th>步骤数</th><th>状态</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        {% for template in templates %}
+        <tr>
+          <td>{{ template.name }}</td>
+          <td>{{ template.domain_codes|join:", " }}</td>
+          <td>{{ template.steps|length }}</td>
+          <td>{{ template.is_active|yesno:"启用,停用" }}</td>
+          <td class="action-links">
+            <a href="?edit={{ template.id }}">编辑</a>
+            <a href="{% url 'console-template-delete' template.id %}" onclick="return confirm('确认删除模板吗？')">删除</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">暂无模板。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

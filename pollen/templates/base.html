@@ -1,0 +1,58 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_config.title|default:"中国花粉传播预报系统" }}{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/site.css' %}">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <script src="https://cdn.jsdelivr.net/npm/ol@v10.6.1/dist/ol.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.6.1/ol.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">NASA-inspired operational pollen intelligence</p>
+        <h1>{{ site_config.title|default:"中国花粉传播预报系统" }}</h1>
+        <p class="subtitle">{{ site_config.subtitle|default:"全域花粉传播预报与自动化业务平台" }}</p>
+      </div>
+      <div class="header-actions">
+        {% if latest_run %}
+        <div class="status-pill {{ latest_run.status }}">{{ latest_run.status }}</div>
+        {% endif %}
+        <a class="console-button" href="{% url 'console-dashboard' %}">控制台</a>
+      </div>
+    </header>
+
+    {% if messages %}
+    <div class="message-stack">
+      {% for message in messages %}
+      <div class="message {{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>友情链接</strong>
+        <div class="footer-links">
+          {% for link in friendly_links %}
+          <a href="{{ link.url }}" target="_blank" rel="noreferrer">{{ link.name }}</a>
+          {% empty %}
+          <span>暂无友情链接</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="copyright">{{ site_config.copyright_notice|default:"Copyright 2026 Pollen Forecast Center" }}</div>
+    </footer>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

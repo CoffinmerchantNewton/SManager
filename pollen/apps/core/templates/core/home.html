@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ config.title }}{% endblock %}
+
+{% block content %}
+<section class="hero-grid">
+  <div class="hero-copy panel">
+    <div class="panel-header">
+      <span>Operational Focus</span>
+      {% if config.hero_notice %}<span class="tag">{{ config.hero_notice }}</span>{% endif %}
+    </div>
+    <h2>中国全域 d01 / d02 花粉传播业务预报</h2>
+    <p>支持花粉类别切换、时间浏览、分域展示与固定点位分析。后台流程覆盖 geogrid、ungrib、metgrid、WPS、花粉预插值、WRF 预报和后处理成图，并对接 Slurm 调度。</p>
+    {% if latest_run %}
+    <dl class="metric-grid">
+      <div>
+        <dt>最新业务时间</dt>
+        <dd>{{ latest_run.business_time|date:"Y-m-d H:i" }}</dd>
+      </div>
+      <div>
+        <dt>发布状态</dt>
+        <dd>{{ latest_run.status }}</dd>
+      </div>
+      <div>
+        <dt>模板</dt>
+        <dd>{{ latest_run.template.name }}</dd>
+      </div>
+    </dl>
+    {% endif %}
+  </div>
+
+  <div class="hero-side panel">
+    <div class="panel-header">
+      <span>Domains</span>
+      <span class="tag">China</span>
+    </div>
+    <ul class="domain-list">
+      {% for domain in domains %}
+      <li>
+        <strong>{{ domain.code }}</strong>
+        <span>{{ domain.name }}</span>
+        <small>{{ domain.resolution_km }} km</small>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="map-panel panel">
+  <div class="map-toolbar">
+    <div>
+      <label for="pollen-type">花粉类别</label>
+      <select id="pollen-type">
+        {% for pollen in pollen_types %}
+        <option value="{{ pollen.code }}">{{ pollen.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="domain-select">预报域</label>
+      <select id="domain-select">
+        {% for domain in domains %}
+        <option value="{{ domain.code }}">{{ domain.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="timeline-wrap">
+      <label for="time-range">时间</label>
+      <input id="time-range" type="range" value="0" min="0" max="0" step="1">
+      <span id="time-label">--</span>
+    </div>
+  </div>
+  <div id="forecast-map" class="forecast-map"></div>
+  <div class="map-caption">
+    <span>业务提示：地图优先展示已发布产物，若无瓦片则回退到 GeoTIFF/预览图层。</span>
+    <span id="map-metrics">等待数据</span>
+  </div>
+</section>
+
+<section class="analytics-grid">
+  <article class="panel chart-panel">
+    <div class="panel-header">
+      <span>固定点位浓度曲线</span>
+      <select id="profile-select">
+        {% for profile in featured_profiles %}
+        <option value="{{ profile.id }}">{{ profile.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div id="profile-chart" class="chart"></div>
+  </article>
+
+  <article class="panel chart-panel">
+    <div class="panel-header">
+      <span>域内浓度统计</span>
+      <span class="tag">Published</span>
+    </div>
+    <div id="domain-chart" class="chart"></div>
+  </article>
+
+  <article class="panel insight-panel">
+    <div class="panel-header">
+      <span>业务摘要</span>
+      <span class="tag">Auto</span>
+    </div>
+    <div id="insight-list" class="insight-list">
+      <p>等待加载业务摘要...</p>
+    </div>
+  </article>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/home.js' %}"></script>
+{% endblock %}

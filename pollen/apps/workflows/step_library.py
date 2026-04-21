@@ -1,0 +1,51 @@
+STEP_LIBRARY = {
+    "geogrid": {
+        "display_name": "Geogrid",
+        "command": "./geogrid.exe",
+        "dependencies": [],
+        "expected_outputs": ["geo_em.d01.nc", "geo_em.d02.nc"],
+        "slurm": {"partition": "wps", "time": "00:30:00", "cpus-per-task": 2},
+    },
+    "ungrib": {
+        "display_name": "Ungrib",
+        "command": "./ungrib.exe",
+        "dependencies": ["geogrid"],
+        "expected_outputs": ["FILE:UNGRIB_DONE"],
+        "slurm": {"partition": "wps", "time": "00:30:00", "cpus-per-task": 2},
+    },
+    "metgrid": {
+        "display_name": "Metgrid",
+        "command": "./metgrid.exe",
+        "dependencies": ["ungrib"],
+        "expected_outputs": ["FILE:METGRID_DONE"],
+        "slurm": {"partition": "wps", "time": "00:45:00", "cpus-per-task": 4},
+    },
+    "wps": {
+        "display_name": "WPS Prepare",
+        "command": "bash run_wps.sh",
+        "dependencies": ["metgrid"],
+        "expected_outputs": ["FILE:WPS_DONE"],
+        "slurm": {"partition": "wps", "time": "00:20:00", "cpus-per-task": 2},
+    },
+    "pollen_interp": {
+        "display_name": "Pollen Pre-Interpolation",
+        "command": "bash run_pollen_interp.sh",
+        "dependencies": ["wps"],
+        "expected_outputs": ["wrfinput_d01", "wrfinput_d02"],
+        "slurm": {"partition": "wrf", "time": "00:40:00", "cpus-per-task": 4},
+    },
+    "wrf": {
+        "display_name": "WRF Forecast",
+        "command": "bash run_wrf.sh",
+        "dependencies": ["pollen_interp"],
+        "expected_outputs": ["wrfout_d01", "wrfout_d02"],
+        "slurm": {"partition": "wrf", "time": "06:00:00", "nodes": 1, "ntasks-per-node": 16},
+    },
+    "postprocess": {
+        "display_name": "WRF Postprocess & Tiles",
+        "command": "bash run_postprocess.sh",
+        "dependencies": ["wrf"],
+        "expected_outputs": ["manifest.json"],
+        "slurm": {"partition": "post", "time": "01:00:00", "cpus-per-task": 4},
+    },
+}
