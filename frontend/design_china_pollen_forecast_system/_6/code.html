@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>China Pollen Forecast System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "inverse-surface": "#e3e2e2",
+                      "primary-container": "#0066ff",
+                      "tertiary-container": "#00842c",
+                      "on-primary-container": "#f8f7ff",
+                      "surface-tint": "#b3c5ff",
+                      "on-secondary-fixed": "#002022",
+                      "error": "#ffb4ab",
+                      "on-primary-fixed-variant": "#003fa4",
+                      "outline": "#8c90a1",
+                      "on-primary": "#002b75",
+                      "error-container": "#93000a",
+                      "on-tertiary-fixed": "#002106",
+                      "inverse-primary": "#0054d6",
+                      "surface-container-high": "#292a2a",
+                      "surface-dim": "#121414",
+                      "on-secondary-container": "#006a70",
+                      "on-primary-fixed": "#001849",
+                      "tertiary": "#50e167",
+                      "background": "#121414",
+                      "surface-bright": "#383939",
+                      "on-secondary-fixed-variant": "#004f54",
+                      "secondary-fixed": "#74f5ff",
+                      "surface": "#121414",
+                      "on-error-container": "#ffdad6",
+                      "surface-container": "#1f2020",
+                      "surface-container-low": "#1b1c1c",
+                      "on-surface-variant": "#c2c6d8",
+                      "inverse-on-surface": "#2f3031",
+                      "surface-variant": "#343535",
+                      "primary-fixed-dim": "#b3c5ff",
+                      "secondary": "#ddfcff",
+                      "surface-container-highest": "#343535",
+                      "primary-fixed": "#dae1ff",
+                      "tertiary-fixed": "#6fff80",
+                      "outline-variant": "#424656",
+                      "on-surface": "#e3e2e2",
+                      "on-tertiary-container": "#e5ffdf",
+                      "on-tertiary": "#00390e",
+                      "on-secondary": "#00363a",
+                      "secondary-fixed-dim": "#00dbe7",
+                      "tertiary-fixed-dim": "#50e167",
+                      "on-background": "#e3e2e2",
+                      "primary": "#b3c5ff",
+                      "surface-container-lowest": "#0d0e0f",
+                      "secondary-container": "#00f1fe",
+                      "on-tertiary-fixed-variant": "#005319",
+                      "on-error": "#690005"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "lg": "24px",
+                      "xl": "32px",
+                      "md": "16px",
+                      "xs": "4px",
+                      "gutter": "16px",
+                      "margin": "24px",
+                      "sm": "8px",
+                      "unit": "4px"
+              },
+              "fontFamily": {
+                      "headline-xl": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "data-mono": ["Space Grotesk"],
+                      "label-caps": ["Space Grotesk"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "data-mono": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .technical-grid {
+            background-image: radial-gradient(circle, rgba(0, 102, 255, 0.1) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(0, 241, 254, 0.2);
+        }
+        .glass-panel {
+            background: rgba(18, 20, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .science-border {
+            border: 1px solid rgba(0, 102, 255, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md selection:bg-primary-container selection:text-white">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full h-14 flex justify-between items-center px-6 z-50 bg-slate-950/95 backdrop-blur-md font-inter tracking-tight antialiased text-sm border-b border-white/10">
+<div class="flex items-center gap-4">
+<div class="flex flex-col">
+<span class="text-lg font-black tracking-tighter text-white uppercase">中国花粉传播预报系统</span>
+<span class="text-[10px] text-slate-400 font-medium tracking-wide">基于 WRF-Pollen / WRF-Chem 的全国花粉扩散与业务预报平台</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex gap-8">
+<a class="text-cyan-400 border-b-2 border-cyan-400 pb-1" href="#">Dashboard</a>
+<a class="text-slate-400 hover:text-cyan-300 transition-colors" href="#">Real-time Map</a>
+<a class="text-slate-400 hover:text-cyan-300 transition-colors" href="#">Forecasting</a>
+<a class="text-slate-400 hover:text-cyan-300 transition-colors" href="#">Archive</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-slate-400 hover:text-white transition-colors">notifications</button>
+<button class="material-symbols-outlined text-slate-400 hover:text-white transition-colors">account_circle</button>
+<button class="bg-primary-container hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg font-semibold tracking-tight transition-all active:scale-95 shadow-lg shadow-blue-900/20">控制台</button>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Suppressed for high-density Portal map view, using floating controls instead as per Portal standards) -->
+<main class="relative mt-14 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col">
+<!-- WebGIS Map Container -->
+<div class="relative flex-grow bg-slate-950 overflow-hidden">
+<img class="w-full h-full object-cover opacity-60" data-alt="Dark satellite map of China with glowing cyan and neon green heatmaps representing pollen density, technical UI overlays and coordinate lines" data-location="China" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoFoTZwE3ztfPy4I5Jh5dqZMn70KKpvqRRQC-kGQoWEbMd47qhfKgHfAT_edv4IkLNH-Mkal_HkrbcGQWNVdijnJr0bQvXWVt2EZ4-ySDdgCUPnSMuQ17rWswbDRtsl30TMpRUpsEis2IvGPpqxcK8k3im0QxgkIFlfAtxxk8rvoEtbi3ER-pE-wq91kve8ZT24cGvkpwtmJnmlN-Xe8iEBClodNbcNI9D6Y1UMF4GZAlXBIE2JxEaW8qbmdyLTuWVa7vhz-SlUKhf"/>
+<div class="absolute inset-0 technical-grid pointer-events-none"></div>
+<!-- Floating Controls: Left -->
+<div class="absolute left-margin top-margin flex flex-col gap-4 w-64 z-20">
+<!-- System Status Card -->
+<div class="glass-panel p-md rounded-xl science-border glow-cyan">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-on-surface-variant uppercase">Current Status</span>
+<span class="flex h-2 w-2 rounded-full bg-tertiary animate-pulse"></span>
+</div>
+<div class="space-y-sm">
+<div>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Active Model</p>
+<p class="font-data-mono text-white">WRF-Chem v4.2.1</p>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Simulation Domain</p>
+<p class="font-data-mono text-white">D02 (9km Resolution)</p>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">System Load</p>
+<div class="w-full h-1 bg-white/5 mt-1">
+<div class="h-full bg-cyan-400 w-2/3 glow-cyan"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Layer Switchers -->
+<div class="glass-panel p-md rounded-xl science-border">
+<h3 class="font-label-caps text-on-surface-variant uppercase mb-md">Forecast Layers</h3>
+<div class="space-y-sm">
+<label class="flex items-center justify-between p-sm rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors border border-transparent hover:border-cyan-500/30">
+<span class="text-sm font-medium">Concentration</span>
+<input checked="" class="text-primary-container focus:ring-primary-container bg-transparent" name="product" type="radio"/>
+</label>
+<label class="flex items-center justify-between p-sm rounded bg-white/5 hover:bg-white/10 cursor-pointer transition-colors border border-transparent hover:border-cyan-500/30">
+<span class="text-sm font-medium">Health Risk Index</span>
+<input class="text-primary-container focus:ring-primary-container bg-transparent" name="product" type="radio"/>
+</label>
+<div class="pt-sm mt-sm border-t border-white/5">
+<p class="text-[10px] text-slate-500 uppercase mb-sm tracking-widest">Pollen Species</p>
+<select class="w-full bg-surface-container border-none text-xs rounded-lg py-2 focus:ring-cyan-500/50">
+<option>Chenopodiaceae (藜科)</option>
+<option>Artemisia (蒿属)</option>
+<option>Humulus (葎草属)</option>
+<option>Gramineae (禾本科)</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Controls: Right -->
+<div class="absolute right-margin top-margin flex flex-col gap-4 w-72 z-20">
+<!-- Current Product Info -->
+<div class="glass-panel p-md rounded-xl science-border">
+<h3 class="font-label-caps text-on-surface-variant uppercase mb-md">Real-time Analytics</h3>
+<div class="grid grid-cols-2 gap-sm">
+<div class="bg-white/5 p-sm rounded border border-white/5">
+<p class="text-[10px] text-slate-500 uppercase mb-xs">Peak Concen.</p>
+<p class="font-data-mono text-xl text-error">1,248<span class="text-[10px] ml-1">n/m³</span></p>
+</div>
+<div class="bg-white/5 p-sm rounded border border-white/5">
+<p class="text-[10px] text-slate-500 uppercase mb-xs">Hotspot Count</p>
+<p class="font-data-mono text-xl text-cyan-400">142</p>
+</div>
+<div class="col-span-2 bg-white/5 p-sm rounded border border-white/5 flex items-center justify-between">
+<div>
+<p class="text-[10px] text-slate-500 uppercase">Alert Level</p>
+<p class="font-semibold text-error text-sm">LEVEL IV: SEVERE</p>
+</div>
+<span class="material-symbols-outlined text-error" data-weight="fill">warning</span>
+</div>
+</div>
+</div>
+<!-- Region Focus List -->
+<div class="glass-panel p-md rounded-xl science-border">
+<h3 class="font-label-caps text-on-surface-variant uppercase mb-md">Key Municipalities</h3>
+<div class="space-y-xs">
+<div class="flex items-center justify-between text-xs py-1 border-b border-white/5">
+<span>Beijing</span>
+<span class="font-data-mono text-cyan-400">842 n/m³</span>
+</div>
+<div class="flex items-center justify-between text-xs py-1 border-b border-white/5">
+<span>Tianjin</span>
+<span class="font-data-mono text-cyan-400">621 n/m³</span>
+</div>
+<div class="flex items-center justify-between text-xs py-1 border-b border-white/5">
+<span>Harbin</span>
+<span class="font-data-mono text-error">1,104 n/m³</span>
+</div>
+<div class="flex items-center justify-between text-xs py-1">
+<span>Xi'an</span>
+<span class="font-data-mono text-tertiary">214 n/m³</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Floating: Time Slider -->
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[70%] z-30">
+<div class="glass-panel p-md rounded-2xl science-border glow-cyan flex flex-col gap-sm">
+<div class="flex items-center justify-between px-md">
+<div class="flex items-center gap-sm">
+<button class="material-symbols-outlined text-cyan-400">play_arrow</button>
+<span class="font-data-mono text-sm">2023-10-24 14:00 CST</span>
+</div>
+<div class="flex gap-4">
+<span class="text-[10px] text-slate-500">T+0h</span>
+<span class="text-[10px] text-cyan-400 font-bold">T+24h</span>
+<span class="text-[10px] text-slate-500">T+48h</span>
+<span class="text-[10px] text-slate-500">T+72h</span>
+</div>
+</div>
+<div class="relative w-full h-8 flex items-center px-md">
+<div class="absolute inset-x-md h-1 bg-white/10 rounded-full"></div>
+<div class="absolute left-md right-1/2 h-1 bg-cyan-500/50 rounded-full"></div>
+<div class="absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-cyan-400 rounded-full glow-cyan border-2 border-white cursor-pointer transition-transform hover:scale-125"></div>
+<!-- Hourly Markers -->
+<div class="absolute inset-x-md flex justify-between px-1 pointer-events-none">
+<div class="w-px h-2 bg-white/20"></div>
+<div class="w-px h-2 bg-white/20"></div>
+<div class="w-px h-2 bg-white/20"></div>
+<div class="w-px h-2 bg-white/20"></div>
+<div class="w-px h-3 bg-cyan-400"></div>
+<div class="w-px h-2 bg-white/20"></div>
+<div class="w-px h-2 bg-white/20"></div>
+<div class="w-px h-2 bg-white/20"></div>
+<div class="w-px h-2 bg-white/20"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Analysis Area (Expandable/Collapsible) -->
+<section class="h-48 bg-slate-950 border-t border-white/10 flex items-center p-gutter gap-gutter overflow-x-auto">
+<!-- Chart Card 1 -->
+<div class="min-w-[400px] h-full glass-panel p-md rounded-xl science-border flex flex-col">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-on-surface-variant uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">analytics</span> Time Series Analysis
+                    </span>
+<span class="text-[10px] font-data-mono text-cyan-400">Avg: 412 n/m³</span>
+</div>
+<div class="flex-grow relative flex items-end gap-1">
+<!-- Faux Bar Chart -->
+<div class="flex-grow bg-cyan-500/20 h-[30%] border-t border-cyan-500/40"></div>
+<div class="flex-grow bg-cyan-500/20 h-[45%] border-t border-cyan-500/40"></div>
+<div class="flex-grow bg-cyan-500/20 h-[60%] border-t border-cyan-500/40"></div>
+<div class="flex-grow bg-cyan-500/20 h-[80%] border-t border-cyan-500/40 glow-cyan"></div>
+<div class="flex-grow bg-cyan-500/20 h-[65%] border-t border-cyan-500/40"></div>
+<div class="flex-grow bg-cyan-500/20 h-[40%] border-t border-cyan-500/40"></div>
+<div class="flex-grow bg-cyan-500/20 h-[35%] border-t border-cyan-500/40"></div>
+<div class="flex-grow bg-cyan-500/20 h-[55%] border-t border-cyan-500/40"></div>
+<div class="flex-grow bg-cyan-500/20 h-[90%] border-t border-cyan-500/40 glow-cyan"></div>
+<div class="flex-grow bg-cyan-500/20 h-[70%] border-t border-cyan-500/40"></div>
+</div>
+</div>
+<!-- Chart Card 2 -->
+<div class="min-w-[400px] h-full glass-panel p-md rounded-xl science-border flex flex-col">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-on-surface-variant uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">bar_chart</span> Regional Intensity
+                    </span>
+<span class="text-[10px] font-data-mono text-slate-500">Unit: Percentile</span>
+</div>
+<div class="flex-grow flex flex-col justify-between py-2">
+<div class="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-error w-[85%]"></div>
+</div>
+<div class="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-cyan-400 w-[60%]"></div>
+</div>
+<div class="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-[40%]"></div>
+</div>
+<div class="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-cyan-400 w-[55%]"></div>
+</div>
+</div>
+</div>
+<!-- Technical Logs -->
+<div class="min-w-[300px] h-full glass-panel p-md rounded-xl science-border overflow-hidden">
+<p class="font-label-caps text-on-surface-variant uppercase mb-sm">System Logs</p>
+<div class="font-data-mono text-[10px] space-y-1 text-slate-500 overflow-y-auto h-full">
+<p><span class="text-tertiary">[OK]</span> Model initialized: WRF-Pollen_v2.0</p>
+<p><span class="text-tertiary">[OK]</span> Satellite data ingestion complete.</p>
+<p><span class="text-cyan-400">[INFO]</span> Forecast grid updated for Beijing-Tianjin-Hebei.</p>
+<p><span class="text-error">[WARN]</span> Anomaly detected in North China Plain region.</p>
+<p><span class="text-slate-400">[WAIT]</span> Pending data stream from GFS-SFC.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-slate-950 border-t border-white/5 py-6 px-margin flex flex-col md:flex-row justify-between items-center gap-gutter text-[10px] tracking-widest uppercase text-slate-500">
+<div class="flex items-center gap-8">
+<span class="text-slate-400 font-bold">China Pollen Forecast System © 2024</span>
+<div class="flex gap-4">
+<a class="hover:text-cyan-400 transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-cyan-400 transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-cyan-400 transition-colors" href="#">Documentation</a>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">support_agent</span> Technical Support: admin@pollen.gov.cn
+            </span>
+<div class="flex items-center gap-2">
+<img class="w-5 h-5 grayscale opacity-50" data-alt="National Meteorological Center Logo stylized icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbu1KnyfIrFiqa_T6K66igD3IizzStx2bnlAEIl4UC04MWGBOW9viaf3eCezRd6ej7wXW89nd7RlTbhIhINtjjxslxGIQYpdUQD0TUEsEjbBbrJcmvDsRvx7Ati5vusHon873CUNnC88pciCE6mrFFg6OXVwXtf2kXu40H8NpSKTiaEBbS3DU5Jk9ggZnj16Mb_zQA_RkkV3Y-5XUv-EZdU7_G2O6V_H4l23AdEwYYWHHGTsceAW7h13x-LtaSB_nQyR9DyClPtWX7"/>
+<span>Joint Development Initiative</span>
+</div>
+</div>
+</footer>
+</body></html>

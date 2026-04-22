@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Forecast Products Management | China Pollen Forecast System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #121414;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0d0e0f;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #424656;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-surface": "#e3e2e2",
+                        "primary-container": "#0066ff",
+                        "tertiary-container": "#00842c",
+                        "on-primary-container": "#f8f7ff",
+                        "surface-tint": "#b3c5ff",
+                        "on-secondary-fixed": "#002022",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed-variant": "#003fa4",
+                        "outline": "#8c90a1",
+                        "on-primary": "#002b75",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed": "#002106",
+                        "inverse-primary": "#0054d6",
+                        "surface-container-high": "#292a2a",
+                        "surface-dim": "#121414",
+                        "on-secondary-container": "#006a70",
+                        "on-primary-fixed": "#001849",
+                        "tertiary": "#50e167",
+                        "background": "#121414",
+                        "surface-bright": "#383939",
+                        "on-secondary-fixed-variant": "#004f54",
+                        "secondary-fixed": "#74f5ff",
+                        "surface": "#121414",
+                        "on-error-container": "#ffdad6",
+                        "surface-container": "#1f2020",
+                        "surface-container-low": "#1b1c1c",
+                        "on-surface-variant": "#c2c6d8",
+                        "inverse-on-surface": "#2f3031",
+                        "surface-variant": "#343535",
+                        "primary-fixed-dim": "#b3c5ff",
+                        "secondary": "#ddfcff",
+                        "surface-container-highest": "#343535",
+                        "primary-fixed": "#dae1ff",
+                        "tertiary-fixed": "#6fff80",
+                        "outline-variant": "#424656",
+                        "on-surface": "#e3e2e2",
+                        "on-tertiary-container": "#e5ffdf",
+                        "on-tertiary": "#00390e",
+                        "on-secondary": "#00363a",
+                        "secondary-fixed-dim": "#00dbe7",
+                        "tertiary-fixed-dim": "#50e167",
+                        "on-background": "#e3e2e2",
+                        "primary": "#b3c5ff",
+                        "surface-container-lowest": "#0d0e0f",
+                        "secondary-container": "#00f1fe",
+                        "on-tertiary-fixed-variant": "#005319",
+                        "on-error": "#690005"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "lg": "24px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "xs": "4px",
+                        "gutter": "16px",
+                        "margin": "24px",
+                        "sm": "8px",
+                        "unit": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-xl": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "data-mono": ["Space Grotesk"],
+                        "label-caps": ["Space Grotesk"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "data-mono": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md overflow-hidden">
+<!-- TopNavBar Shell -->
+<header class="fixed top-0 w-full h-14 flex justify-between items-center px-6 z-50 bg-slate-950/95 backdrop-blur-md border-b border-white/10 font-inter tracking-tight antialiased text-sm">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black tracking-tighter text-white uppercase">China Pollen Forecast System</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition-colors" href="#">Global Overview</a>
+<a class="text-cyan-400 border-b-2 border-cyan-400 pb-1" href="#">Products Management</a>
+<a class="text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition-colors" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 scale-75" data-icon="search">search</span>
+<input class="bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 w-64" placeholder="Search archive..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-400 hover:text-white transition-colors"><span class="material-symbols-outlined" data-icon="notifications">notifications</span></button>
+<button class="p-2 text-slate-400 hover:text-white transition-colors"><span class="material-symbols-outlined" data-icon="account_circle">account_circle</span></button>
+<div class="h-6 w-px bg-white/10 mx-2"></div>
+<button class="bg-primary-container text-on-primary-container px-4 py-1.5 rounded-lg font-bold text-xs hover:opacity-90 active:scale-95 transition-all">Console</button>
+</div>
+</div>
+</header>
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-14 h-[calc(100vh-3.5rem)] flex flex-col py-4 z-40 bg-slate-950 w-64 border-r border-white/10 font-inter text-xs uppercase tracking-widest font-semibold">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center border border-blue-500/30">
+<span class="material-symbols-outlined text-blue-400 scale-75" data-icon="terminal">terminal</span>
+</div>
+<div>
+<p class="text-white font-bold tracking-normal text-sm">Telemetry Admin</p>
+<p class="text-slate-500 lowercase tracking-normal text-[10px]">Node: Beijing-01</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-3 space-y-1">
+<a class="flex items-center gap-4 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined scale-90" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-4 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined scale-90" data-icon="satellite_alt">satellite_alt</span>
+<span>Live Monitoring</span>
+</a>
+<a class="flex items-center gap-4 px-3 py-2.5 rounded-lg bg-blue-600/10 text-cyan-400 border-r-2 border-cyan-400" href="#">
+<span class="material-symbols-outlined scale-90" data-icon="analytics">analytics</span>
+<span>Forecast Models</span>
+</a>
+<a class="flex items-center gap-4 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined scale-90" data-icon="account_tree">account_tree</span>
+<span>Workflow DAG</span>
+</a>
+<a class="flex items-center gap-4 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined scale-90" data-icon="storage">storage</span>
+<span>Data Records</span>
+</a>
+<a class="flex items-center gap-4 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined scale-90" data-icon="settings_input_component">settings_input_component</span>
+<span>System Config</span>
+</a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full py-3 bg-white/5 border border-white/10 text-white rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="add_box">add_box</span>
+                New Simulation
+            </button>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 mt-14 p-6 overflow-y-auto h-[calc(100vh-3.5rem)]">
+<!-- Header & Action Bar -->
+<div class="flex flex-col gap-6 mb-8">
+<div class="flex justify-between items-end">
+<div>
+<h1 class="font-headline-xl text-headline-xl text-on-background mb-1">Forecast Products</h1>
+<p class="text-on-surface-variant font-body-md">Scientific archive of generated pollen dispersal simulations and regional plots.</p>
+</div>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg">
+<span class="material-symbols-outlined scale-75" data-icon="cloud_download">cloud_download</span>
+<span class="font-label-caps text-label-caps">Bulk Export</span>
+</button>
+<button class="flex items-center gap-2 bg-primary-container px-4 py-2 hover:bg-primary-container/80 transition-colors rounded-lg">
+<span class="material-symbols-outlined scale-75" data-icon="refresh">refresh</span>
+<span class="font-label-caps text-label-caps">Regenerate Batch</span>
+</button>
+</div>
+</div>
+<!-- Filters Grid -->
+<div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-gutter p-4 bg-surface-container-low border border-white/5 rounded-xl">
+<div class="flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant">Release Date</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500 scale-75" data-icon="calendar_today">calendar_today</span>
+<input class="w-full bg-surface-container border border-outline-variant rounded-lg py-2 pl-10 pr-3 text-xs focus:ring-1 focus:ring-cyan-500/50 outline-none text-white" type="date"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant">Target Region</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500 scale-75" data-icon="location_on">location_on</span>
+<select class="w-full bg-surface-container border border-outline-variant rounded-lg py-2 pl-10 pr-3 text-xs focus:ring-1 focus:ring-cyan-500/50 outline-none text-white appearance-none">
+<option>All Regions</option>
+<option>North China Plain</option>
+<option>Yangtze River Basin</option>
+<option>Tibetan Plateau</option>
+</select>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant">Pollen Type</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500 scale-75" data-icon="science">science</span>
+<select class="w-full bg-surface-container border border-outline-variant rounded-lg py-2 pl-10 pr-3 text-xs focus:ring-1 focus:ring-cyan-500/50 outline-none text-white appearance-none">
+<option>All Types</option>
+<option>Artemisia (Mugwort)</option>
+<option>Ambrosia (Ragweed)</option>
+<option>Pinus (Pine)</option>
+</select>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant">Source Node</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500 scale-75" data-icon="hub">hub</span>
+<select class="w-full bg-surface-container border border-outline-variant rounded-lg py-2 pl-10 pr-3 text-xs focus:ring-1 focus:ring-cyan-500/50 outline-none text-white appearance-none">
+<option>Any Workflow</option>
+<option>WRF-Chem V4.2</option>
+<option>HYSPLIT-Batch</option>
+</select>
+</div>
+</div>
+<div class="flex items-end">
+<button class="w-full bg-surface-container-highest border border-cyan-500/20 text-cyan-400 font-label-caps text-label-caps py-2.5 rounded-lg hover:bg-cyan-500/10 transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(0,255,255,0.05)]">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span>
+                        Apply Parameters
+                    </button>
+</div>
+</div>
+</div>
+<!-- Hybrid List/Card View -->
+<div class="space-y-4">
+<!-- Table Header (List Context) -->
+<div class="grid grid-cols-12 gap-gutter px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-2">
+<div class="col-span-5">Product Identity &amp; Preview</div>
+<div class="col-span-2">Release Time</div>
+<div class="col-span-2">Workflow &amp; Node</div>
+<div class="col-span-1 text-center">Status</div>
+<div class="col-span-2 text-right">Operational Actions</div>
+</div>
+<!-- List Item 1 -->
+<div class="grid grid-cols-12 gap-gutter bg-surface-container-low border border-white/5 p-3 rounded-xl items-center hover:bg-surface-container transition-all group">
+<div class="col-span-5 flex items-center gap-4">
+<div class="w-20 h-14 rounded-lg bg-surface-container-highest overflow-hidden border border-white/10">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" data-alt="a detailed topographic weather map showing heat intensity color gradients over a coastal region with meteorological symbols" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAivCD0swruYMOorGBWD0MOcorR9-p7FZ3T01PTNdOoG9Y8PBBOOUqOqrr0_8jCMRBe5KNKeSrMAZ-npbycoHUzjzQU2uimprxDW-TifO9g2hUX_ALhbTo-qlYF_rn3Xj-ZbqlDTg_NpjtHYhLuCB-p3DYiomTv7Xob4dBizB1i75r4pqqGoZCVYLhDXqE_6_EO6909j87Ly_JKhr8uB4CoI3Jeto4vqTf9W3Xhqp0TW1dJL-0F3GABDYoJVmoG4nI8-RvfhJ2DE8Bx"/>
+</div>
+<div>
+<h3 class="font-data-mono text-data-mono text-white">NORTH_CHINA_PLN_ARTEMISIA_24H</h3>
+<div class="flex gap-2 mt-1">
+<span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase">Map (GeoJSON)</span>
+<span class="px-2 py-0.5 rounded text-[10px] bg-white/5 text-slate-400 border border-white/10 uppercase">High Res</span>
+</div>
+</div>
+</div>
+<div class="col-span-2">
+<p class="font-data-mono text-white text-xs">2023-10-24 08:00:00</p>
+<p class="text-[10px] text-on-surface-variant font-label-caps">UTC +8:00</p>
+</div>
+<div class="col-span-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px] text-tertiary" data-icon="memory">memory</span>
+<p class="font-data-mono text-on-surface-variant text-xs">WRF-CHEM-NCP-01</p>
+</div>
+<p class="text-[10px] text-on-surface-variant font-label-caps ml-5">V4.2 STABLE</p>
+</div>
+<div class="col-span-1 flex justify-center">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded bg-tertiary/10 border border-tertiary/20">
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></div>
+<span class="text-[10px] text-tertiary font-bold uppercase">Ready</span>
+</div>
+</div>
+<div class="col-span-2 flex justify-end items-center gap-3">
+<div class="flex items-center gap-2 mr-4">
+<span class="text-[10px] text-on-surface-variant font-label-caps">Live</span>
+<button class="w-8 h-4 rounded-full bg-tertiary/40 relative">
+<div class="absolute right-0.5 top-0.5 w-3 h-3 bg-tertiary rounded-full"></div>
+</button>
+</div>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="visibility">visibility</span>
+</button>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-error/50 hover:text-error transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<!-- List Item 2 -->
+<div class="grid grid-cols-12 gap-gutter bg-surface-container-low border border-white/5 p-3 rounded-xl items-center hover:bg-surface-container transition-all group">
+<div class="col-span-5 flex items-center gap-4">
+<div class="w-20 h-14 rounded-lg bg-surface-container-highest overflow-hidden border border-white/10">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" data-alt="high contrast digital data chart showing multiple fluctuating line graphs in neon colors against a dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBEVxPJ4iQBugWbj5C4Fgsm0NaKwrCplB4vFR8Qt4i1mUbDCcgV8COi54wg4-oCvQs6y3fmjji841EKHhYFOK9z0Ag7ktX8UpO-Bs9ZIHCHv6VlGJp-ZoNs_Q-MMn6q0gaR3Fw_7iHZomQeNyM2xJ91FWwmicaNVxSTWMWAwNYNj_Gb5m-ph6tsMNTS21-_7lWk_ixOI35uWJuiXSqtq2tWFh58cQMqmmRTQROYE7EYm6bn4xWI0gjR48PWGKzdVJzCldf0CT1V7sU"/>
+</div>
+<div>
+<h3 class="font-data-mono text-data-mono text-white">YANGTZE_RV_CONC_PINUS_48H</h3>
+<div class="flex gap-2 mt-1">
+<span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase">Chart (PDF)</span>
+<span class="px-2 py-0.5 rounded text-[10px] bg-white/5 text-slate-400 border border-white/10 uppercase">Standard</span>
+</div>
+</div>
+</div>
+<div class="col-span-2">
+<p class="font-data-mono text-white text-xs">2023-10-24 07:15:22</p>
+<p class="text-[10px] text-on-surface-variant font-label-caps">UTC +8:00</p>
+</div>
+<div class="col-span-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant" data-icon="account_tree">account_tree</span>
+<p class="font-data-mono text-on-surface-variant text-xs">HYSPLIT-YANGTZE-B</p>
+</div>
+<p class="text-[10px] text-on-surface-variant font-label-caps ml-5">BATCH PROCESSOR</p>
+</div>
+<div class="col-span-1 flex justify-center">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded bg-secondary-container/10 border border-secondary-container/20">
+<span class="text-[10px] text-secondary-container font-bold uppercase">Archived</span>
+</div>
+</div>
+<div class="col-span-2 flex justify-end items-center gap-3">
+<div class="flex items-center gap-2 mr-4">
+<span class="text-[10px] text-on-surface-variant font-label-caps">Live</span>
+<button class="w-8 h-4 rounded-full bg-slate-700 relative">
+<div class="absolute left-0.5 top-0.5 w-3 h-3 bg-slate-500 rounded-full"></div>
+</button>
+</div>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="visibility">visibility</span>
+</button>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-error/50 hover:text-error transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<!-- List Item 3 (Warning State) -->
+<div class="grid grid-cols-12 gap-gutter bg-surface-container-low border border-white/5 p-3 rounded-xl items-center hover:bg-surface-container transition-all group">
+<div class="col-span-5 flex items-center gap-4">
+<div class="w-20 h-14 rounded-lg bg-surface-container-highest overflow-hidden border border-white/10 relative">
+<div class="absolute inset-0 bg-error/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-error" data-icon="error">error</span>
+</div>
+</div>
+<div>
+<h3 class="font-data-mono text-data-mono text-white">TIBET_PLAT_DUST_MIX_72H</h3>
+<div class="flex gap-2 mt-1">
+<span class="px-2 py-0.5 rounded text-[10px] bg-error-container/20 text-error border border-error/20 uppercase">FAILED</span>
+</div>
+</div>
+</div>
+<div class="col-span-2">
+<p class="font-data-mono text-white text-xs">2023-10-24 06:44:10</p>
+<p class="text-[10px] text-on-surface-variant font-label-caps">UTC +8:00</p>
+</div>
+<div class="col-span-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px] text-error" data-icon="warning">warning</span>
+<p class="font-data-mono text-on-surface-variant text-xs">CMA-GLOBAL-09</p>
+</div>
+<p class="text-[10px] text-error font-label-caps ml-5">TIMEOUT EXCEPTION</p>
+</div>
+<div class="col-span-1 flex justify-center">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded bg-error-container/10 border border-error/20">
+<span class="text-[10px] text-error font-bold uppercase">Error</span>
+</div>
+</div>
+<div class="col-span-2 flex justify-end items-center gap-3">
+<div class="flex items-center gap-2 mr-4">
+<span class="text-[10px] text-on-surface-variant font-label-caps">Live</span>
+<button class="w-8 h-4 rounded-full bg-slate-700 relative disabled opacity-50 cursor-not-allowed">
+<div class="absolute left-0.5 top-0.5 w-3 h-3 bg-slate-500 rounded-full"></div>
+</button>
+</div>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="history">history</span>
+</button>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-error/50 hover:text-error transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<!-- List Item 4 -->
+<div class="grid grid-cols-12 gap-gutter bg-surface-container-low border border-white/5 p-3 rounded-xl items-center hover:bg-surface-container transition-all group">
+<div class="col-span-5 flex items-center gap-4">
+<div class="w-20 h-14 rounded-lg bg-surface-container-highest overflow-hidden border border-white/10">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" data-alt="stylized weather map of east asia with colorful pressure patterns and wind velocity vectors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9pTLXBJxhI0ZZXqZPwF4tKTWFQwGQ8_kKMfEEad2Nr-hmZcrHmHJ4mtCPH5PaLOltibMBNv_LbIZuP1L_9plck_b2CEQiL6cqCL52Bbcg_ZG4uZ7fA2rH25VW9HfLLtgc5PdMkYkk6NCl18MphaWdLUWA8z69gW0Zq3OSNnCRemEDoN32KGlnoHhVM2qSjFDpI5qm_bqCauE7PiM5bxYuDcb93PsG1q7aQTpXoPei7kinBCgkLY1lJjMgvHqIRQwiFc9rDVaKZMkz"/>
+</div>
+<div>
+<h3 class="font-data-mono text-data-mono text-white">S_CHINA_TROPIC_POLLEN_24H</h3>
+<div class="flex gap-2 mt-1">
+<span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase">Map (GeoTIFF)</span>
+<span class="px-2 py-0.5 rounded text-[10px] bg-white/5 text-slate-400 border border-white/10 uppercase">High Res</span>
+</div>
+</div>
+</div>
+<div class="col-span-2">
+<p class="font-data-mono text-white text-xs">2023-10-24 05:22:18</p>
+<p class="text-[10px] text-on-surface-variant font-label-caps">UTC +8:00</p>
+</div>
+<div class="col-span-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px] text-tertiary" data-icon="memory">memory</span>
+<p class="font-data-mono text-on-surface-variant text-xs">WRF-CHEM-SC-14</p>
+</div>
+<p class="text-[10px] text-on-surface-variant font-label-caps ml-5">V4.2 STABLE</p>
+</div>
+<div class="col-span-1 flex justify-center">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded bg-tertiary/10 border border-tertiary/20">
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div>
+<span class="text-[10px] text-tertiary font-bold uppercase">Ready</span>
+</div>
+</div>
+<div class="col-span-2 flex justify-end items-center gap-3">
+<div class="flex items-center gap-2 mr-4">
+<span class="text-[10px] text-on-surface-variant font-label-caps">Live</span>
+<button class="w-8 h-4 rounded-full bg-tertiary/40 relative">
+<div class="absolute right-0.5 top-0.5 w-3 h-3 bg-tertiary rounded-full"></div>
+</button>
+</div>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="visibility">visibility</span>
+</button>
+<button class="p-2 bg-surface-container-high border border-outline-variant hover:border-error/50 hover:text-error transition-all rounded-lg">
+<span class="material-symbols-outlined scale-90" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Pagination / Status Footer -->
+<div class="mt-8 flex justify-between items-center text-[11px] font-label-caps text-on-surface-variant border-t border-white/5 pt-4">
+<div class="flex gap-4">
+<span>Total Items: 12,842</span>
+<span class="text-tertiary">Operational: 12,831</span>
+<span class="text-error">Errors: 11</span>
+</div>
+<div class="flex items-center gap-4">
+<span>Page 1 of 642</span>
+<div class="flex gap-1">
+<button class="p-1.5 bg-surface-container-high border border-outline-variant rounded hover:bg-surface-variant"><span class="material-symbols-outlined text-[14px]" data-icon="chevron_left">chevron_left</span></button>
+<button class="px-2 bg-primary-container text-white rounded">1</button>
+<button class="px-2 bg-surface-container-high border border-outline-variant rounded hover:bg-surface-variant">2</button>
+<button class="px-2 bg-surface-container-high border border-outline-variant rounded hover:bg-surface-variant">3</button>
+<span class="px-2">...</span>
+<button class="p-1.5 bg-surface-container-high border border-outline-variant rounded hover:bg-surface-variant"><span class="material-symbols-outlined text-[14px]" data-icon="chevron_right">chevron_right</span></button>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB Suppression: Not rendered as this is a Management/List view -->
+</body></html>
