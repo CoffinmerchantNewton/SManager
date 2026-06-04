@@ -136,6 +136,20 @@ class ForecastRunNode(Base):
     message = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+class ForecastRunEvent(Base):
+    __tablename__ = "forecast_run_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_key = Column(String, unique=True, index=True)
+    run_id = Column(String, index=True)
+    node_name = Column(String, index=True, nullable=True)
+    event_type = Column(String, index=True)
+    level = Column(String, index=True)
+    message = Column(Text)
+    payload_json = Column(Text, nullable=True)
+    created_at = Column(String, index=True)
+    synced_at = Column(DateTime(timezone=True), server_default=func.now())
+
 class FnlFileRecord(Base):
     __tablename__ = "fnl_file_records"
 

@@ -13,6 +13,7 @@ from ..schemas.run_control import (
     RunPlanRequest,
     RunSubmitRequest,
 )
+from ..services.events import RunEventService
 from ..services.flow import ServerFlowService
 from ..services.products import ProductSyncService
 
@@ -80,6 +81,30 @@ def get_run_logs(
     tail: int = Query(default=200, ge=1, le=5000),
 ):
     return LogsResponse(run_id=run_id, node=node, logs=service().logs(run_id, node=node, tail=tail))
+
+
+@router.get("/{run_id}/events", response_model=FlowResponse)
+def get_run_events(
+    run_id: str,
+    node: str | None = None,
+    level: str | None = None,
+    event_type: str | None = None,
+    limit: int = Query(default=200, ge=1, le=5000),
+    sync: bool = True,
+    db: Session = Depends(get_db),
+):
+    events = RunEventService(db)
+    sync_result = None
+    if sync:
+        sync_result = events.sync(run_id, tail=limit, node=node, level=level, event_type=event_type)
+    return FlowResponse(
+        ok=bool(sync_result.get("ok", True)) if sync_result else True,
+        data={
+            "run_id": run_id,
+            "events": events.list_events(run_id, limit=limit, node=node, level=level, event_type=event_type),
+            "sync": sync_result,
+        },
+    )
 
 
 @router.get("/{run_id}/diagnose", response_model=FlowResponse)

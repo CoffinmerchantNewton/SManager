@@ -63,6 +63,7 @@ python3 packages/cli/smanager.py submit --run-id <run_id>
 
 ```bash
 python3 packages/cli/smanager.py status --run-id <run_id>
+python3 packages/cli/smanager.py events --run-id <run_id> --limit 100
 python3 packages/cli/smanager.py logs --run-id <run_id> --node <node_name> --tail 200
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 ```
@@ -96,6 +97,7 @@ python3 packages/cli/smanager.py agent-tick \
 ```bash
 python3 packages/cli/smanager.py doctor
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
+python3 packages/cli/smanager.py events --run-id <run_id> --level error --limit 50
 ```
 
 - 查看 FNL 数据库覆盖情况：
@@ -124,6 +126,12 @@ python3 packages/cli/smanager.py product-download --product-id <product_id>
 
 ```bash
 python3 packages/cli/smanager.py logs --run-id <run_id> --tail 300
+```
+
+- 查看已同步到跳板机数据库的事件历史：
+
+```bash
+python3 packages/cli/smanager.py events --run-id <run_id> --no-sync --limit 200
 ```
 
 ## 受控修改

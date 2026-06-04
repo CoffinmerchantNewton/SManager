@@ -115,6 +115,16 @@ def cmd_logs(args) -> int:
     return 0
 
 
+def cmd_events(args) -> int:
+    query = {"limit": str(args.limit), "sync": "false" if args.no_sync else "true"}
+    for key in ("node", "level", "event_type"):
+        value = getattr(args, key)
+        if value:
+            query[key] = value
+    url = api_url(args, f"/runs/{args.run_id}/events") + "?" + urllib.parse.urlencode(query)
+    return print_result(request_json("GET", url))
+
+
 def cmd_diagnose(args) -> int:
     return print_result(request_json("GET", api_url(args, f"/runs/{args.run_id}/diagnose")))
 
@@ -236,6 +246,15 @@ def build_parser() -> argparse.ArgumentParser:
     logs.add_argument("--node")
     logs.add_argument("--tail", type=int, default=200)
     logs.set_defaults(func=cmd_logs)
+
+    events = sub.add_parser("events")
+    events.add_argument("--run-id", required=True)
+    events.add_argument("--node")
+    events.add_argument("--level")
+    events.add_argument("--event-type")
+    events.add_argument("--limit", type=int, default=200)
+    events.add_argument("--no-sync", action="store_true")
+    events.set_defaults(func=cmd_events)
 
     diagnose = sub.add_parser("diagnose")
     diagnose.add_argument("--run-id", required=True)

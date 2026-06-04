@@ -29,3 +29,15 @@ def append_jsonl(path: Path, data: Any) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(data, ensure_ascii=False, sort_keys=True))
         handle.write("\n")
+
+
+def read_jsonl(path: Path, default: Any = None) -> list[Any]:
+    if not path.exists():
+        return default if default is not None else []
+    items = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            text = line.strip()
+            if text:
+                items.append(json.loads(text))
+    return items

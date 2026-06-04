@@ -74,6 +74,23 @@ class ServerFlowService:
         result = self._run_flow(args, check=False)
         return result.stdout
 
+    def events(
+        self,
+        run_id: str,
+        tail: int = 200,
+        node: str | None = None,
+        level: str | None = None,
+        event_type: str | None = None,
+    ) -> dict[str, Any]:
+        args = ["events", "--run-id", run_id, "--tail", str(tail)]
+        if node:
+            args.extend(["--node", node])
+        if level:
+            args.extend(["--level", level])
+        if event_type:
+            args.extend(["--event-type", event_type])
+        return self._flow_json(args, check=False)
+
     def diagnose(self, run_id: str) -> dict[str, Any]:
         return self._flow_json(["diagnose", "--run-id", run_id], check=False)
 

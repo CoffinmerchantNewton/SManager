@@ -14,7 +14,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.diagnostics import diagnose as diagnose_run
 from lib.fnl import scan_fnl
-from lib.jsonio import read_json, write_json_atomic
+from lib.jsonio import read_json, read_jsonl, write_json_atomic
 from lib.paths import FlowPaths
 from lib.slurm import cancel_job, node_script, sbatch_available, scancel_available, submit_sbatch
 from lib.state import (
@@ -296,6 +296,20 @@ def cmd_logs(args) -> int:
     return 0
 
 
+def cmd_events(args) -> int:
+    events = read_jsonl(paths().events(args.run_id), default=[])
+    if args.node:
+        events = [event for event in events if event.get("node") == args.node]
+    if args.level:
+        events = [event for event in events if event.get("level") == args.level]
+    if args.event_type:
+        events = [event for event in events if event.get("event_type") == args.event_type]
+    if args.tail:
+        events = events[-args.tail :]
+    print_json({"ok": True, "run_id": args.run_id, "count": len(events), "events": events})
+    return 0
+
+
 def print_tail(path: Path, lines: int) -> None:
     text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     for line in text[-lines:]:
@@ -470,6 +484,14 @@ def build_parser() -> argparse.ArgumentParser:
     logs.add_argument("--node")
     logs.add_argument("--tail", type=int, default=200)
     logs.set_defaults(func=cmd_logs)
+
+    events = sub.add_parser("events")
+    events.add_argument("--run-id", required=True)
+    events.add_argument("--node")
+    events.add_argument("--level")
+    events.add_argument("--event-type")
+    events.add_argument("--tail", type=int, default=200)
+    events.set_defaults(func=cmd_events)
 
     diagnose = sub.add_parser("diagnose")
     diagnose.add_argument("--run-id", required=True)
