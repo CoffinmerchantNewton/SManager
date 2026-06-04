@@ -5,6 +5,7 @@ from .models.models import (
     WorkflowStatus, TaskStatus, ProductStatus
 )
 from datetime import datetime, timedelta
+import json
 
 def init_db():
     Base.metadata.create_all(bind=engine)
@@ -113,7 +114,18 @@ def init_db():
                     status=TaskStatus.ACTIVE,
                     cron_expression="0 4 * * *",
                     region="East China Grid",
-                    template="High_Res_Atmos",
+                    template=json.dumps(
+                        {
+                            "period": "spring",
+                            "domain": "neimeng",
+                            "variant": "official",
+                            "met_provider": "FNL",
+                            "cycle_hour": 0,
+                            "forecast_days": 7,
+                            "dry_run_submit": True,
+                        },
+                        ensure_ascii=False,
+                    ),
                     last_run=datetime.now() - timedelta(hours=2),
                     last_result="Success",
                     last_duration=1.2,

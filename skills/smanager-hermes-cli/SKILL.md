@@ -92,6 +92,14 @@ python3 packages/cli/smanager.py agent-tick \
   --dry-run-submit
 ```
 
+已有调度任务可以通过统一 CLI 查看和触发。默认 `task-run` 使用 dry-run submit，只有 dry-run 结果可接受后才加 `--real-submit`：
+
+```bash
+python3 packages/cli/smanager.py tasks --limit 20
+python3 packages/cli/smanager.py task-run --task-id <task_id>
+python3 packages/cli/smanager.py task-run --task-id <task_id> --real-submit
+```
+
 只有 dry-run 输出可接受后，才使用 `--real-submit`。
 
 ## 查看命令

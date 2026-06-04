@@ -34,6 +34,21 @@ python3 packages/cli/smanager.py agent-tick \
   --real-submit
 ```
 
+## Scheduled Task
+
+查看已配置任务，并手动触发一次 dry-run：
+
+```bash
+python3 packages/cli/smanager.py tasks --limit 20
+python3 packages/cli/smanager.py task-run --task-id <task_id>
+```
+
+确认 dry-run 无误后，才允许真实提交：
+
+```bash
+python3 packages/cli/smanager.py task-run --task-id <task_id> --real-submit
+```
+
 ## Monitor
 
 ```bash

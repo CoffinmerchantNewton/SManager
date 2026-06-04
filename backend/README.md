@@ -53,6 +53,7 @@ Interactive API documentation is available at:
 - `GET /api/v1/tasks/{id}` - Get task details
 - `POST /api/v1/tasks` - Create new task
 - `PATCH /api/v1/tasks/{id}/status` - Update task status
+- `POST /api/v1/tasks/{id}/run` - Trigger one scheduled task tick
 - `DELETE /api/v1/tasks/{id}` - Delete task
 
 ### Products

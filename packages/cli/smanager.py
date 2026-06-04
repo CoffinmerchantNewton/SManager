@@ -216,7 +216,7 @@ def cmd_agent_tick(args) -> int:
         "variant": args.variant,
         "met_provider": args.met_provider,
         "commands_file": args.commands_file,
-        "repair_fnl": not args.no_repair_fnl,
+        "repair_fnl": False if args.no_repair_fnl else None,
         "dry_run_submit": args.dry_run_submit,
         "allow_noop": args.allow_noop,
     }
@@ -231,6 +231,29 @@ def cmd_agent_actions(args) -> int:
             query[key] = value
     query["limit"] = str(args.limit)
     return print_result(request_json("GET", api_url(args, "/agent/actions") + "?" + urllib.parse.urlencode(query)))
+
+
+def cmd_tasks(args) -> int:
+    query = {"skip": str(args.skip), "limit": str(args.limit)}
+    return print_result(request_json("GET", api_url(args, "/tasks") + "?" + urllib.parse.urlencode(query)))
+
+
+def cmd_task_run(args) -> int:
+    payload = {
+        "run_id": args.run_id,
+        "start": args.start,
+        "end": args.end,
+        "period": args.period,
+        "domain": args.domain,
+        "variant": args.variant,
+        "met_provider": args.met_provider,
+        "commands_file": args.commands_file,
+        "repair_fnl": not args.no_repair_fnl,
+        "dry_run_submit": args.dry_run_submit,
+        "allow_noop": args.allow_noop,
+    }
+    payload = {key: value for key, value in payload.items() if value is not None}
+    return print_result(request_json("POST", api_url(args, f"/tasks/{args.task_id}/run"), payload))
 
 
 def cmd_doctor(args) -> int:
@@ -375,6 +398,27 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument("--status")
     actions.add_argument("--limit", type=int, default=100)
     actions.set_defaults(func=cmd_agent_actions)
+
+    tasks = sub.add_parser("tasks")
+    tasks.add_argument("--skip", type=int, default=0)
+    tasks.add_argument("--limit", type=int, default=100)
+    tasks.set_defaults(func=cmd_tasks)
+
+    task_run = sub.add_parser("task-run")
+    task_run.add_argument("--task-id", type=int, required=True)
+    task_run.add_argument("--run-id")
+    task_run.add_argument("--start")
+    task_run.add_argument("--end")
+    task_run.add_argument("--period", choices=["spring", "summer", "autumn"])
+    task_run.add_argument("--domain")
+    task_run.add_argument("--variant")
+    task_run.add_argument("--met-provider")
+    task_run.add_argument("--commands-file")
+    task_run.add_argument("--dry-run-submit", action="store_true", default=True)
+    task_run.add_argument("--real-submit", dest="dry_run_submit", action="store_false")
+    task_run.add_argument("--allow-noop", action="store_true")
+    task_run.add_argument("--no-repair-fnl", action="store_true")
+    task_run.set_defaults(func=cmd_task_run)
 
     doctor = sub.add_parser("doctor")
     doctor.set_defaults(func=cmd_doctor)

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import Any, Literal, Optional, List
 from ..models.models import WorkflowStatus, TaskStatus, ProductStatus
 
 class WorkflowBase(BaseModel):
@@ -52,6 +52,23 @@ class ScheduledTaskBase(BaseModel):
 
 class ScheduledTaskCreate(ScheduledTaskBase):
     pass
+
+class ScheduledTaskStatusUpdate(BaseModel):
+    status: TaskStatus
+
+class ScheduledTaskRunRequest(BaseModel):
+    run_id: Optional[str] = None
+    start: Optional[str] = None
+    end: Optional[str] = None
+    period: Optional[Literal["spring", "summer", "autumn"]] = None
+    domain: Optional[str] = None
+    variant: Optional[str] = None
+    met_provider: Optional[str] = None
+    commands_file: Optional[str] = None
+    repair_fnl: Optional[bool] = None
+    dry_run_submit: Optional[bool] = None
+    allow_noop: Optional[bool] = None
+    template_overrides: dict[str, Any] = {}
 
 class ScheduledTaskResponse(ScheduledTaskBase):
     id: int

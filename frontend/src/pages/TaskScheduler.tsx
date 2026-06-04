@@ -5,6 +5,8 @@ import type { ScheduledTask } from '../types/index';
 export default function TaskScheduler() {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [runningTaskId, setRunningTaskId] = useState<number | null>(null);
+  const [runResult, setRunResult] = useState<string | null>(null);
 
   useEffect(() => {
     loadTasks();
@@ -28,6 +30,24 @@ export default function TaskScheduler() {
       loadTasks();
     } catch (error) {
       console.error('Failed to update task status:', error);
+    }
+  };
+
+  const runTaskNow = async (taskId: number) => {
+    setRunningTaskId(taskId);
+    setRunResult(null);
+    try {
+      const response = await tasksApi.runNow(taskId, { dry_run_submit: true });
+      const data = response.data;
+      const runId = data.run_id || data.tick?.run_id || 'unknown';
+      setRunResult(`${data.ok ? 'Dry-run tick accepted' : 'Tick failed'} · ${runId}`);
+      await loadTasks();
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      setRunResult(typeof detail === 'string' ? detail : 'Failed to run scheduled task');
+      console.error('Failed to run scheduled task:', error);
+    } finally {
+      setRunningTaskId(null);
     }
   };
 
@@ -65,6 +85,12 @@ export default function TaskScheduler() {
           <span>Create New Schedule</span>
         </button>
       </header>
+
+      {runResult && (
+        <div className="rounded border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm text-cyan-100">
+          {runResult}
+        </div>
+      )}
 
       {/* Stats Bento Grid */}
       <div className="grid grid-cols-4 gap-gutter">
@@ -146,7 +172,7 @@ export default function TaskScheduler() {
                   <td className="px-md py-md text-xs text-on-surface">{task.region}</td>
                   <td className="px-md py-md">
                     <span className="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] border border-white/10 uppercase">
-                      {task.template}
+                      {templateLabel(task.template)}
                     </span>
                   </td>
                   <td className="px-md py-md">
@@ -165,6 +191,14 @@ export default function TaskScheduler() {
                   </td>
                   <td className="px-md py-md text-right">
                     <div className="flex justify-end gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => runTaskNow(task.id)}
+                        disabled={runningTaskId === task.id || task.status !== 'active'}
+                        className="material-symbols-outlined text-slate-400 hover:text-tertiary disabled:opacity-30 disabled:hover:text-slate-400 p-1"
+                        title="Run once with dry-run submit"
+                      >
+                        {runningTaskId === task.id ? 'hourglass_empty' : 'play_circle'}
+                      </button>
                       <button className="material-symbols-outlined text-slate-400 hover:text-white p-1">
                         edit
                       </button>
@@ -184,4 +218,19 @@ export default function TaskScheduler() {
       </section>
     </div>
   );
+}
+
+function templateLabel(template: string) {
+  try {
+    const parsed = JSON.parse(template);
+    if (parsed && typeof parsed === 'object') {
+      const period = parsed.period ?? 'auto';
+      const domain = parsed.domain ?? 'domain';
+      const days = parsed.forecast_days ?? 7;
+      return `${period}/${domain}/${days}d`;
+    }
+  } catch {
+    return template;
+  }
+  return template;
 }

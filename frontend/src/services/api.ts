@@ -22,6 +22,7 @@ export const tasksApi = {
   getById: (id: number) => api.get(`/tasks/${id}`),
   create: (data: any) => api.post('/tasks', data),
   updateStatus: (id: number, status: string) => api.patch(`/tasks/${id}/status`, { status }),
+  runNow: (id: number, data?: any) => api.post(`/tasks/${id}/run`, data ?? {}),
   delete: (id: number) => api.delete(`/tasks/${id}`),
 };
 

@@ -129,6 +129,8 @@ python3 packages/cli/smanager.py events --run-id <run_id> --limit 100
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py diagnose --run-id <run_id> --summary
 python3 packages/cli/smanager.py collect-context --run-id <run_id>
+python3 packages/cli/smanager.py tasks --limit 20
+python3 packages/cli/smanager.py task-run --task-id <task_id>
 python3 packages/cli/smanager.py sync-products --run-id <run_id>
 python3 packages/cli/smanager.py products --run-id <run_id>
 python3 packages/cli/smanager.py product-content --product-id <geojson_or_overlay_metadata_product_id>
