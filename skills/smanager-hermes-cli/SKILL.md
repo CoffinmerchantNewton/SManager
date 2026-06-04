@@ -62,6 +62,8 @@ python3 packages/cli/smanager.py logs --run-id <run_id> --node <node_name> --tai
 
 ```bash
 python3 packages/cli/smanager.py sync-products --run-id <run_id>
+python3 packages/cli/smanager.py products --run-id <run_id>
+python3 packages/cli/smanager.py product-download --product-id <product_id> --output runtime/downloads/product.dat
 ```
 
 ## 单次 Tick
@@ -92,6 +94,13 @@ python3 packages/cli/smanager.py fnl-coverage --status server_ok
 ```bash
 python3 packages/cli/smanager.py agent-actions --run-id <run_id> --limit 50
 python3 packages/cli/smanager.py agent-actions --action-type fnl_repair --status error
+```
+
+- 查看或下载已同步产物：
+
+```bash
+python3 packages/cli/smanager.py products --run-id <run_id> --status ready
+python3 packages/cli/smanager.py product-download --product-id <product_id>
 ```
 
 - 查看服务器节点日志：

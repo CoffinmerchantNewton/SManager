@@ -120,6 +120,8 @@ npm run dev
 
 ### Products
 - `GET /api/v1/products` - 获取预报产品列表
+- `GET /api/v1/products/{id}` - 获取预报产品详情
+- `GET /api/v1/products/{id}/download` - 下载已同步到跳板机的产品文件
 - `PATCH /api/v1/products/{id}/publish` - 切换发布状态
 - `DELETE /api/v1/products/{id}` - 删除产品
 

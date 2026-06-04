@@ -41,6 +41,7 @@ Interactive API documentation is available at:
 ### Products
 - `GET /api/v1/products` - List forecast products (with filters)
 - `GET /api/v1/products/{id}` - Get product details
+- `GET /api/v1/products/{id}/download` - Download synced product file
 - `POST /api/v1/products` - Create new product
 - `PATCH /api/v1/products/{id}/publish` - Toggle publish status
 - `DELETE /api/v1/products/{id}` - Delete product

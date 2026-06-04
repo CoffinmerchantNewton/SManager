@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..core.database import get_db
 from ..models.models import ForecastProduct
-from ..schemas.schemas import ForecastProductCreate, ForecastProductResponse
+from ..schemas.schemas import ForecastProductCreate, ForecastProductPublishRequest, ForecastProductResponse
 
 router = APIRouter()
 
@@ -38,6 +40,16 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
+@router.get("/{product_id}/download")
+def download_product(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(ForecastProduct).filter(ForecastProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    path = Path(product.file_path)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Product file not found")
+    return FileResponse(path, filename=path.name)
+
 @router.post("/", response_model=ForecastProductResponse)
 def create_product(product: ForecastProductCreate, db: Session = Depends(get_db)):
     db_product = ForecastProduct(**product.model_dump())
@@ -47,11 +59,19 @@ def create_product(product: ForecastProductCreate, db: Session = Depends(get_db)
     return db_product
 
 @router.patch("/{product_id}/publish")
-def toggle_publish(product_id: int, is_published: bool, db: Session = Depends(get_db)):
+def toggle_publish(
+    product_id: int,
+    payload: ForecastProductPublishRequest | None = Body(default=None),
+    is_published: bool | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
     product = db.query(ForecastProduct).filter(ForecastProduct.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    product.is_published = is_published
+    next_status = payload.is_published if payload else is_published
+    if next_status is None:
+        raise HTTPException(status_code=400, detail="is_published is required")
+    product.is_published = next_status
     db.commit()
     return {"message": "Product publish status updated"}
 

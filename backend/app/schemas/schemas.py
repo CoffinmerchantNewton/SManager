@@ -80,6 +80,9 @@ class ForecastProductBase(BaseModel):
 class ForecastProductCreate(ForecastProductBase):
     pass
 
+class ForecastProductPublishRequest(BaseModel):
+    is_published: bool
+
 class ForecastProductResponse(ForecastProductBase):
     id: int
     status: ProductStatus

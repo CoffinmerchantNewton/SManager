@@ -7,6 +7,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 
@@ -27,6 +28,18 @@ def request_json(method: str, url: str, payload: dict[str, Any] | None = None) -
         text = exc.read().decode("utf-8", errors="ignore")
         raise SystemExit(f"HTTP {exc.code}: {text}") from exc
     return json.loads(text) if text else {}
+
+
+def download_file(url: str, output: Path) -> None:
+    request = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            data = response.read()
+    except urllib.error.HTTPError as exc:
+        text = exc.read().decode("utf-8", errors="ignore")
+        raise SystemExit(f"HTTP {exc.code}: {text}") from exc
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(data)
 
 
 def print_json(data: Any) -> None:
@@ -100,6 +113,30 @@ def cmd_logs(args) -> int:
 
 def cmd_sync_products(args) -> int:
     print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/sync-products"), {}))
+    return 0
+
+
+def cmd_products(args) -> int:
+    query = {}
+    for key in ("skip", "limit", "region", "pollen_type", "run_id", "status"):
+        value = getattr(args, key)
+        if value is not None:
+            query[key] = value
+    url = api_url(args, "/products")
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    print_json(request_json("GET", url))
+    return 0
+
+
+def cmd_product_download(args) -> int:
+    output = Path(args.output) if args.output else None
+    if output is None:
+        product = request_json("GET", api_url(args, f"/products/{args.product_id}"))
+        file_name = Path(product.get("file_path") or f"product-{args.product_id}").name
+        output = Path(file_name or f"product-{args.product_id}")
+    download_file(api_url(args, f"/products/{args.product_id}/download"), output)
+    print_json({"ok": True, "product_id": args.product_id, "output": str(output)})
     return 0
 
 
@@ -183,6 +220,20 @@ def build_parser() -> argparse.ArgumentParser:
     sync_products = sub.add_parser("sync-products")
     sync_products.add_argument("--run-id", required=True)
     sync_products.set_defaults(func=cmd_sync_products)
+
+    product_list = sub.add_parser("products")
+    product_list.add_argument("--skip", type=int, default=0)
+    product_list.add_argument("--limit", type=int, default=20)
+    product_list.add_argument("--region")
+    product_list.add_argument("--pollen-type", dest="pollen_type")
+    product_list.add_argument("--run-id")
+    product_list.add_argument("--status")
+    product_list.set_defaults(func=cmd_products)
+
+    product_download = sub.add_parser("product-download")
+    product_download.add_argument("--product-id", type=int, required=True)
+    product_download.add_argument("--output")
+    product_download.set_defaults(func=cmd_product_download)
 
     tick = sub.add_parser("agent-tick")
     tick.add_argument("--run-id")
