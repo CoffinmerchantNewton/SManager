@@ -46,6 +46,13 @@ Interactive API documentation is available at:
 - `PATCH /api/v1/products/{id}/publish` - Toggle publish status
 - `DELETE /api/v1/products/{id}` - Delete product
 
+### Run Control
+- `GET /api/v1/runs/{run_id}/status` - Read server workflow status
+- `GET /api/v1/runs/{run_id}/diagnose` - Read server diagnostics
+- `POST /api/v1/runs/{run_id}/retry` - Retry one node
+- `GET /api/v1/runs/{run_id}/logs` - Read run or node logs
+- `POST /api/v1/runs/{run_id}/sync-products` - Sync and index run products
+
 ### Dashboard
 - `GET /api/v1/dashboard/stats` - Get dashboard statistics
 - `GET /api/v1/dashboard/logs` - Get system logs

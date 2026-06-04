@@ -125,6 +125,13 @@ npm run dev
 - `PATCH /api/v1/products/{id}/publish` - 切换发布状态
 - `DELETE /api/v1/products/{id}` - 删除产品
 
+### Run Control
+- `GET /api/v1/runs/{run_id}/status` - 获取服务器运行状态
+- `GET /api/v1/runs/{run_id}/diagnose` - 获取运行诊断建议
+- `POST /api/v1/runs/{run_id}/retry` - 重试指定节点
+- `GET /api/v1/runs/{run_id}/logs` - 获取运行日志
+- `POST /api/v1/runs/{run_id}/sync-products` - 同步并索引运行产物
+
 ### Dashboard
 - `GET /api/v1/dashboard/stats` - 获取仪表板统计
 - `GET /api/v1/dashboard/logs` - 获取系统日志

@@ -56,6 +56,7 @@ python3 packages/cli/smanager.py submit --run-id <run_id>
 ```bash
 python3 packages/cli/smanager.py status --run-id <run_id>
 python3 packages/cli/smanager.py logs --run-id <run_id> --node <node_name> --tail 200
+python3 packages/cli/smanager.py diagnose --run-id <run_id>
 ```
 
 5. 同步完成后的预报产物：
@@ -82,6 +83,12 @@ python3 packages/cli/smanager.py agent-tick \
 
 ## 查看命令
 
+- 查看运行诊断：
+
+```bash
+python3 packages/cli/smanager.py diagnose --run-id <run_id>
+```
+
 - 查看 FNL 数据库覆盖情况：
 
 ```bash
@@ -107,6 +114,20 @@ python3 packages/cli/smanager.py product-download --product-id <product_id>
 
 ```bash
 python3 packages/cli/smanager.py logs --run-id <run_id> --tail 300
+```
+
+## 受控修改
+
+节点重试必须先 dry-run：
+
+```bash
+python3 packages/cli/smanager.py retry-node --run-id <run_id> --node <node_name> --dry-run
+```
+
+只有诊断输出和 dry-run 输出都确认无误后，才允许真实重试：
+
+```bash
+python3 packages/cli/smanager.py retry-node --run-id <run_id> --node <node_name> --real
 ```
 
 ## 读取结果

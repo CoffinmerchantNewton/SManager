@@ -111,6 +111,17 @@ def cmd_logs(args) -> int:
     return 0
 
 
+def cmd_diagnose(args) -> int:
+    print_json(request_json("GET", api_url(args, f"/runs/{args.run_id}/diagnose")))
+    return 0
+
+
+def cmd_retry_node(args) -> int:
+    payload = {"node": args.node, "dry_run": args.dry_run}
+    print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/retry"), payload))
+    return 0
+
+
 def cmd_sync_products(args) -> int:
     print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/sync-products"), {}))
     return 0
@@ -216,6 +227,17 @@ def build_parser() -> argparse.ArgumentParser:
     logs.add_argument("--node")
     logs.add_argument("--tail", type=int, default=200)
     logs.set_defaults(func=cmd_logs)
+
+    diagnose = sub.add_parser("diagnose")
+    diagnose.add_argument("--run-id", required=True)
+    diagnose.set_defaults(func=cmd_diagnose)
+
+    retry = sub.add_parser("retry-node")
+    retry.add_argument("--run-id", required=True)
+    retry.add_argument("--node", required=True)
+    retry.add_argument("--dry-run", action="store_true", default=True)
+    retry.add_argument("--real", dest="dry_run", action="store_false")
+    retry.set_defaults(func=cmd_retry_node)
 
     sync_products = sub.add_parser("sync-products")
     sync_products.add_argument("--run-id", required=True)
