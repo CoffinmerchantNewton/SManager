@@ -36,5 +36,6 @@ class Settings(BaseSettings):
     JUMPBOX_MANIFESTS_DIR: str = "runtime/manifests"
     JUMPBOX_CACHE_DIR: str = "runtime/cache"
     PRODUCT_SYNC_METHOD: str = "rsync"
+    PRODUCT_INLINE_MAX_MB: float = 20.0
 
 settings = Settings()

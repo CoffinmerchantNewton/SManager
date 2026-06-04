@@ -104,6 +104,7 @@ FNL_DOWNLOAD_COMMAND="python3 scripts/fake_fnl_download.py"
 - `GET /api/v1/fnl/coverage`
 - `GET /api/v1/products`
 - `GET /api/v1/products/{product_id}/download`
+- `GET /api/v1/products/{product_id}/content`
 - `POST /api/v1/agent/tick`
 - `GET /api/v1/agent/actions`
 - `GET /api/v1/system/doctor`
@@ -124,6 +125,7 @@ python3 packages/cli/smanager.py events --run-id <run_id> --limit 100
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py sync-products --run-id <run_id>
 python3 packages/cli/smanager.py products --run-id <run_id>
+python3 packages/cli/smanager.py product-content --product-id <geojson_product_id>
 ```
 
 ## 前端状态
@@ -139,7 +141,7 @@ python3 packages/cli/smanager.py products --run-id <run_id>
 2. 后端 `sync-products` 下载并索引这些产品。
 3. 前端根据产品类型加载 GeoJSON/PNG/栅格切片等可视化层。
 
-不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。
+不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。已同步的 `.json/.geojson` 产品可以通过 `/api/v1/products/{product_id}/content` 读取。
 
 ## 验证命令
 

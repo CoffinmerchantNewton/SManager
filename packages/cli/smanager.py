@@ -174,6 +174,18 @@ def cmd_product_download(args) -> int:
     return 0
 
 
+def cmd_product_content(args) -> int:
+    data = request_json("GET", api_url(args, f"/products/{args.product_id}/content"))
+    if args.output:
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print_json({"ok": True, "product_id": args.product_id, "output": str(output)})
+        return 0
+    print_json(data)
+    return 0
+
+
 def cmd_agent_tick(args) -> int:
     payload = {
         "run_id": args.run_id,
@@ -308,6 +320,11 @@ def build_parser() -> argparse.ArgumentParser:
     product_download.add_argument("--product-id", type=int, required=True)
     product_download.add_argument("--output")
     product_download.set_defaults(func=cmd_product_download)
+
+    product_content = sub.add_parser("product-content")
+    product_content.add_argument("--product-id", type=int, required=True)
+    product_content.add_argument("--output")
+    product_content.set_defaults(func=cmd_product_content)
 
     tick = sub.add_parser("agent-tick")
     tick.add_argument("--run-id")

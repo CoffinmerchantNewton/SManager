@@ -76,6 +76,7 @@ python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py sync-products --run-id <run_id>
 python3 packages/cli/smanager.py products --run-id <run_id>
 python3 packages/cli/smanager.py product-download --product-id <product_id> --output runtime/downloads/product.dat
+python3 packages/cli/smanager.py product-content --product-id <geojson_product_id> --output runtime/downloads/product.geojson
 ```
 
 ## 单次 Tick
@@ -124,6 +125,7 @@ python3 packages/cli/smanager.py agent-actions --action-type fnl_repair --status
 ```bash
 python3 packages/cli/smanager.py products --run-id <run_id> --status ready
 python3 packages/cli/smanager.py product-download --product-id <product_id>
+python3 packages/cli/smanager.py product-content --product-id <geojson_product_id>
 ```
 
 - 查看服务器节点日志：

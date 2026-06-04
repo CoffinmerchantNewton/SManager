@@ -30,6 +30,7 @@ export const productsApi = {
   getById: (id: number) => api.get(`/products/${id}`),
   create: (data: any) => api.post('/products', data),
   togglePublish: (id: number, is_published: boolean) => api.patch(`/products/${id}/publish`, { is_published }),
+  content: (id: number) => api.get(`/products/${id}/content`),
   downloadUrl: (id: number) => `${API_BASE_URL}/products/${id}/download`,
   delete: (id: number) => api.delete(`/products/${id}`),
 };

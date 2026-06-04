@@ -576,6 +576,7 @@ POST   /api/v1/fnl/verify
 GET    /api/v1/products
 GET    /api/v1/products/{product_id}
 GET    /api/v1/products/{product_id}/download
+GET    /api/v1/products/{product_id}/content
 
 GET    /api/v1/system/doctor
 GET    /api/v1/system/storage
@@ -840,6 +841,7 @@ wrfout / postprocess nc
 ```
 
 前端不要直接读取服务器路径或原始大 NetCDF；若需要浏览器地图展示，应优先生成 GeoJSON、PNG overlay、GeoTIFF 切片或其他轻量产品。原始 `.nc` 可以作为下载归档产品同步，但不应作为第一版浏览器实时渲染格式。
+已同步的 `.json/.geojson` 轻量产品可通过 `/api/v1/products/{product_id}/content` 返回 JSON 内容，供前端地图层加载。
 
 ## 分阶段实施路线
 
