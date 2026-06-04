@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
-import { productsApi } from '../services/api';
+import { productsApi, runsApi } from '../services/api';
 import type { ForecastProduct } from '../types/index';
 
 export default function ProductsManagement() {
   const [products, setProducts] = useState<ForecastProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [runId, setRunId] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadProducts();
   }, []);
 
-  const loadProducts = async () => {
+  const loadProducts = async (targetRunId = runId) => {
+    const normalizedRunId = targetRunId.trim();
     try {
-      const response = await productsApi.getAll();
+      setLoading(true);
+      setErrorMessage(null);
+      const response = await productsApi.getAll(normalizedRunId ? { run_id: normalizedRunId } : undefined);
       setProducts(response.data);
     } catch (error) {
       console.error('Failed to load products:', error);
+      setErrorMessage('Failed to load products.');
     } finally {
       setLoading(false);
     }
@@ -38,6 +46,29 @@ export default function ProductsManagement() {
       } catch (error) {
         console.error('Failed to delete product:', error);
       }
+    }
+  };
+
+  const syncRunProducts = async () => {
+    const normalizedRunId = runId.trim();
+    if (!normalizedRunId) {
+      setErrorMessage('Enter a run ID before syncing products.');
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      setMessage(null);
+      setErrorMessage(null);
+      const response = await runsApi.syncProducts(normalizedRunId);
+      const indexedCount = response.data?.indexed_count ?? 0;
+      setMessage(`Indexed ${indexedCount} products for ${normalizedRunId}.`);
+      await loadProducts(normalizedRunId);
+    } catch (error) {
+      console.error('Failed to sync products:', error);
+      setErrorMessage('Failed to sync products for this run.');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -72,16 +103,71 @@ export default function ProductsManagement() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg">
+            <button
+              onClick={() => loadProducts()}
+              className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
+            >
               <span className="material-symbols-outlined scale-75">cloud_download</span>
-              <span className="font-label-caps text-label-caps">Bulk Export</span>
+              <span className="font-label-caps text-label-caps">Refresh Index</span>
             </button>
-            <button className="flex items-center gap-2 bg-primary-container px-4 py-2 hover:bg-primary-container/80 transition-colors rounded-lg">
+            <button
+              onClick={syncRunProducts}
+              disabled={syncing || !runId.trim()}
+              className="flex items-center gap-2 bg-primary-container px-4 py-2 hover:bg-primary-container/80 transition-colors rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <span className="material-symbols-outlined scale-75">refresh</span>
-              <span className="font-label-caps text-label-caps">Regenerate Batch</span>
+              <span className="font-label-caps text-label-caps">{syncing ? 'Syncing' : 'Sync Run Products'}</span>
             </button>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-end gap-3 bg-surface-container-low border border-white/5 rounded-xl p-4">
+          <label className="flex-1 min-w-[260px]">
+            <span className="block font-label-caps text-label-caps text-on-surface-variant mb-2 uppercase">
+              Run ID
+            </span>
+            <input
+              value={runId}
+              onChange={(event) => setRunId(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  loadProducts();
+                }
+              }}
+              className="w-full bg-surface-container-high border border-outline-variant rounded-lg px-3 py-2 font-data-mono text-data-mono text-on-surface focus:outline-none focus:border-cyan-500/60"
+              placeholder="2026060400"
+            />
+          </label>
+          <button
+            onClick={() => loadProducts()}
+            className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
+          >
+            <span className="material-symbols-outlined scale-75">filter_alt</span>
+            <span className="font-label-caps text-label-caps">Apply Filter</span>
+          </button>
+          <button
+            onClick={() => {
+              setRunId('');
+              loadProducts('');
+            }}
+            className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
+          >
+            <span className="material-symbols-outlined scale-75">filter_alt_off</span>
+            <span className="font-label-caps text-label-caps">Clear</span>
+          </button>
+        </div>
+
+        {(message || errorMessage) && (
+          <div
+            className={`border rounded-lg px-4 py-3 font-body-md text-body-md ${
+              errorMessage
+                ? 'bg-error-container/10 border-error/30 text-error'
+                : 'bg-tertiary/10 border-tertiary/30 text-tertiary'
+            }`}
+          >
+            {errorMessage || message}
+          </div>
+        )}
       </div>
 
       {/* Hybrid List/Card View */}
