@@ -19,7 +19,7 @@
 - `batch_eval_pollen.sh`：批量评估已有 WRF 输出。
 - `restart_all_runs.sh`：按 restart 文件续跑历史任务。
 
-当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件和本地 storage 快照；`frontend/` 已有运行控制、FNL 管理、产物列表下载、GeoJSON 产品图层加载和主题切换。仍未完成的是把真实 WPS/WRF 节点命令、面向业务变量的高级后处理、等值线/PNG/切片产品和完整真实花粉分布地图渲染串起来。
+当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件、本地 storage 快照和只读诊断上下文；`frontend/` 已有运行控制、FNL 管理、产物列表下载、PNG overlay/GeoJSON 产品图层加载和主题切换。仍未完成的是把真实 WPS/WRF 节点命令、面向业务变量的高级后处理、等值线/GeoTIFF/切片产品和完整真实花粉分布地图渲染串起来。
 
 ## 总体原则
 
@@ -435,6 +435,7 @@ python flow/flowctl.py submit --run-id 2026060400_spring_neimeng_official
 python flow/flowctl.py status --run-id 2026060400_spring_neimeng_official --json
 python flow/flowctl.py logs --run-id 2026060400_spring_neimeng_official --node wrf_run --tail 200
 python flow/flowctl.py diagnose --run-id 2026060400_spring_neimeng_official --json
+python flow/flowctl.py collect-context --run-id 2026060400_spring_neimeng_official
 python flow/flowctl.py retry --run-id 2026060400_spring_neimeng_official --node wrf_run
 python flow/flowctl.py cancel --run-id 2026060400_spring_neimeng_official
 python flow/flowctl.py products --run-id 2026060400_spring_neimeng_official --manifest
@@ -950,7 +951,7 @@ wrfout / postprocess nc
 目标：AI 可以基于 CLI 和状态文件辅助排障。
 
 - 为常见错误建立诊断规则库。
-- 为 AI 提供只读上下文打包命令：`flowctl collect-context`。
+- 为 AI 提供只读上下文打包命令：`flowctl collect-context`，后端 `/runs/{run_id}/context` 和 CLI `collect-context` 统一转发。
 - 为 AI 提供受控动作：`retry-node`、`upload-fnl`、`restart-wrf`。
 - 所有 AI 动作写入 `agent_actions`。
 

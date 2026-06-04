@@ -440,6 +440,58 @@ def cmd_products(args) -> int:
     return 0
 
 
+def cmd_collect_context(args) -> int:
+    flow_paths = paths()
+    run_id = args.run_id
+    tail = max(1, args.tail)
+    event_limit = max(1, args.event_limit)
+    max_logs = max(1, args.max_logs)
+    context = {
+        "ok": True,
+        "run_id": run_id,
+        "generated_at": now_iso(),
+        "flow_root": str(flow_paths.root),
+        "run_dir": str(flow_paths.run_dir(run_id)),
+        "spec": read_json(flow_paths.run_spec(run_id), default={}),
+        "status": load_workflow(flow_paths, run_id),
+        "diagnose": diagnose_run(flow_paths, run_id),
+        "fnl_manifest": read_json(flow_paths.fnl_manifest(run_id), default={}),
+        "product_manifest": read_json(
+            flow_paths.product_manifest(run_id),
+            default={"run_id": run_id, "products": []},
+        ),
+        "events": read_jsonl(flow_paths.events(run_id), default=[])[-event_limit:],
+        "logs": collect_log_tails(flow_paths.logs_dir(run_id), tail=tail, max_logs=max_logs),
+    }
+    print_json(context)
+    return 0
+
+
+def collect_log_tails(log_dir: Path, tail: int, max_logs: int) -> list[dict[str, Any]]:
+    if not log_dir.exists():
+        return []
+    logs = []
+    for path in sorted(log_dir.glob("*")):
+        if not path.is_file():
+            continue
+        logs.append(
+            {
+                "name": path.name,
+                "path": str(path),
+                "size_bytes": path.stat().st_size,
+                "tail": read_tail_lines(path, tail),
+            }
+        )
+        if len(logs) >= max_logs:
+            break
+    return logs
+
+
+def read_tail_lines(path: Path, lines: int) -> list[str]:
+    text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    return text[-lines:]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Offline WRF-Pollen flow controller")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -511,6 +563,13 @@ def build_parser() -> argparse.ArgumentParser:
     products = sub.add_parser("products")
     products.add_argument("--run-id", required=True)
     products.set_defaults(func=cmd_products)
+
+    context = sub.add_parser("collect-context")
+    context.add_argument("--run-id", required=True)
+    context.add_argument("--tail", type=int, default=120)
+    context.add_argument("--event-limit", type=int, default=100)
+    context.add_argument("--max-logs", type=int, default=12)
+    context.set_defaults(func=cmd_collect_context)
     return parser
 
 

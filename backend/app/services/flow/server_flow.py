@@ -109,6 +109,28 @@ class ServerFlowService:
     def products(self, run_id: str) -> dict[str, Any]:
         return self._flow_json(["products", "--run-id", run_id], check=False)
 
+    def collect_context(
+        self,
+        run_id: str,
+        tail: int = 120,
+        event_limit: int = 100,
+        max_logs: int = 12,
+    ) -> dict[str, Any]:
+        return self._flow_json(
+            [
+                "collect-context",
+                "--run-id",
+                run_id,
+                "--tail",
+                str(tail),
+                "--event-limit",
+                str(event_limit),
+                "--max-logs",
+                str(max_logs),
+            ],
+            check=False,
+        )
+
     def _flow_json(self, args: list[str], check: bool = True) -> dict[str, Any]:
         result = self._run_flow(args, check=check)
         payload = self._parse_json(result.stdout)

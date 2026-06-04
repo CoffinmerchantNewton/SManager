@@ -137,6 +137,16 @@ def cmd_diagnose(args) -> int:
     return print_result(request_json("GET", api_url(args, f"/runs/{args.run_id}/diagnose")))
 
 
+def cmd_collect_context(args) -> int:
+    query = {
+        "tail": str(args.tail),
+        "event_limit": str(args.event_limit),
+        "max_logs": str(args.max_logs),
+    }
+    url = api_url(args, f"/runs/{args.run_id}/context") + "?" + urllib.parse.urlencode(query)
+    return print_result(request_json("GET", url))
+
+
 def cmd_retry_node(args) -> int:
     payload = {"node": args.node, "dry_run": args.dry_run}
     return print_result(request_json("POST", api_url(args, f"/runs/{args.run_id}/retry"), payload))
@@ -289,6 +299,13 @@ def build_parser() -> argparse.ArgumentParser:
     diagnose = sub.add_parser("diagnose")
     diagnose.add_argument("--run-id", required=True)
     diagnose.set_defaults(func=cmd_diagnose)
+
+    context = sub.add_parser("collect-context")
+    context.add_argument("--run-id", required=True)
+    context.add_argument("--tail", type=int, default=120)
+    context.add_argument("--event-limit", type=int, default=100)
+    context.add_argument("--max-logs", type=int, default=12)
+    context.set_defaults(func=cmd_collect_context)
 
     retry = sub.add_parser("retry-node")
     retry.add_argument("--run-id", required=True)

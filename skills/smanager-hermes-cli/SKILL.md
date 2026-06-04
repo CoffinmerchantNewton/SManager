@@ -68,6 +68,7 @@ python3 packages/cli/smanager.py status --run-id <run_id>
 python3 packages/cli/smanager.py events --run-id <run_id> --limit 100
 python3 packages/cli/smanager.py logs --run-id <run_id> --node <node_name> --tail 200
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
+python3 packages/cli/smanager.py collect-context --run-id <run_id>
 ```
 
 6. 同步完成后的预报产物：
@@ -102,8 +103,11 @@ python3 packages/cli/smanager.py doctor
 python3 packages/cli/smanager.py storage
 python3 packages/cli/smanager.py runs --status error --limit 20
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
+python3 packages/cli/smanager.py collect-context --run-id <run_id> --tail 120 --event-limit 100 --max-logs 12
 python3 packages/cli/smanager.py events --run-id <run_id> --level error --limit 50
 ```
+
+优先用 `collect-context` 获取一次排障上下文包；它只读返回 run spec、状态、诊断、FNL manifest、产品 manifest、近期事件和日志尾部，适合交给 AI 总结问题。
 
 - 查看 FNL 数据库覆盖情况：
 

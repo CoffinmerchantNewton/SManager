@@ -125,6 +125,17 @@ def diagnose_run(run_id: str):
     return FlowResponse(data=service().diagnose(run_id))
 
 
+@router.get("/{run_id}/context", response_model=FlowResponse)
+def collect_run_context(
+    run_id: str,
+    tail: int = Query(default=120, ge=1, le=5000),
+    event_limit: int = Query(default=100, ge=1, le=5000),
+    max_logs: int = Query(default=12, ge=1, le=100),
+):
+    result = service().collect_context(run_id, tail=tail, event_limit=event_limit, max_logs=max_logs)
+    return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
+
+
 @router.post("/{run_id}/retry", response_model=FlowResponse)
 def retry_run_node(run_id: str, payload: RetryRequest, db: Session = Depends(get_db)):
     flow = service()

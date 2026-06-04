@@ -6,7 +6,7 @@
 - 校验服务器已有 FNL。
 - 维护结构化状态文件。
 - 生成 Slurm 节点脚本并按依赖提交。
-- 暴露 `status/logs/diagnose/retry/cancel/products` CLI。
+- 暴露 `status/logs/diagnose/collect-context/retry/cancel/products` CLI。
 
 ## 基本命令
 
@@ -20,6 +20,7 @@ python3 flowctl.py plan \
 
 python3 flowctl.py fnl-verify --run-id 2026060400_spring_neimeng_official
 python3 flowctl.py status --run-id 2026060400_spring_neimeng_official --json
+python3 flowctl.py collect-context --run-id 2026060400_spring_neimeng_official
 python3 flowctl.py submit --run-id 2026060400_spring_neimeng_official
 python3 flowctl.py cancel --run-id 2026060400_spring_neimeng_official --dry-run
 ```
