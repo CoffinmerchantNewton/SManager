@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import CesiumMap, { type MapProductLayer } from '../components/CesiumMap';
 import { cities as fallbackCities } from '../data/chinaMap';
+import { useThemeMode, type ThemeMode } from '../hooks/useThemeMode';
 import { productsApi } from '../services/api';
 import type { ForecastProduct } from '../types';
 
@@ -24,9 +25,23 @@ const RISK_META: Record<string, { label: string; color: string; bg: string; rank
   unknown: { label: '未知', color: '#8c90a1', bg: 'rgba(140,144,161,0.14)', rank: 0 },
 };
 
+interface ProductBundle {
+  key: string;
+  runId: string;
+  label: string;
+  releaseTime: string;
+  products: ForecastProduct[];
+  cityProduct?: ForecastProduct;
+  overlayMetadataProduct?: ForecastProduct;
+  inlineMapProduct?: ForecastProduct;
+}
+
 export default function Portal() {
+  const { theme, switchTheme } = useThemeMode();
   const [productLayer, setProductLayer] = useState<MapProductLayer | null>(null);
   const [cityForecast, setCityForecast] = useState<CityForecastPayload | null>(null);
+  const [productBundles, setProductBundles] = useState<ProductBundle[]>([]);
+  const [activeBundleKey, setActiveBundleKey] = useState('');
   const [productStatus, setProductStatus] = useState('等待地图产品');
   const [cityStatus, setCityStatus] = useState('等待城市预报产品');
   const [query, setQuery] = useState('');
@@ -37,53 +52,29 @@ export default function Portal() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadLatestProducts = async () => {
+    const loadProductCatalog = async () => {
       setIsLoading(true);
       try {
         const response = await productsApi.getAll({ status: 'ready', limit: 80 });
         const products = response.data as ForecastProduct[];
-
-        const cityProduct = products.find(isCityForecastProduct);
-        if (cityProduct) {
-          const content = await productsApi.content(cityProduct.id);
-          if (!cancelled && isCityForecastPayload(content.data)) {
-            const payload = content.data;
-            setCityForecast(payload);
-            setCityStatus(`城市预报: ${cityProduct.product_name}`);
-            const firstCity = payload.cities[0];
-            if (firstCity) {
-              setSelectedCityName((current) =>
-                payload.cities.some((city) => city.name === current) ? current : firstCity.name,
-              );
-            }
-          }
-        } else if (!cancelled) {
-          setCityStatus('未索引 city_forecast_json，使用示例城市点');
-        }
-
-        const overlayMetadata = products.find(isOverlayMetadataProduct);
-        if (overlayMetadata) {
-          const content = await productsApi.content(overlayMetadata.id);
-          const overlayLayer = buildOverlayLayer(overlayMetadata, content.data, products);
-          if (cancelled) return;
-          if (overlayLayer) {
-            setProductLayer(overlayLayer);
-            setProductStatus(`浓度底图: ${overlayLayer.name}`);
-            return;
-          }
-        }
-
-        const product = products.find(isInlineMapProduct);
-        if (!product) {
-          if (!cancelled) {
-            setProductStatus('未索引可渲染地图产品');
-          }
+        const bundles = buildProductBundles(products);
+        if (cancelled) {
           return;
         }
-        const content = await productsApi.content(product.id);
-        if (cancelled) return;
-        setProductLayer({ kind: 'geojson', name: product.product_name, geojson: content.data });
-        setProductStatus(`采样图层: ${product.product_name}`);
+        setProductBundles(bundles);
+        setActiveBundleKey((current) => {
+          if (bundles.some((bundle) => bundle.key === current)) {
+            return current;
+          }
+          return bundles[0]?.key ?? '';
+        });
+        if (bundles.length === 0) {
+          setProductLayer(null);
+          setCityForecast(null);
+          setProductStatus('未索引可渲染地图产品');
+          setCityStatus('未索引 city_forecast_json，使用示例城市点');
+          return;
+        }
       } catch (error) {
         console.warn('Latest pollen products are unavailable:', error);
         if (!cancelled) {
@@ -97,13 +88,92 @@ export default function Portal() {
       }
     };
 
-    void loadLatestProducts();
+    void loadProductCatalog();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const forecastCities = cityForecast?.cities ?? [];
+  const activeBundle = useMemo(
+    () => productBundles.find((bundle) => bundle.key === activeBundleKey) ?? productBundles[0],
+    [activeBundleKey, productBundles],
+  );
+
+  useEffect(() => {
+    if (!activeBundle) {
+      return;
+    }
+    let cancelled = false;
+
+    const loadBundleProducts = async () => {
+      setIsLoading(true);
+      setProductLayer(null);
+      setCityForecast(null);
+      setSelectedDayIndex(0);
+      try {
+        if (activeBundle.cityProduct) {
+          const content = await productsApi.content(activeBundle.cityProduct.id);
+          if (!cancelled && isCityForecastPayload(content.data)) {
+            const payload = content.data;
+            setCityForecast(payload);
+            setCityStatus(`城市预报: ${activeBundle.label}`);
+            const firstCity = payload.cities[0];
+            if (firstCity) {
+              setSelectedCityName((current) =>
+                payload.cities.some((city) => city.name === current) ? current : firstCity.name,
+              );
+            }
+          }
+        } else if (!cancelled) {
+          setCityStatus('当前产品包无 city_forecast_json，使用示例城市点');
+        }
+
+        if (activeBundle.overlayMetadataProduct) {
+          const content = await productsApi.content(activeBundle.overlayMetadataProduct.id);
+          const overlayLayer = buildOverlayLayer(activeBundle.overlayMetadataProduct, content.data, activeBundle.products);
+          if (cancelled) {
+            return;
+          }
+          if (overlayLayer) {
+            setProductLayer(overlayLayer);
+            setProductStatus(`浓度底图: ${activeBundle.label}`);
+            return;
+          }
+        }
+
+        if (activeBundle.inlineMapProduct) {
+          const content = await productsApi.content(activeBundle.inlineMapProduct.id);
+          if (cancelled) {
+            return;
+          }
+          setProductLayer({ kind: 'geojson', name: activeBundle.inlineMapProduct.product_name, geojson: content.data });
+          setProductStatus(`采样图层: ${activeBundle.label}`);
+          return;
+        }
+
+        if (!cancelled) {
+          setProductStatus('当前产品包无 PNG overlay 或 GeoJSON 图层');
+        }
+      } catch (error) {
+        console.warn('Selected pollen products are unavailable:', error);
+        if (!cancelled) {
+          setProductStatus('所选地图产品暂不可用');
+          setCityStatus('所选城市预报暂不可用');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadBundleProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBundle]);
+
+  const forecastCities = useMemo(() => cityForecast?.cities ?? [], [cityForecast]);
   const hasForecast = forecastCities.length > 0;
   const selectedCity = useMemo(
     () => forecastCities.find((city) => city.name === selectedCityName) ?? forecastCities[0],
@@ -146,37 +216,55 @@ export default function Portal() {
   const risk = riskMeta(activeStep.risk);
   const peak = maxForecastValue(timeline);
   const dominantSpecies = formatSpecies(activeStep);
+  const readinessLabel = isLoading ? '加载中' : productBundles.length > 0 ? '产品就绪' : '示例模式';
 
   return (
-    <div className="min-h-screen bg-background text-on-background font-body-md">
-      <header className="fixed top-0 z-50 flex h-14 w-full items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 backdrop-blur-md">
+    <div data-theme={theme} className="min-h-screen bg-background text-on-background font-body-md">
+      <header className="fixed top-0 z-50 flex h-14 w-full items-center justify-between border-b border-outline-variant bg-surface-container-lowest/95 px-5 backdrop-blur-md">
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-base font-black uppercase tracking-wide text-white">中国花粉传播预报系统</span>
-          <span className="hidden text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400 sm:block">
+          <span className="truncate text-base font-black uppercase tracking-wide text-on-surface">中国花粉传播预报系统</span>
+          <span className="hidden text-[10px] font-medium uppercase tracking-[0.18em] text-on-surface-variant sm:block">
             WRF-Pollen operational forecast
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="hidden items-center gap-2 rounded border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-slate-300 md:flex">
+          <ThemeSwitch theme={theme} onChange={switchTheme} />
+          <div className="hidden items-center gap-2 rounded border border-outline-variant bg-surface-container-high px-3 py-1.5 text-[11px] text-on-surface-variant md:flex">
             <span className={`h-2 w-2 rounded-full ${isLoading ? 'bg-amber-300' : 'bg-tertiary'}`} />
-            <span>{isLoading ? '加载中' : '产品就绪'}</span>
+            <span>{readinessLabel}</span>
           </div>
           <a
             href="/login"
-            className="rounded bg-primary-container px-3 py-1.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition-colors hover:bg-primary-container/80"
+            className="rounded bg-primary-container px-3 py-1.5 text-sm font-semibold text-on-primary-container shadow-lg shadow-black/20 transition-colors hover:bg-primary-container/80"
           >
             控制台
           </a>
         </div>
       </header>
 
-      <main className="relative mt-14 h-[calc(100vh-3.5rem)] overflow-hidden bg-slate-950">
+      <main className="relative mt-14 h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
         <CesiumMap cities={mapCities} productLayer={productLayer} selectedCityName={selectedCityName} />
         <div className="pointer-events-none absolute inset-0 border border-white/5" />
 
         <section className="absolute left-4 top-4 z-20 hidden w-72 flex-col gap-3 lg:flex">
           <Panel title="图层">
             <div className="space-y-3">
+              {productBundles.length > 0 ? (
+                <label className="block">
+                  <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-slate-500">预报产品</span>
+                  <select
+                    value={activeBundle?.key ?? ''}
+                    onChange={(event) => setActiveBundleKey(event.target.value)}
+                    className="w-full rounded border border-outline-variant bg-surface-container-high px-2 py-2 text-xs text-on-surface outline-none focus:border-secondary-container/60"
+                  >
+                    {productBundles.map((bundle) => (
+                      <option key={bundle.key} value={bundle.key} className="bg-surface text-on-surface">
+                        {bundle.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <StatusLine icon="layers" label="底图" value={productStatus} />
               <StatusLine icon="location_city" label="城市预报" value={cityStatus} />
               <StatusLine icon="schedule" label="预报步长" value={`${timeline.length} 天`} />
@@ -260,7 +348,7 @@ export default function Portal() {
         </section>
 
         <section className="absolute bottom-4 left-4 right-4 z-20">
-          <div className="grid gap-3 rounded-lg border border-white/10 bg-slate-950/88 p-3 shadow-2xl backdrop-blur-md lg:grid-cols-[minmax(260px,360px)_1fr]">
+          <div className="grid gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest/88 p-3 shadow-2xl backdrop-blur-md lg:grid-cols-[minmax(260px,360px)_1fr]">
             <div className="min-w-0">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -316,7 +404,7 @@ export default function Portal() {
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-slate-950/82 p-4 shadow-2xl backdrop-blur-md">
+    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest/82 p-4 shadow-2xl backdrop-blur-md">
       <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{title}</h2>
       {children}
     </div>
@@ -354,6 +442,81 @@ function CompactStat({ label, value }: { label: string; value: string }) {
       <p className="font-data-mono text-xs text-white">{value}</p>
     </div>
   );
+}
+
+function ThemeSwitch({ theme, onChange }: { theme: ThemeMode; onChange: (theme: ThemeMode) => void }) {
+  return (
+    <div className="flex h-8 items-center rounded border border-outline-variant bg-surface-container-high p-1">
+      {(['research', 'pig'] as ThemeMode[]).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          onClick={() => onChange(mode)}
+          aria-pressed={theme === mode}
+          className={`min-w-[44px] rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+            theme === mode ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'
+          }`}
+        >
+          {mode === 'research' ? '科研' : '小猪'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function buildProductBundles(products: ForecastProduct[]): ProductBundle[] {
+  const groups = new Map<string, ForecastProduct[]>();
+  products
+    .filter((product) => isCityForecastProduct(product) || isOverlayMetadataProduct(product) || isOverlayImageProduct(product) || isInlineMapProduct(product))
+    .forEach((product) => {
+      const key = productRunKey(product);
+      groups.set(key, [...(groups.get(key) ?? []), product]);
+    });
+
+  return Array.from(groups.entries())
+    .map(([key, items]) => {
+      const sorted = [...items].sort(compareProductTimeDesc);
+      return {
+        key,
+        runId: key,
+        label: formatBundleLabel(key, sorted),
+        releaseTime: sorted[0]?.release_time ?? '',
+        products: sorted,
+        cityProduct: sorted.find(isCityForecastProduct),
+        overlayMetadataProduct: sorted.find(isOverlayMetadataProduct),
+        inlineMapProduct: sorted.find(isInlineMapProduct),
+      };
+    })
+    .filter((bundle) => bundle.cityProduct || bundle.overlayMetadataProduct || bundle.inlineMapProduct)
+    .sort((a, b) => compareNullableTimeDesc(a.releaseTime, b.releaseTime));
+}
+
+function productRunKey(product: ForecastProduct) {
+  const separator = product.product_name.indexOf(':');
+  if (separator > 0) {
+    return product.product_name.slice(0, separator);
+  }
+  return product.workflow_version || `product-${product.id}`;
+}
+
+function formatBundleLabel(runId: string, products: ForecastProduct[]) {
+  const releaseTime = products[0]?.release_time;
+  if (!releaseTime) {
+    return runId;
+  }
+  const date = new Date(releaseTime);
+  if (Number.isNaN(date.getTime())) {
+    return runId;
+  }
+  return `${runId} / ${date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function compareProductTimeDesc(a: ForecastProduct, b: ForecastProduct) {
+  return compareNullableTimeDesc(a.release_time, b.release_time);
+}
+
+function compareNullableTimeDesc(a?: string | null, b?: string | null) {
+  return Date.parse(b ?? '') - Date.parse(a ?? '');
 }
 
 function isCityForecastProduct(product: ForecastProduct) {

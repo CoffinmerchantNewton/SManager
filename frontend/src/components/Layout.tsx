@@ -1,13 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useThemeMode, type ThemeMode } from '../hooks/useThemeMode';
 
 interface LayoutProps {
   children: ReactNode;
 }
-
-type ThemeMode = 'research' | 'pig';
-
-const THEME_STORAGE_KEY = 'smanager-theme';
 
 const navItems = [
   { path: '/admin/dashboard', match: 'dashboard', label: 'Dashboard', sideLabel: 'Dashboard', icon: 'dashboard' },
@@ -20,22 +17,9 @@ const navItems = [
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const [theme, setTheme] = useState<ThemeMode>(() => {
-    if (typeof window === 'undefined') {
-      return 'research';
-    }
-    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'pig' ? 'pig' : 'research';
-  });
+  const { theme, switchTheme } = useThemeMode();
 
   const isActive = (path: string) => location.pathname.includes(path);
-  const switchTheme = (nextTheme: ThemeMode) => {
-    setTheme(nextTheme);
-    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-  };
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
 
   return (
     <div data-theme={theme} className="min-h-screen bg-background text-on-background transition-colors duration-300">
