@@ -46,8 +46,21 @@ def plan_run(payload: RunPlanRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=FlowResponse)
-def list_runs():
-    return FlowResponse(data=service().list_runs())
+def list_runs(
+    status: str | None = None,
+    limit: int = Query(default=100, ge=1, le=5000),
+    sync: bool = True,
+    db: Session = Depends(get_db),
+):
+    result = service().list_runs()
+    runs = result.get("runs", [])
+    synced_count = sync_run_list(db, runs) if sync else 0
+    if status:
+        runs = [item for item in runs if item.get("status") == status]
+    runs = runs[:limit]
+    result["runs"] = runs
+    result["synced_count"] = synced_count
+    return FlowResponse(data=result)
 
 
 @router.get("/{run_id}/status", response_model=FlowResponse)
@@ -166,6 +179,17 @@ def sync_run_status(db: Session, run_id: str, workflow: dict) -> None:
         item.error_code = node.get("error_code")
         item.message = node.get("message")
     db.commit()
+
+
+def sync_run_list(db: Session, runs: list[dict]) -> int:
+    count = 0
+    for workflow in runs:
+        run_id = workflow.get("run_id")
+        if not run_id:
+            continue
+        sync_run_status(db, run_id, workflow)
+        count += 1
+    return count
 
 
 def sync_status_after_action(db: Session, flow: ServerFlowService, run_id: str, result: dict) -> None:

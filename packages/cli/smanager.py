@@ -72,6 +72,14 @@ def cmd_plan(args) -> int:
     return print_result(request_json("POST", api_url(args, "/runs/"), payload))
 
 
+def cmd_runs(args) -> int:
+    query = {"limit": str(args.limit), "sync": "false" if args.no_sync else "true"}
+    if args.status:
+        query["status"] = args.status
+    url = api_url(args, "/runs/") + "?" + urllib.parse.urlencode(query)
+    return print_result(request_json("GET", url))
+
+
 def cmd_status(args) -> int:
     return print_result(request_json("GET", api_url(args, f"/runs/{args.run_id}/status")))
 
@@ -216,6 +224,12 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--met-provider", default="FNL")
     plan.add_argument("--commands-file")
     plan.set_defaults(func=cmd_plan)
+
+    runs = sub.add_parser("runs")
+    runs.add_argument("--status")
+    runs.add_argument("--limit", type=int, default=100)
+    runs.add_argument("--no-sync", action="store_true")
+    runs.set_defaults(func=cmd_runs)
 
     status = sub.add_parser("status")
     status.add_argument("--run-id", required=True)

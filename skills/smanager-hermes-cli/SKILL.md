@@ -20,6 +20,7 @@ python3 packages/cli/smanager.py --api "${SMANAGER_API:-http://localhost:8000/ap
 ```bash
 python3 packages/cli/smanager.py doctor
 python3 packages/cli/smanager.py storage
+python3 packages/cli/smanager.py runs --limit 20
 ```
 
 如果 `doctor` 输出 `ok: false`，先根据 `data.checks` 中 `status=error` 的项目修复配置或依赖。如果 `storage` 输出 `ok: false`，先处理 `data.roots[].errors` 中的本地文件访问问题。
@@ -98,6 +99,7 @@ python3 packages/cli/smanager.py agent-tick \
 ```bash
 python3 packages/cli/smanager.py doctor
 python3 packages/cli/smanager.py storage
+python3 packages/cli/smanager.py runs --status error --limit 20
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py events --run-id <run_id> --level error --limit 50
 ```
