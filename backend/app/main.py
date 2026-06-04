@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .core.database import engine, Base
 from .core.config import settings
-from .api import workflows, tasks, products, dashboard
+from .api import workflows, tasks, products, dashboard, runs, fnl, agent
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +24,9 @@ app.include_router(workflows.router, prefix=f"{settings.API_V1_STR}/workflows", 
 app.include_router(tasks.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["tasks"])
 app.include_router(products.router, prefix=f"{settings.API_V1_STR}/products", tags=["products"])
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
+app.include_router(runs.router, prefix=f"{settings.API_V1_STR}/runs", tags=["runs"])
+app.include_router(fnl.router, prefix=f"{settings.API_V1_STR}/fnl", tags=["fnl"])
+app.include_router(agent.router, prefix=f"{settings.API_V1_STR}/agent", tags=["agent"])
 
 @app.get("/")
 def root():

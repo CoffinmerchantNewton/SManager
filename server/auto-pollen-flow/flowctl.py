@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.diagnostics import diagnose as diagnose_run
+from lib.fnl import scan_fnl
+from lib.jsonio import read_json, write_json_atomic
+from lib.paths import FlowPaths
+from lib.slurm import node_script, sbatch_available, submit_sbatch
+from lib.state import (
+    initialize_run,
+    list_runs,
+    load_node_status,
+    load_spec,
+    load_workflow,
+    node_names,
+    update_node_status,
+    write_event,
+)
+from lib.timeutils import default_run_id, now_iso, parse_cycle
+
+
+DEFAULT_NODES = [
+    "fnl_verify",
+    "wps_geogrid",
+    "wps_ungrib",
+    "wps_metgrid",
+    "wrf_setup",
+    "real",
+    "compute_gdd",
+    "prep_pollen",
+    "wrf_run",
+    "postprocess_eval",
+    "product_extract",
+    "package_products",
+]
+
+
+def paths() -> FlowPaths:
+    return FlowPaths.from_env(SCRIPT_DIR)
+
+
+def print_json(data: Any) -> None:
+    json.dump(data, sys.stdout, ensure_ascii=False, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+
+
+def load_command_config(path: str | None) -> dict[str, Any]:
+    if not path:
+        return {}
+    data = read_json(Path(path), default={})
+    if not isinstance(data, dict):
+        raise ValueError("commands file must contain a JSON object")
+    return data
+
+
+def build_spec(args) -> dict[str, Any]:
+    start = parse_cycle(args.start)
+    end = parse_cycle(args.end)
+    if end < start:
+        raise ValueError("--end must be >= --start")
+    variant = args.variant or "official"
+    domain = args.domain or "neimeng"
+    run_id = args.run_id or default_run_id(start, args.period, domain, variant)
+    command_config = load_command_config(args.commands_file)
+    configured_nodes = command_config.get("nodes", {})
+    nodes = []
+    for name in DEFAULT_NODES:
+        config = configured_nodes.get(name, {})
+        nodes.append(
+            {
+                "name": name,
+                "command": config.get("command"),
+                "cwd": config.get("cwd"),
+                "env": config.get("env", {}),
+                "slurm": config.get("slurm", {}),
+            }
+        )
+    return {
+        "version": 1,
+        "run_id": run_id,
+        "start": args.start,
+        "end": args.end,
+        "period": args.period,
+        "domain": domain,
+        "variant": variant,
+        "met_provider": args.met_provider,
+        "created_at": now_iso(),
+        "nodes": nodes,
+        "command_config_path": args.commands_file,
+    }
+
+
+def cmd_plan(args) -> int:
+    flow_paths = paths()
+    spec = build_spec(args)
+    initialize_run(flow_paths, spec)
+    print_json({"ok": True, "run_id": spec["run_id"], "run_dir": str(flow_paths.run_dir(spec["run_id"]))})
+    return 0
+
+
+def cmd_list(args) -> int:
+    print_json({"runs": list_runs(paths())})
+    return 0
+
+
+def cmd_status(args) -> int:
+    flow_paths = paths()
+    data = load_workflow(flow_paths, args.run_id)
+    if args.json:
+        print_json(data)
+    else:
+        print(f"{data['run_id']} {data['status']} {data['progress']}%")
+        for node in data.get("nodes", []):
+            print(f"  {node['node']:<18} {node['status']:<10} {node.get('message') or ''}")
+    return 0
+
+
+def cmd_fnl_verify(args) -> int:
+    flow_paths = paths()
+    if args.run_id:
+        spec = load_spec(flow_paths, args.run_id)
+        start = parse_cycle(spec["start"])
+        end = parse_cycle(spec["end"])
+        run_id = args.run_id
+    else:
+        start = parse_cycle(args.start)
+        end = parse_cycle(args.end)
+        run_id = None
+    manifest = scan_fnl(start, end)
+    if run_id:
+        write_json_atomic(flow_paths.fnl_manifest(run_id), manifest)
+        status = "success" if manifest["ok"] else "error"
+        message = "FNL verified" if manifest["ok"] else "FNL missing or invalid"
+        update_node_status(
+            flow_paths,
+            run_id,
+            "fnl_verify",
+            status,
+            message,
+            progress=100 if manifest["ok"] else 0,
+            error_code=None if manifest["ok"] else "fnl_missing",
+            outputs=[str(flow_paths.fnl_manifest(run_id))],
+        )
+    print_json(manifest)
+    return 0 if manifest["ok"] else 2
+
+
+def node_by_name(spec: dict[str, Any], name: str) -> dict[str, Any]:
+    for node in spec.get("nodes", []):
+        if node["name"] == name:
+            return node
+    raise KeyError(f"node not found: {name}")
+
+
+def cmd_submit(args) -> int:
+    flow_paths = paths()
+    spec = load_spec(flow_paths, args.run_id)
+    if args.dry_run or not sbatch_available():
+        write_event(
+            flow_paths,
+            args.run_id,
+            "submit_dry_run",
+            "sbatch unavailable or dry-run requested",
+            payload={"sbatch_available": sbatch_available(), "dry_run": args.dry_run},
+        )
+        print_json({"ok": True, "dry_run": True, "sbatch_available": sbatch_available(), "run_id": args.run_id})
+        return 0
+    missing = [node["name"] for node in spec.get("nodes", []) if not node.get("command")]
+    if missing and not args.allow_noop:
+        print_json(
+            {
+                "ok": False,
+                "error": "node_commands_missing",
+                "message": "Some node commands are not configured. Pass --allow-noop to mark them skipped.",
+                "missing_nodes": missing,
+            }
+        )
+        return 2
+    previous_job = None
+    submitted = []
+    for idx, node in enumerate(spec.get("nodes", []), start=1):
+        name = node["name"]
+        if not node.get("command"):
+            update_node_status(
+                flow_paths,
+                args.run_id,
+                name,
+                "skipped",
+                "node command is not configured",
+                progress=100,
+                error_code="node_command_missing",
+            )
+            continue
+        script_path = flow_paths.slurm_dir(args.run_id) / f"{idx:02d}_{name}.sbatch"
+        node_script(script_path, Path(__file__).resolve(), args.run_id, name, node, flow_paths.logs_dir(args.run_id))
+        job_id = submit_sbatch(script_path, dependency=previous_job)
+        previous_job = job_id
+        submitted.append({"node": name, "job_id": job_id, "script": str(script_path)})
+        update_node_status(flow_paths, args.run_id, name, "ready", "submitted to Slurm", slurm_job_id=job_id)
+    print_json({"ok": True, "run_id": args.run_id, "submitted": submitted})
+    return 0
+
+
+def cmd_run_node(args) -> int:
+    flow_paths = paths()
+    spec = load_spec(flow_paths, args.run_id)
+    node = node_by_name(spec, args.node)
+    command = node.get("command")
+    log_path = flow_paths.logs_dir(args.run_id) / f"{args.node}.log"
+    update_node_status(
+        flow_paths,
+        args.run_id,
+        args.node,
+        "running",
+        "node command running",
+        progress=1,
+        log_files=[str(log_path)],
+    )
+    if not command:
+        update_node_status(
+            flow_paths,
+            args.run_id,
+            args.node,
+            "error",
+            "node command is not configured",
+            progress=0,
+            error_code="node_command_missing",
+            log_files=[str(log_path)],
+        )
+        return 2
+    cwd = Path(node.get("cwd") or flow_paths.run_dir(args.run_id))
+    env = os.environ.copy()
+    env.update({str(k): str(v) for k, v in node.get("env", {}).items()})
+    env.update({"RUN_ID": args.run_id, "FLOW_RUN_DIR": str(flow_paths.run_dir(args.run_id))})
+    with log_path.open("a", encoding="utf-8") as log:
+        log.write(f"===== {args.node} start {now_iso()} =====\n")
+        result = subprocess.run(command, shell=True, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT)
+        log.write(f"===== {args.node} end {now_iso()} code={result.returncode} =====\n")
+    if result.returncode == 0:
+        update_node_status(
+            flow_paths,
+            args.run_id,
+            args.node,
+            "success",
+            "node command completed",
+            progress=100,
+            log_files=[str(log_path)],
+        )
+    else:
+        update_node_status(
+            flow_paths,
+            args.run_id,
+            args.node,
+            "error",
+            f"node command failed with code {result.returncode}",
+            progress=0,
+            error_code="node_command_failed",
+            log_files=[str(log_path)],
+        )
+    return result.returncode
+
+
+def cmd_logs(args) -> int:
+    flow_paths = paths()
+    log_dir = flow_paths.logs_dir(args.run_id)
+    if args.node:
+        candidates = sorted(log_dir.glob(f"{args.node}*"))
+    else:
+        candidates = sorted(log_dir.glob("*"))
+    if not candidates:
+        print("")
+        return 0
+    for path in candidates:
+        if not path.is_file():
+            continue
+        if len(candidates) > 1:
+            print(f"===== {path.name} =====")
+        print_tail(path, args.tail)
+    return 0
+
+
+def print_tail(path: Path, lines: int) -> None:
+    text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    for line in text[-lines:]:
+        print(line)
+
+
+def cmd_diagnose(args) -> int:
+    print_json(diagnose_run(paths(), args.run_id))
+    return 0
+
+
+def cmd_retry(args) -> int:
+    flow_paths = paths()
+    spec = load_spec(flow_paths, args.run_id)
+    node_by_name(spec, args.node)
+    update_node_status(flow_paths, args.run_id, args.node, "retrying", "retry requested", progress=0)
+    if args.dry_run or not sbatch_available():
+        print_json({"ok": True, "dry_run": True, "message": "retry marked; sbatch not executed"})
+        return 0
+    script_path = flow_paths.slurm_dir(args.run_id) / f"retry_{args.node}.sbatch"
+    node = node_by_name(spec, args.node)
+    node_script(script_path, Path(__file__).resolve(), args.run_id, args.node, node, flow_paths.logs_dir(args.run_id))
+    job_id = submit_sbatch(script_path)
+    update_node_status(flow_paths, args.run_id, args.node, "ready", "retry submitted to Slurm", slurm_job_id=job_id)
+    print_json({"ok": True, "node": args.node, "job_id": job_id})
+    return 0
+
+
+def cmd_products(args) -> int:
+    flow_paths = paths()
+    manifest = read_json(flow_paths.product_manifest(args.run_id), default={"run_id": args.run_id, "products": []})
+    print_json(manifest)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Offline WRF-Pollen flow controller")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    plan = sub.add_parser("plan")
+    plan.add_argument("--run-id")
+    plan.add_argument("--start", required=True)
+    plan.add_argument("--end", required=True)
+    plan.add_argument("--period", required=True, choices=["spring", "summer", "autumn"])
+    plan.add_argument("--domain", default="neimeng")
+    plan.add_argument("--variant", default="official")
+    plan.add_argument("--met-provider", default="FNL")
+    plan.add_argument("--commands-file")
+    plan.set_defaults(func=cmd_plan)
+
+    sub.add_parser("list").set_defaults(func=cmd_list)
+
+    status = sub.add_parser("status")
+    status.add_argument("--run-id", required=True)
+    status.add_argument("--json", action="store_true")
+    status.set_defaults(func=cmd_status)
+
+    fnl = sub.add_parser("fnl-verify")
+    fnl.add_argument("--run-id")
+    fnl.add_argument("--start")
+    fnl.add_argument("--end")
+    fnl.set_defaults(func=cmd_fnl_verify)
+
+    submit = sub.add_parser("submit")
+    submit.add_argument("--run-id", required=True)
+    submit.add_argument("--dry-run", action="store_true")
+    submit.add_argument("--allow-noop", action="store_true")
+    submit.set_defaults(func=cmd_submit)
+
+    run_node = sub.add_parser("run-node")
+    run_node.add_argument("--run-id", required=True)
+    run_node.add_argument("--node", required=True)
+    run_node.set_defaults(func=cmd_run_node)
+
+    logs = sub.add_parser("logs")
+    logs.add_argument("--run-id", required=True)
+    logs.add_argument("--node")
+    logs.add_argument("--tail", type=int, default=200)
+    logs.set_defaults(func=cmd_logs)
+
+    diagnose = sub.add_parser("diagnose")
+    diagnose.add_argument("--run-id", required=True)
+    diagnose.set_defaults(func=cmd_diagnose)
+
+    retry = sub.add_parser("retry")
+    retry.add_argument("--run-id", required=True)
+    retry.add_argument("--node", required=True)
+    retry.add_argument("--dry-run", action="store_true")
+    retry.set_defaults(func=cmd_retry)
+
+    products = sub.add_parser("products")
+    products.add_argument("--run-id", required=True)
+    products.set_defaults(func=cmd_products)
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    if args.command == "fnl-verify" and not args.run_id and (not args.start or not args.end):
+        parser.error("fnl-verify requires --run-id or both --start and --end")
+    try:
+        return args.func(args)
+    except Exception as exc:
+        print_json({"ok": False, "error": exc.__class__.__name__, "message": str(exc)})
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -20,6 +20,15 @@ class ProductStatus(str, enum.Enum):
     ARCHIVED = "archived"
     ERROR = "error"
 
+class ForecastRunStatus(str, enum.Enum):
+    PENDING = "pending"
+    READY = "ready"
+    RUNNING = "running"
+    SUCCESS = "success"
+    ERROR = "error"
+    RETRYING = "retrying"
+    CANCELLED = "cancelled"
+
 class Workflow(Base):
     __tablename__ = "workflows"
 
@@ -94,3 +103,66 @@ class SystemLog(Base):
     message = Column(Text)
     source = Column(String)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+class ForecastRun(Base):
+    __tablename__ = "forecast_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(String, unique=True, index=True)
+    start_time = Column(String, index=True)
+    end_time = Column(String, index=True)
+    period = Column(String, index=True)
+    domain = Column(String, default="neimeng")
+    variant = Column(String, default="official")
+    met_provider = Column(String, default="FNL")
+    status = Column(Enum(ForecastRunStatus), default=ForecastRunStatus.PENDING)
+    progress = Column(Float, default=0.0)
+    server_run_dir = Column(String, nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class ForecastRunNode(Base):
+    __tablename__ = "forecast_run_nodes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(String, index=True)
+    node_name = Column(String, index=True)
+    status = Column(String, default="pending")
+    progress = Column(Float, default=0.0)
+    attempt = Column(Integer, default=0)
+    slurm_job_id = Column(String, nullable=True)
+    error_code = Column(String, nullable=True)
+    message = Column(Text, nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class FnlFileRecord(Base):
+    __tablename__ = "fnl_file_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    valid_time = Column(String, index=True)
+    file_name = Column(String, index=True)
+    status = Column(String, index=True)
+    source = Column(String, nullable=True)
+    server_path = Column(String, nullable=True)
+    local_path = Column(String, nullable=True)
+    size_bytes = Column(Integer, nullable=True)
+    valid_grib = Column(Boolean, default=False)
+    uploaded = Column(Boolean, default=False)
+    repair_attempt = Column(Integer, default=0)
+    error_message = Column(Text, nullable=True)
+    checked_at = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AgentAction(Base):
+    __tablename__ = "agent_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(String, index=True, nullable=True)
+    action_type = Column(String, index=True)
+    reason = Column(Text, nullable=True)
+    status = Column(String, index=True)
+    input_json = Column(Text, nullable=True)
+    output_json = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    finished_at = Column(DateTime(timezone=True), nullable=True)
