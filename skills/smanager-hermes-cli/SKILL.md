@@ -130,6 +130,18 @@ python3 packages/cli/smanager.py retry-node --run-id <run_id> --node <node_name>
 python3 packages/cli/smanager.py retry-node --run-id <run_id> --node <node_name> --real
 ```
 
+取消运行也必须先 dry-run：
+
+```bash
+python3 packages/cli/smanager.py cancel-run --run-id <run_id> --dry-run
+```
+
+只有确认 dry-run 列出的节点和 Slurm job 确实应该停止后，才允许真实取消：
+
+```bash
+python3 packages/cli/smanager.py cancel-run --run-id <run_id> --real
+```
+
 ## 读取结果
 
 除 `logs` 输出文本外，CLI 命令默认输出 JSON。优先读取这些字段：

@@ -83,6 +83,12 @@ class ServerFlowService:
             args.append("--dry-run")
         return self._flow_json(args, check=False)
 
+    def cancel(self, run_id: str, dry_run: bool = True) -> dict[str, Any]:
+        args = ["cancel", "--run-id", run_id]
+        if dry_run:
+            args.append("--dry-run")
+        return self._flow_json(args, check=False)
+
     def products(self, run_id: str) -> dict[str, Any]:
         return self._flow_json(["products", "--run-id", run_id], check=False)
 

@@ -67,6 +67,7 @@ Interactive API documentation is available at:
 - `GET /api/v1/runs/{run_id}/status` - Read server workflow status
 - `GET /api/v1/runs/{run_id}/diagnose` - Read server diagnostics
 - `POST /api/v1/runs/{run_id}/retry` - Retry one node
+- `POST /api/v1/runs/{run_id}/cancel` - Cancel active run nodes
 - `GET /api/v1/runs/{run_id}/logs` - Read run or node logs
 - `POST /api/v1/runs/{run_id}/sync-products` - Sync and index run products
 

@@ -129,6 +129,7 @@ npm run dev
 - `GET /api/v1/runs/{run_id}/status` - 获取服务器运行状态
 - `GET /api/v1/runs/{run_id}/diagnose` - 获取运行诊断建议
 - `POST /api/v1/runs/{run_id}/retry` - 重试指定节点
+- `POST /api/v1/runs/{run_id}/cancel` - 取消运行，默认建议先 dry-run
 - `GET /api/v1/runs/{run_id}/logs` - 获取运行日志
 - `POST /api/v1/runs/{run_id}/sync-products` - 同步并索引运行产物
 

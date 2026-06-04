@@ -16,7 +16,7 @@ from lib.diagnostics import diagnose as diagnose_run
 from lib.fnl import scan_fnl
 from lib.jsonio import read_json, write_json_atomic
 from lib.paths import FlowPaths
-from lib.slurm import node_script, sbatch_available, submit_sbatch
+from lib.slurm import cancel_job, node_script, sbatch_available, scancel_available, submit_sbatch
 from lib.state import (
     initialize_run,
     list_runs,
@@ -324,6 +324,86 @@ def cmd_retry(args) -> int:
     return 0
 
 
+def cmd_cancel(args) -> int:
+    flow_paths = paths()
+    spec = load_spec(flow_paths, args.run_id)
+    active_nodes = []
+    job_ids = []
+    for node in node_names(spec):
+        status = load_node_status(flow_paths, args.run_id, node)
+        if status.get("status") in {"success", "error", "skipped", "cancelled"}:
+            continue
+        item = {
+            "node": node,
+            "status": status.get("status"),
+            "slurm_job_id": status.get("slurm_job_id"),
+        }
+        active_nodes.append(item)
+        if status.get("slurm_job_id"):
+            job_ids.append(str(status["slurm_job_id"]))
+
+    if args.dry_run:
+        print_json({"ok": True, "dry_run": True, "run_id": args.run_id, "nodes": active_nodes, "job_ids": job_ids})
+        return 0
+
+    if not active_nodes:
+        print_json({"ok": True, "run_id": args.run_id, "no_op": True, "message": "no active nodes to cancel"})
+        return 0
+
+    if job_ids and not scancel_available():
+        print_json(
+            {
+                "ok": False,
+                "error": "scancel_unavailable",
+                "message": "Active Slurm job ids exist, but scancel is not available.",
+                "job_ids": job_ids,
+            }
+        )
+        return 2
+
+    cancelled_jobs = []
+    errors = []
+    for job_id in job_ids:
+        try:
+            cancel_job(job_id)
+            cancelled_jobs.append(job_id)
+        except Exception as exc:
+            errors.append({"job_id": job_id, "error": exc.__class__.__name__, "message": str(exc)})
+
+    if errors:
+        print_json(
+            {
+                "ok": False,
+                "error": "scancel_failed",
+                "run_id": args.run_id,
+                "cancelled_jobs": cancelled_jobs,
+                "errors": errors,
+            }
+        )
+        return 2
+
+    for item in active_nodes:
+        update_node_status(
+            flow_paths,
+            args.run_id,
+            item["node"],
+            "cancelled",
+            "run cancel requested",
+            progress=0,
+            error_code="run_cancelled",
+            slurm_job_id=item.get("slurm_job_id"),
+        )
+    write_event(
+        flow_paths,
+        args.run_id,
+        "run_cancelled",
+        "run cancel requested",
+        payload={"nodes": active_nodes, "cancelled_jobs": cancelled_jobs},
+    )
+    print_json({"ok": True, "run_id": args.run_id, "cancelled_nodes": active_nodes, "cancelled_jobs": cancelled_jobs})
+    return 0
+
+
 def cmd_products(args) -> int:
     flow_paths = paths()
     manifest = read_json(flow_paths.product_manifest(args.run_id), default={"run_id": args.run_id, "products": []})
@@ -385,6 +465,11 @@ def build_parser() -> argparse.ArgumentParser:
     retry.add_argument("--node", required=True)
     retry.add_argument("--dry-run", action="store_true")
     retry.set_defaults(func=cmd_retry)
+
+    cancel = sub.add_parser("cancel")
+    cancel.add_argument("--run-id", required=True)
+    cancel.add_argument("--dry-run", action="store_true")
+    cancel.set_defaults(func=cmd_cancel)
 
     products = sub.add_parser("products")
     products.add_argument("--run-id", required=True)

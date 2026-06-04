@@ -26,6 +26,10 @@ class RetryRequest(BaseModel):
     dry_run: bool = False
 
 
+class CancelRunRequest(BaseModel):
+    dry_run: bool = True
+
+
 class FnlVerifyRequest(BaseModel):
     run_id: Optional[str] = None
     start: Optional[str] = None

@@ -12,6 +12,23 @@ def sbatch_available() -> bool:
     return shutil.which("sbatch") is not None
 
 
+def scancel_available() -> bool:
+    return shutil.which("scancel") is not None
+
+
+def cancel_job(job_id: str) -> None:
+    result = subprocess.run(
+        ["scancel", str(job_id)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        output = result.stdout.strip()
+        raise RuntimeError(output or f"scancel failed with code {result.returncode}")
+
+
 def submit_sbatch(script_path: Path, dependency: str | None = None) -> str:
     cmd = ["sbatch", "--parsable"]
     if dependency:

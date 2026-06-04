@@ -5,7 +5,14 @@ from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..models.models import ForecastRun, ForecastRunNode, ForecastRunStatus
-from ..schemas.run_control import FlowResponse, LogsResponse, RetryRequest, RunPlanRequest, RunSubmitRequest
+from ..schemas.run_control import (
+    CancelRunRequest,
+    FlowResponse,
+    LogsResponse,
+    RetryRequest,
+    RunPlanRequest,
+    RunSubmitRequest,
+)
 from ..services.flow import ServerFlowService
 from ..services.products import ProductSyncService
 
@@ -81,6 +88,12 @@ def diagnose_run(run_id: str):
 @router.post("/{run_id}/retry", response_model=FlowResponse)
 def retry_run_node(run_id: str, payload: RetryRequest):
     result = service().retry(run_id, node=payload.node, dry_run=payload.dry_run)
+    return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
+
+
+@router.post("/{run_id}/cancel", response_model=FlowResponse)
+def cancel_run(run_id: str, payload: CancelRunRequest):
+    result = service().cancel(run_id, dry_run=payload.dry_run)
     return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
 
 

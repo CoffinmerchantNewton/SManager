@@ -138,7 +138,10 @@ def workflow_summary(paths: FlowPaths, run_id: str) -> dict[str, Any]:
     terminal = sum(1 for node in nodes if node["status"] in TERMINAL_STATUSES)
     errors = [node for node in nodes if node["status"] == "error"]
     running = [node for node in nodes if node["status"] == "running"]
-    if errors:
+    cancelled = [node for node in nodes if node["status"] == "cancelled"]
+    if cancelled:
+        status = "cancelled"
+    elif errors:
         status = "error"
     elif running:
         status = "running"
