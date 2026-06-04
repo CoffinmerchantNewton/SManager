@@ -19,6 +19,23 @@ rsync -av --delete \
   --exclude 'runs/' \
   --exclude '*.pyc' \
   "${SRC}" "${TARGET}:${REMOTE_DIR}/"
-ssh "${TARGET}" "chmod +x '${REMOTE_DIR}/flowctl.py' '${REMOTE_DIR}'/templates/node_commands/*.sh"
+ssh "${TARGET}" "REMOTE_DIR='${REMOTE_DIR}' bash -s" <<'REMOTE_INSTALL'
+set -eo pipefail
+mkdir -p \
+  "${REMOTE_DIR}/runs" \
+  "${REMOTE_DIR}/node_commands" \
+  "${REMOTE_DIR}/logs" \
+  "${REMOTE_DIR}/products"
 
-echo "Synced auto-pollen-flow to ${TARGET}:${REMOTE_DIR}"
+if [ -d "${REMOTE_DIR}/templates/node_commands" ] && [ ! -f "${REMOTE_DIR}/node_commands/common.sh" ]; then
+  cp "${REMOTE_DIR}/templates/node_commands/"*.sh "${REMOTE_DIR}/node_commands/"
+fi
+
+chmod +x "${REMOTE_DIR}/flowctl.py"
+chmod +x "${REMOTE_DIR}/templates/node_commands/"*.sh
+if compgen -G "${REMOTE_DIR}/node_commands/*.sh" > /dev/null; then
+  chmod +x "${REMOTE_DIR}/node_commands/"*.sh
+fi
+REMOTE_INSTALL
+
+echo "Synced and installed auto-pollen-flow to ${TARGET}:${REMOTE_DIR}"

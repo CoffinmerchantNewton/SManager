@@ -10,7 +10,7 @@
 - 优先使用服务器已有 FNL；若缺失或损坏，再由跳板机下载并上传。
 - 自动运行 WPS、real、WRF-Pollen、后处理和产品打包。
 - 通过后端 API 和前端展示任务进度、日志、诊断和历史产物。
-- Hermes-agent 自动值守、有限重试、异常通知。
+- 外部 Hermes/AI 值守通过统一 CLI/API 自动巡检、有限重试、异常通知。
 - AI 助手可以通过 CLI 读取状态、辅助诊断、执行受控恢复动作。
 
 ## 部署边界
@@ -33,7 +33,7 @@
 
 - 前端服务。
 - 跳板机后端主服务。
-- Hermes-agent 主循环。
+- 独立 `apps/hermes-agent` 主循环。
 - 跳板机 SQLite 主库。
 - 外网下载逻辑。
 
@@ -45,7 +45,6 @@
 
 - `apps/backend/`：FastAPI 后端。
 - `apps/frontend/`：React 前端。
-- `apps/hermes-agent/`：自动值守器。
 - `packages/`：共享契约、诊断规则、CLI。
 - `runtime/`：SQLite、FNL 下载缓存、产物归档、manifest、日志缓存。
 
@@ -87,7 +86,7 @@ schedule_daily_run
 2. SSH 到服务器执行 `flowctl fnl-verify` 或包装后的 `copy_fnl.py --scan-only`。
 3. 服务器扫描主目录和备用目录，优先选择已有有效副本。
 4. 若服务器已有有效副本，则不下载、不上传。
-5. 若有缺失或损坏，后端/Hermes-agent 只下载这些问题时次。
+5. 若有缺失或损坏，后端和外部 Hermes/AI CLI 只下载这些问题时次。
 6. 跳板机本地校验下载文件。
 7. 上传到服务器目标目录或 staging 目录。
 8. 服务器再次校验。
@@ -129,7 +128,7 @@ flowctl products
 - `fnl_manifest.json`
 - `products/product_manifest.json`
 
-状态文件是后端和 Hermes-agent 的主数据源，日志只用于诊断。
+状态文件是后端、CLI 和外部 Hermes/AI 值守的主数据源，日志只用于诊断。
 
 ## 后端需求
 
@@ -140,7 +139,7 @@ flowctl products
 - 管理跳板机 FNL 下载缓存和上传。
 - 同步服务器状态到 SQLite。
 - 给前端提供 API。
-- 给 Hermes-agent 提供可复用 service。
+- 给外部 Hermes/AI CLI 提供可复用 API/service。
 
 核心 API：
 
@@ -153,16 +152,16 @@ POST /api/v1/runs/{run_id}/retry
 
 GET  /api/v1/fnl/coverage
 POST /api/v1/fnl/verify-server
-POST /api/v1/fnl/download-missing
-POST /api/v1/fnl/upload
+POST /api/v1/fnl/repair
+GET  /api/v1/fnl/coverage
 
 GET  /api/v1/products
 GET  /api/v1/products/{product_id}
 ```
 
-## Hermes-agent 需求
+## Hermes/AI 值守需求
 
-Hermes-agent 负责自动值守：
+本仓库不维护独立 `apps/hermes-agent` 代码；外部 Hermes、cron 或 systemd timer 通过 `packages/cli/smanager.py` 和后端 API 自动值守：
 
 - 定时创建每日 run。
 - 先做服务器 FNL 扫描。
@@ -170,7 +169,7 @@ Hermes-agent 负责自动值守：
 - 轮询服务器状态和 Slurm 状态。
 - 对常见错误执行有限重试。
 - 同步成功产物。
-- 发送通知。
+- 发送通知或写审计记录；第一版可先只写 `agent_actions`。
 
 自动动作必须记录审计：
 
@@ -221,4 +220,4 @@ AI 助手不能直接做不可逆操作。
 5. 服务器可以提交现有 `auto_wrf.py` 包装流程。
 6. 后端可以读取结构化状态。
 7. 前端可以展示 run 状态。
-8. Hermes-agent 可以完成一次只读巡检和通知。
+8. 外部 Hermes/AI 通过 CLI 可以完成一次只读巡检，并在需要时输出通知或审计记录。

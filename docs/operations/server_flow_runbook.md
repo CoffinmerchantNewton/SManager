@@ -6,8 +6,9 @@ From the jumpbox:
 
 ```bash
 bash server/deploy/sync_to_server.sh user@server /g7/anxq/Zhangjt/workspace/auto-pollen-flow
-ssh user@server 'cd /g7/anxq/Zhangjt/workspace/auto-pollen-flow && bash deploy/install_server_flow.sh "$PWD"'
 ```
+
+`sync_to_server.sh` 会同步 `server/auto-pollen-flow/`，并在远端创建 `runs/`、`node_commands/`、`logs/`、`products/`。首次部署时，它会把 `templates/node_commands/*.sh` 复制到远端 `node_commands/`，之后可直接在 `node_commands/` 中维护服务器本地命令包装。
 
 ## Configure FNL
 
