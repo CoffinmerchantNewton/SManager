@@ -19,7 +19,7 @@
 - `batch_eval_pollen.sh`：批量评估已有 WRF 输出。
 - `restart_all_runs.sh`：按 restart 文件续跑历史任务。
 
-当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件、本地 storage 快照和只读诊断上下文；`server/auto-pollen-flow` 节点脚本已可通过 commands-file 注入真实 WPS/WRF/后处理命令；`frontend/` 已有运行控制、FNL 管理、产物列表下载、PNG overlay/GeoJSON 产品图层加载和主题切换。仍未完成的是把服务器真实路径与业务参数填入生产 commands-file、面向业务变量的高级后处理、等值线/GeoTIFF/切片产品和完整真实花粉分布地图渲染串起来。
+当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件、本地 storage 快照、只读诊断上下文和规则化恢复建议；`server/auto-pollen-flow` 节点脚本已可通过 commands-file 注入真实 WPS/WRF/后处理命令；`frontend/` 已有运行控制、FNL 管理、产物列表下载、PNG overlay/GeoJSON 产品图层加载和主题切换。仍未完成的是把服务器真实路径与业务参数填入生产 commands-file、面向业务变量的高级后处理、等值线/GeoTIFF/切片产品和完整真实花粉分布地图渲染串起来。
 
 ## 总体原则
 
@@ -228,6 +228,7 @@ runtime/.gitkeep
 
 - 放错误模式和恢复动作。
 - AI 助手、Hermes、后端诊断接口共用。
+- 当前规则入口为 `packages/diagnostics/recovery_actions.json` 和 `packages/diagnostics/engine.py`；后端 `/runs/{run_id}/diagnose` 会在服务器原始 finding 外追加 `analysis`，给出风险等级、是否允许自动动作、推荐 CLI 和人工处理标志。
 
 `server/auto-pollen-flow/`：
 
@@ -948,6 +949,12 @@ wrfout / postprocess nc
 - 为 AI 提供只读上下文打包命令：`flowctl collect-context`，后端 `/runs/{run_id}/context` 和 CLI `collect-context` 统一转发。
 - 为 AI 提供受控动作：`retry-node`、`upload-fnl`、`restart-wrf`。
 - 所有 AI 动作写入 `agent_actions`。
+
+当前实现状态：
+
+- `packages/diagnostics/recovery_actions.json` 已覆盖 FNL 缺失/损坏、节点命令缺失、Slurm 提交失败、磁盘满、WRF CFL、段错误和通用节点失败。
+- 后端 `GET /api/v1/runs/{run_id}/diagnose` 与 `collect-context` 会返回 `analysis.summary` 和 `analysis.recommendations`。
+- CLI `diagnose --summary` 可只查看规则化诊断建议；Hermes 应优先读取该字段决定是否允许自动修复或必须升级人工。
 
 验收：
 

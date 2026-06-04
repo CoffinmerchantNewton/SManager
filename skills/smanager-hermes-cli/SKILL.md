@@ -103,11 +103,12 @@ python3 packages/cli/smanager.py doctor
 python3 packages/cli/smanager.py storage
 python3 packages/cli/smanager.py runs --status error --limit 20
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
+python3 packages/cli/smanager.py diagnose --run-id <run_id> --summary
 python3 packages/cli/smanager.py collect-context --run-id <run_id> --tail 120 --event-limit 100 --max-logs 12
 python3 packages/cli/smanager.py events --run-id <run_id> --level error --limit 50
 ```
 
-优先用 `collect-context` 获取一次排障上下文包；它只读返回 run spec、状态、诊断、FNL manifest、产品 manifest、近期事件和日志尾部，适合交给 AI 总结问题。
+优先用 `diagnose --summary` 读取 `analysis.summary` 和 `analysis.recommendations`，再用 `collect-context` 获取一次排障上下文包；它只读返回 run spec、状态、诊断、FNL manifest、产品 manifest、近期事件和日志尾部，适合交给 AI 总结问题。`auto_retry_allowed=true` 才能考虑自动动作；`requires_operator=true` 时不要直接真实重试，应先收集上下文或通知人工。
 
 - 查看 FNL 数据库覆盖情况：
 

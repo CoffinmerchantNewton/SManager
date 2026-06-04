@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ...models.models import ForecastRun, ForecastRunStatus
 from ...schemas.run_control import AgentTickRequest
 from ..audit import create_action, finish_action
+from ..diagnostics import enrich_diagnosis
 from ..flow import ServerFlowService
 from ..fnl import FnlRepairService
 from ..products import ProductSyncService
@@ -58,6 +59,9 @@ class AgentTickService:
             products = None
             if status.get("status") == "success":
                 products = ProductSyncService(self.db).sync(run_id)
+            diagnosis = None
+            if status.get("status") in {"error", "retrying", "cancelled"}:
+                diagnosis = enrich_diagnosis(self.flow.diagnose(run_id), run_id=run_id)
             output = {
                 "ok": bool(fnl.get("ok")),
                 "run_id": run_id,
@@ -65,6 +69,7 @@ class AgentTickService:
                 "fnl": fnl,
                 "submit": submit,
                 "status": status,
+                "diagnosis": diagnosis,
                 "products": products,
             }
             finish_action(self.db, action, "success" if output["ok"] else "error", output)

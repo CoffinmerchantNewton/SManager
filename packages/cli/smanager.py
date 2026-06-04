@@ -134,7 +134,17 @@ def cmd_events(args) -> int:
 
 
 def cmd_diagnose(args) -> int:
-    return print_result(request_json("GET", api_url(args, f"/runs/{args.run_id}/diagnose")))
+    data = request_json("GET", api_url(args, f"/runs/{args.run_id}/diagnose"))
+    if args.summary:
+        payload = data.get("data", data) if isinstance(data, dict) else {}
+        return print_result(
+            {
+                "ok": data.get("ok", True) if isinstance(data, dict) else True,
+                "run_id": args.run_id,
+                "analysis": payload.get("analysis", {}),
+            }
+        )
+    return print_result(data)
 
 
 def cmd_collect_context(args) -> int:
@@ -298,6 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     diagnose = sub.add_parser("diagnose")
     diagnose.add_argument("--run-id", required=True)
+    diagnose.add_argument("--summary", action="store_true")
     diagnose.set_defaults(func=cmd_diagnose)
 
     context = sub.add_parser("collect-context")

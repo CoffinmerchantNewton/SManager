@@ -14,6 +14,7 @@ from ..schemas.run_control import (
     RunSubmitRequest,
 )
 from ..services.events import RunEventService
+from ..services.diagnostics import enrich_diagnosis
 from ..services.flow import ServerFlowService
 from ..services.products import ProductSyncService
 
@@ -122,7 +123,8 @@ def get_run_events(
 
 @router.get("/{run_id}/diagnose", response_model=FlowResponse)
 def diagnose_run(run_id: str):
-    return FlowResponse(data=service().diagnose(run_id))
+    diagnosis = service().diagnose(run_id)
+    return FlowResponse(data=enrich_diagnosis(diagnosis, run_id=run_id))
 
 
 @router.get("/{run_id}/context", response_model=FlowResponse)
@@ -133,6 +135,8 @@ def collect_run_context(
     max_logs: int = Query(default=12, ge=1, le=100),
 ):
     result = service().collect_context(run_id, tail=tail, event_limit=event_limit, max_logs=max_logs)
+    if isinstance(result.get("diagnose"), dict):
+        result["diagnose"] = enrich_diagnosis(result["diagnose"], run_id=run_id)
     return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
 
 

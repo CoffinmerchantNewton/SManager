@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "codes": ["fnl_missing", "fnl_bad_magic"],
+      "severity": "high",
+      "category": "input_data",
+      "action": "repair_fnl",
+      "auto_allowed": true,
+      "retry_after_action": ["wps_ungrib"],
+      "reason": "FNL is missing or corrupted; repair from jumpbox cache/download before rerunning WPS ungrib.",
+      "cli_template": "python3 packages/cli/smanager.py fnl-repair --run-id {run_id}"
+    },
+    {
+      "codes": ["node_command_missing", "node_commands_missing"],
+      "severity": "high",
+      "category": "configuration",
+      "action": "configure_node_command",
+      "auto_allowed": false,
+      "reason": "The server run spec lacks a required node command; update the commands-file instead of retrying.",
+      "cli_template": "python3 packages/cli/smanager.py collect-context --run-id {run_id}"
+    },
+    {
+      "codes": ["slurm_submit_failed"],
+      "severity": "medium",
+      "category": "scheduler",
+      "action": "retry_submit_later",
+      "auto_allowed": true,
+      "reason": "Slurm submission failed; a delayed submit retry is usually safe if the run spec is unchanged.",
+      "cli_template": "python3 packages/cli/smanager.py submit --run-id {run_id} --dry-run"
+    },
+    {
+      "codes": ["disk_full"],
+      "severity": "critical",
+      "category": "infrastructure",
+      "action": "notify_operator",
+      "auto_allowed": false,
+      "reason": "Disk space or quota is exhausted; retries can make the situation worse.",
+      "cli_template": "python3 packages/cli/smanager.py collect-context --run-id {run_id}"
+    },
+    {
+      "codes": ["wrf_cfl"],
+      "severity": "high",
+      "category": "model_runtime",
+      "action": "inspect_restart_policy",
+      "auto_allowed": false,
+      "reason": "WRF CFL failure may need timestep or restart-policy changes; require human review before retry.",
+      "cli_template": "python3 packages/cli/smanager.py logs --run-id {run_id} --node wrf_run --tail 400"
+    },
+    {
+      "codes": ["segfault"],
+      "severity": "high",
+      "category": "model_runtime",
+      "action": "inspect_rsl_logs",
+      "auto_allowed": false,
+      "reason": "Segfaults need rsl/log inspection before deciding whether retry is safe.",
+      "cli_template": "python3 packages/cli/smanager.py logs --run-id {run_id} --node wrf_run --tail 400"
+    },
+    {
+      "codes": ["node_command_failed", "node_error"],
+      "severity": "medium",
+      "category": "node_runtime",
+      "action": "inspect_node_logs",
+      "auto_allowed": false,
+      "reason": "Generic node failure has no deterministic recovery yet; collect context and inspect logs.",
+      "cli_template": "python3 packages/cli/smanager.py collect-context --run-id {run_id}"
+    }
+  ],
+  "default_rule": {
+    "severity": "medium",
+    "category": "unknown",
+    "action": "inspect_logs",
+    "auto_allowed": false,
+    "reason": "No deterministic recovery rule matched this finding.",
+    "cli_template": "python3 packages/cli/smanager.py collect-context --run-id {run_id}"
+  }
+}
