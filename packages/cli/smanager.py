@@ -121,6 +121,17 @@ def cmd_agent_tick(args) -> int:
     return 0
 
 
+def cmd_agent_actions(args) -> int:
+    query = {}
+    for key in ("run_id", "action_type", "status"):
+        value = getattr(args, key)
+        if value:
+            query[key] = value
+    query["limit"] = str(args.limit)
+    print_json(request_json("GET", api_url(args, "/agent/actions") + "?" + urllib.parse.urlencode(query)))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Jumpbox CLI for SManager")
     parser.add_argument("--api", default=DEFAULT_API)
@@ -187,6 +198,13 @@ def build_parser() -> argparse.ArgumentParser:
     tick.add_argument("--allow-noop", action="store_true")
     tick.add_argument("--no-repair-fnl", action="store_true")
     tick.set_defaults(func=cmd_agent_tick)
+
+    actions = sub.add_parser("agent-actions")
+    actions.add_argument("--run-id")
+    actions.add_argument("--action-type")
+    actions.add_argument("--status")
+    actions.add_argument("--limit", type=int, default=100)
+    actions.set_defaults(func=cmd_agent_actions)
     return parser
 
 
