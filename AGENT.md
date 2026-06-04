@@ -763,10 +763,8 @@ external_tick_or_cli
    - 最新产物入口
 
 2. Run Detail
-   - DAG 节点状态
-   - 每个节点 progress、attempt、job id、日志入口
-   - 手动 retry/cancel
-   - 诊断建议
+   - 已有 `/admin/runs/:runId` 页面，展示 DAG 节点状态、progress、attempt、job id、诊断、事件、日志尾部、Hermes 动作和产品入口。
+   - 后续可继续补手动 retry/cancel 的详情页内联操作。
 
 3. FNL Management
    - 按日期显示 FNL 缺失/已下载/已上传/服务器已校验

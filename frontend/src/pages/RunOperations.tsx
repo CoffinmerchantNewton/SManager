@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { agentApi, runsApi } from '../services/api';
 import type { AgentAction, ForecastRunWorkflowStatus } from '../types';
 
@@ -187,14 +188,25 @@ export default function RunOperations() {
             Control server-side WRF-Pollen flow, FNL repair, Slurm dry-runs, and Hermes audit state.
           </p>
         </div>
-        <button
-          onClick={() => refreshStatus()}
-          disabled={!activeRunId || !!busy}
-          className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10 disabled:opacity-40"
-        >
-          <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-sm">
+          {activeRunId && (
+            <Link
+              to={`/admin/runs/${encodeURIComponent(activeRunId)}`}
+              className="px-md py-sm bg-primary-container text-on-primary-container rounded-lg text-sm font-semibold"
+            >
+              <span className="material-symbols-outlined align-middle mr-2 text-sm">open_in_new</span>
+              Open Detail
+            </Link>
+          )}
+          <button
+            onClick={() => refreshStatus()}
+            disabled={!activeRunId || !!busy}
+            className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10 disabled:opacity-40"
+          >
+            <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
+            Refresh
+          </button>
+        </div>
       </header>
 
       <section className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-gutter">

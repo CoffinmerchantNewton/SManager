@@ -48,6 +48,7 @@ export const runsApi = {
   submit: (runId: string, data: any) => api.post(`/runs/${runId}/submit`, data),
   logs: (runId: string, params?: any) => api.get(`/runs/${runId}/logs`, { params }),
   diagnose: (runId: string) => api.get(`/runs/${runId}/diagnose`),
+  context: (runId: string, params?: any) => api.get(`/runs/${runId}/context`, { params }),
   retry: (runId: string, data: any) => api.post(`/runs/${runId}/retry`, data),
   cancel: (runId: string, data: any) => api.post(`/runs/${runId}/cancel`, data),
   products: (runId: string) => api.get(`/runs/${runId}/products`),

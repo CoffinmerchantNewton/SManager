@@ -136,6 +136,7 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_or_overla
 
 - Dashboard、Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
 - 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
+- Run Detail 页面可以按 run 展示 DAG 节点、诊断、事件、日志尾部、Hermes 动作和已同步产物下载入口。
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
 - Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 `png_overlay_metadata` 产品，经 `/content` 读取 bounds 和 PNG 文件名，再用 `/download` 叠加 PNG；没有 overlay 时回退 GeoJSON/JSON 产品，最后使用静态城市点位和模拟浓度。
 

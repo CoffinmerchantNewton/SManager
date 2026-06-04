@@ -6,6 +6,7 @@ import WorkflowEditor from './pages/WorkflowEditor';
 import TaskScheduler from './pages/TaskScheduler';
 import ProductsManagement from './pages/ProductsManagement';
 import RunOperations from './pages/RunOperations';
+import RunDetail from './pages/RunDetail';
 import FnlManagement from './pages/FnlManagement';
 import Portal from './pages/Portal';
 import Login from './pages/Login';
@@ -26,6 +27,7 @@ function App() {
               <Layout>
                 <Routes>
                   <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="runs/:runId" element={<RunDetail />} />
                   <Route path="runs" element={<RunOperations />} />
                   <Route path="fnl" element={<FnlManagement />} />
                   <Route path="workflow" element={<WorkflowEditor />} />
