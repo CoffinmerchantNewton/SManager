@@ -19,7 +19,7 @@
 - `batch_eval_pollen.sh`：批量评估已有 WRF 输出。
 - `restart_all_runs.sh`：按 restart 文件续跑历史任务。
 
-当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件和本地 storage 快照；`frontend/` 已有运行控制、FNL 管理、产物列表下载和主题切换。仍未完成的是把真实 WPS/WRF 节点命令、`product_extract` 产物提取、非空 `product_manifest` 和真实花粉分布地图渲染完整串起来。
+当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件和本地 storage 快照；`frontend/` 已有运行控制、FNL 管理、产物列表下载、GeoJSON 产品图层加载和主题切换。仍未完成的是把真实 WPS/WRF 节点命令、面向业务变量的高级后处理、等值线/PNG/切片产品和完整真实花粉分布地图渲染串起来。
 
 ## 总体原则
 
@@ -825,7 +825,7 @@ runs/<run_id>/products/product_manifest.json
 
 - 后端已经支持按 `product_manifest.json` 下载、索引和提供产品文件下载。
 - Products 页面已经能触发同步、筛选 run 产品并下载文件。
-- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则收集 `.nc`/`wrfout*` 文件，复制到 `products/extracted/` 并生成 `extracted_manifest.json`。
+- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则收集 `.nc`/`wrfout*` 文件，复制到 `products/extracted/` 并生成 `extracted_manifest.json`；设置 `PRODUCT_GEOJSON_VARIABLE` 后可从 NetCDF 生成抽样点 GeoJSON。
 - `package_products.sh` 已能把提取结果合成为非空 `product_manifest.json`。
 - 后端 `sync-products` 已验证可以下载并索引 `.nc` 产品，Products 页面可下载该文件。
 - Cesium 花粉分布页面已能尝试加载最新 GeoJSON/JSON 产品层；没有可用产品时使用模拟城市点位。尚未渲染原始 NetCDF，也尚未支持 PNG overlay、GeoTIFF/切片等更多地图层类型。
@@ -834,7 +834,7 @@ runs/<run_id>/products/product_manifest.json
 
 ```text
 wrfout / postprocess nc
-  -> product_extract: 收集 nc/wrfout；后续增加变量裁剪和 geojson/png/切片生成
+  -> product_extract: 收集 nc/wrfout；配置变量后生成抽样点 GeoJSON；后续增加等值线/png/切片生成
   -> package_products: 写入 product_manifest.json
   -> backend sync-products: 下载到 runtime/products/<run_id> 并入库
   -> frontend Products / Map: 读取产品索引并渲染 GeoJSON/PNG/栅格层

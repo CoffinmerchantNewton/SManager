@@ -8,7 +8,7 @@
 - 服务器侧调度入口在 `server/auto-pollen-flow/`，负责 `plan/status/fnl-verify/submit/logs/events/diagnose/retry/cancel/products`。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会尝试加载最新 GeoJSON/JSON 产品层，并用模拟城市点位兜底。
-- `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件并写入产品 manifest，后端可同步下载到跳板机；变量裁剪、GeoJSON/PNG/切片生成和前端地图渲染仍待实现。
+- `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件，并可按 `PRODUCT_GEOJSON_VARIABLE` 从 NetCDF 生成抽样点 GeoJSON；后端可同步下载到跳板机；等值线、PNG overlay、GeoTIFF/切片仍待实现。
 
 ## 目录结构
 
@@ -137,7 +137,7 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_product_i
 
 真实花粉分布展示还需要下一步实现：
 
-1. 在 `product_extract` 中加入变量裁剪和轻量可视化产品生成，例如 GeoJSON、PNG overlay、GeoTIFF/切片。
+1. 在 `product_extract` 中继续扩展等值线、PNG overlay、GeoTIFF/切片等可视化产品。
 2. 后端 `sync-products` 下载并索引这些产品。
 3. 前端继续扩展 PNG overlay、GeoTIFF/切片等地图层类型。
 

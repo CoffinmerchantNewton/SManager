@@ -59,3 +59,17 @@ export FNL_ROOTS=/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl
 ```
 
 未配置命令的节点不会被提交；除非显式 `--allow-noop`，否则 `submit` 会拒绝执行。
+
+## 产物提取
+
+`templates/node_commands/product_extract.sh` 默认调用 `tools/product_extract.py`：
+
+- 默认扫描 run 目录下的 `*.nc` 和 `wrfout*`，复制到 `products/extracted/`。
+- 可用 `PRODUCT_SOURCE_GLOB` 覆盖扫描规则，多个 glob 用 `:` 分隔。
+- 设置 `PRODUCT_GEOJSON_VARIABLE` 后，会从 NetCDF 变量生成点 GeoJSON 产品。
+- NetCDF 读取优先使用 `netCDF4`，否则使用 `scipy.io.netcdf_file`；可用 `PYTHON_BIN=/path/to/python` 指定带依赖的 Python。
+- 经纬度变量默认按 `XLAT,XLAT_M,lat,latitude` 和 `XLONG,XLONG_M,lon,longitude` 查找，可用 `PRODUCT_LAT_VARIABLES`、`PRODUCT_LON_VARIABLES` 覆盖。
+- `PRODUCT_TIME_INDEX`、`PRODUCT_VERTICAL_INDEX` 控制时间和垂直层切片。
+- `PRODUCT_GEOJSON_MAX_POINTS` 或 `PRODUCT_GEOJSON_STRIDE` 控制 GeoJSON 抽样密度。
+
+`templates/node_commands/package_products.sh` 会将提取结果写为 `products/product_manifest.json`，供跳板机后端 `sync-products` 下载和索引。

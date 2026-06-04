@@ -26,4 +26,4 @@ require_var RUN_ID
 require_var FLOW_RUN_DIR
 
 TOOL="$(find_tool "${PRODUCT_EXTRACT_TOOL:-}" "product_extract.py")"
-python3 "${TOOL}"
+"${PYTHON_BIN:-python3}" "${TOOL}"
