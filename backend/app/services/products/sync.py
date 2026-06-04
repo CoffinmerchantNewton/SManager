@@ -40,7 +40,15 @@ class ProductSyncService:
             synced = []
             for item in manifest.get("products", []):
                 synced.append(self.sync_one(run_id, item, remote_product_dir))
-            output = {"ok": all(item.get("ok") for item in synced), "run_id": run_id, "products": synced}
+            indexed_count = sum(1 for item in synced if item.get("ok"))
+            output = {
+                "ok": all(item.get("ok") for item in synced),
+                "run_id": run_id,
+                "manifest_count": len(manifest.get("products", [])),
+                "indexed_count": indexed_count,
+                "failed_count": len(synced) - indexed_count,
+                "products": synced,
+            }
             finish_action(self.db, action, "success" if output["ok"] else "error", output)
             return output
         except Exception as exc:

@@ -61,7 +61,7 @@ export default function ProductsManagement() {
       setMessage(null);
       setErrorMessage(null);
       const response = await runsApi.syncProducts(normalizedRunId);
-      const indexedCount = response.data?.indexed_count ?? 0;
+      const indexedCount = response.data?.data?.indexed_count ?? 0;
       setMessage(`Indexed ${indexedCount} products for ${normalizedRunId}.`);
       await loadProducts(normalizedRunId);
     } catch (error) {
