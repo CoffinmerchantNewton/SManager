@@ -8,8 +8,8 @@
 - 服务器侧调度入口在 `server/auto-pollen-flow/`，负责 `plan/status/fnl-verify/submit/logs/events/diagnose/collect-context/retry/cancel/products`。
 - 服务器节点脚本已改为可配置命令入口；WPS/WRF/后处理真实命令通过 commands-file 的 `*_COMMAND` 和 `*_CWD` 环境变量注入。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
-- 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层，回退 GeoJSON/JSON 产品层，再回退模拟城市点位。
-- `product_extract` 已支持按 `wrfout.txt` 对应的 WRF-Pollen 变量结构预提取 7 天小汇总 NetCDF，包含 `POLLEN_1..9`、气温、风、降水和派生的 `pollen_total`/主导物种/逐步降水；可继续生成抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
+- 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层和 `city_forecast_json` 城市预报，支持城市查询、未来 7 天时间轴、风险等级、主导物种、气温、降水和风速展示；缺产品时回退示例城市点位。
+- `product_extract` 已支持按 `wrfout.txt` 对应的 WRF-Pollen 变量结构预提取 7 天小汇总 NetCDF，包含 `POLLEN_1..9`、气温、风、降水和派生的 `pollen_total`/主导物种/逐步降水；可继续生成城市 7 天预报 JSON、抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
 
 ## 目录结构
 
@@ -138,12 +138,12 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_or_overla
 - 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
 - Run Detail 页面可以按 run 展示 DAG 节点、诊断、事件、日志尾部、Hermes 动作和已同步产物下载入口。
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
-- Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 `png_overlay_metadata` 产品，经 `/content` 读取 bounds 和 PNG 文件名，再用 `/download` 叠加 PNG；没有 overlay 时回退 GeoJSON/JSON 产品，最后使用静态城市点位和模拟浓度。
+- Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 `png_overlay_metadata` 和 `city_forecast_json` 产品；overlay 经 `/content` 读取 bounds 和 PNG 文件名，再用 `/download` 叠加 PNG，城市预报 JSON 用于城市查询、7 天时间轴、风险等级、主导物种、气温、降水和风速。没有产品时回退静态城市点位。
 
 花粉分布展示仍需要下一步增强：
 
-1. 前端改为 Windy 风格的底图、时间轴和图层控制，直接面向 `pollen_total`、风险等级、主导致敏物种、气温、降水和风速展示。
-2. 基于 summary nc 继续生成城市预报 JSON 或轻量采样产品，用于城市查询和未来 7 天曲线。
+1. 城市风险阈值按业务标准校准，并增加站点/城市级历史对比。
+2. 前端继续增加多图层切换、逐时播放和更多 Windy 风格交互。
 3. 继续扩展等值线、GeoTIFF/切片等地图层类型。
 
 不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。已同步的 `.json/.geojson/.overlay.json` 产品可以通过 `/api/v1/products/{product_id}/content` 读取，PNG 等二进制产品通过 `/download` 读取。

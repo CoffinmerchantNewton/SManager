@@ -16,7 +16,9 @@
     "PRODUCT_COPY_SOURCES": "false",
     "PRODUCT_GEOJSON_VARIABLE": "pollen_total",
     "PRODUCT_PNG_VARIABLE": "pollen_total",
-    "PRODUCT_PNG_OPACITY": "0.72"
+    "PRODUCT_PNG_OPACITY": "0.72",
+    "PRODUCT_CITY_FORECAST_ENABLED": "true",
+    "PRODUCT_POLLEN_RISK_THRESHOLDS": "300,600,1000"
   },
   "slurm_defaults": {
     "partition": "normal",

@@ -136,6 +136,8 @@ PNG overlay 会以两条产品记录出现：`png_overlay_metadata` 是可用 `p
 
 如果产品 manifest 中有 `summary_netcdf`，优先把它视为后续分析和可视化的轻量数据源；不要为了诊断或展示主动同步、下载全部原始 `wrfout`。7 天逐日花粉预报应优先通过 `PRODUCT_SUMMARY_PRESET=wrf_pollen`、`PRODUCT_SUMMARY_MAX_STEPS=7` 生成小汇总 nc，里面会包含 `POLLEN_1..9`、`pollen_total`、`dominant_species_index`、`t2_c`、`wind10_ms`、`precip_accum_mm` 和 `precip_step_mm`；旧的 `PRODUCT_SUMMARY_VARIABLE` 只用于单变量诊断。
 
+如果产品 manifest 中有 `city_forecast_json`，优先用 `product-content` 查看城市 7 天预报、风险等级、主导物种、气温、降水和风速。风险阈值来自服务器 `PRODUCT_POLLEN_RISK_THRESHOLDS`，不要在诊断结论里把默认阈值当成最终业务标准。
+
 - 查看服务器节点日志：
 
 ```bash

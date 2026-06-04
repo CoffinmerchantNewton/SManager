@@ -29,9 +29,10 @@ interface CesiumMapProps {
     risk: string;
   }>;
   productLayer?: MapProductLayer | null;
+  selectedCityName?: string;
 }
 
-export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
+export default function CesiumMap({ cities, productLayer, selectedCityName }: CesiumMapProps) {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const citySourceRef = useRef<Cesium.CustomDataSource | null>(null);
@@ -41,12 +42,8 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
   useEffect(() => {
     if (!cesiumContainer.current) return;
 
-    // Set Cesium Ion access token (use default for now)
-    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1OWUxNy1mMWZiLTQzYjYtYTQ0OS1kMWFjYmFkNjc5YzciLCJpZCI6NTc3MzMsImlhdCI6MTYyNzg0NTE4Mn0.XcKpgANiY19MC4bdFUXMVEBToBmqS8kuYpUlxJHYZxk';
-
-    // Create Cesium Viewer
     const viewer = new Cesium.Viewer(cesiumContainer.current, {
-      terrain: Cesium.Terrain.fromWorldTerrain(),
+      terrainProvider: new Cesium.EllipsoidTerrainProvider(),
       baseLayerPicker: false,
       geocoder: false,
       homeButton: false,
@@ -58,10 +55,13 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
       vrButton: false,
       infoBox: false,
       selectionIndicator: false,
-      baseLayer: Cesium.ImageryLayer.fromProviderAsync(
-        Cesium.IonImageryProvider.fromAssetId(3954),
-      ),
+      baseLayer: false,
     });
+    viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#07111f');
+    if (viewer.scene.skyAtmosphere) {
+      viewer.scene.skyAtmosphere.show = false;
+    }
+    viewer.scene.fog.enabled = false;
 
     viewerRef.current = viewer;
 
@@ -81,13 +81,13 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
       try {
         const [countryDataSource, provinceDataSource] = await Promise.all([
           Cesium.GeoJsonDataSource.load('/china-country-outline.geojson', {
-            clampToGround: true,
+            clampToGround: false,
             stroke: Cesium.Color.fromCssColorString('#00f1fe').withAlpha(0.95),
             fill: Cesium.Color.fromCssColorString('#00f1fe').withAlpha(0.06),
             strokeWidth: 4,
           }),
           Cesium.GeoJsonDataSource.load('/china-provinces-outline.geojson', {
-            clampToGround: true,
+            clampToGround: false,
             stroke: Cesium.Color.fromCssColorString('#7fdcff').withAlpha(0.55),
             fill: Cesium.Color.TRANSPARENT,
             strokeWidth: 1.5,
@@ -138,23 +138,26 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
     const citySource = new Cesium.CustomDataSource('pollen-city-markers');
     cities.forEach((city) => {
       const color = getRiskColorCesium(city.risk);
+      const isSelected = city.name === selectedCityName;
+      const markerRadius = markerRadiusMeters(city.concentration, isSelected);
 
       citySource.entities.add({
         position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 10000),
         ellipse: {
-          semiMinorAxis: city.concentration * 500,
-          semiMajorAxis: city.concentration * 500,
-          material: color.withAlpha(0.3),
+          semiMinorAxis: markerRadius,
+          semiMajorAxis: markerRadius,
+          height: 0,
+          material: color.withAlpha(isSelected ? 0.48 : 0.28),
           outline: true,
-          outlineColor: color,
-          outlineWidth: 2,
+          outlineColor: isSelected ? Cesium.Color.WHITE : color,
+          outlineWidth: isSelected ? 3 : 2,
         },
       });
 
       citySource.entities.add({
         position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 50000),
         label: {
-          text: `${city.name}\n${city.concentration} n/m³`,
+          text: `${city.name}\n${formatConcentration(city.concentration)}`,
           font: '14px sans-serif',
           fillColor: color,
           outlineColor: Cesium.Color.BLACK,
@@ -164,7 +167,7 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
           pixelOffset: new Cesium.Cartesian2(0, -10),
         },
         point: {
-          pixelSize: 8,
+          pixelSize: isSelected ? 12 : 8,
           color: color,
           outlineColor: Cesium.Color.WHITE,
           outlineWidth: 2,
@@ -174,7 +177,18 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
 
     citySourceRef.current = citySource;
     void viewer.dataSources.add(citySource);
-  }, [cities]);
+  }, [cities, selectedCityName]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed() || !selectedCityName) return;
+    const city = cities.find((item) => item.name === selectedCityName);
+    if (!city) return;
+    void viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 900000),
+      duration: 0.7,
+    });
+  }, [cities, selectedCityName]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -214,7 +228,7 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
 
     let cancelled = false;
     Cesium.GeoJsonDataSource.load(productLayer.geojson, {
-      clampToGround: true,
+      clampToGround: false,
       stroke: Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.95),
       fill: Cesium.Color.fromCssColorString('#ff8a4c').withAlpha(0.32),
       markerColor: Cesium.Color.fromCssColorString('#ffcc66'),
@@ -260,6 +274,7 @@ function applyBoundaryStyle(
 
     entity.polygon.fill = new Cesium.ConstantProperty(fillColor.alpha > 0);
     entity.polygon.material = new Cesium.ColorMaterialProperty(fillColor);
+    entity.polygon.height = new Cesium.ConstantProperty(0);
     entity.polygon.outline = new Cesium.ConstantProperty(true);
     entity.polygon.outlineColor = new Cesium.ConstantProperty(strokeColor);
     entity.polygon.outlineWidth = new Cesium.ConstantProperty(outlineWidth);
@@ -276,6 +291,7 @@ function applyProductLayerStyle(dataSource: Cesium.GeoJsonDataSource) {
       entity.polygon.material = new Cesium.ColorMaterialProperty(
         Cesium.Color.fromCssColorString('#ff8a4c').withAlpha(0.32),
       );
+      entity.polygon.height = new Cesium.ConstantProperty(0);
       entity.polygon.outline = new Cesium.ConstantProperty(true);
       entity.polygon.outlineColor = new Cesium.ConstantProperty(
         Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.95),
@@ -310,4 +326,21 @@ function getRiskColorCesium(risk: string): Cesium.Color {
     default:
       return Cesium.Color.fromCssColorString('#8c90a1');
   }
+}
+
+function markerRadiusMeters(concentration: number, selected: boolean): number {
+  const value = Number.isFinite(concentration) ? Math.max(0, concentration) : 0;
+  const base = Math.sqrt(value) * 5500;
+  const capped = Math.max(14000, Math.min(180000, base));
+  return selected ? capped * 1.25 : capped;
+}
+
+function formatConcentration(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '--';
+  }
+  if (value >= 1000) {
+    return `${Math.round(value).toLocaleString()} grains/kg`;
+  }
+  return `${Math.round(value * 10) / 10} grains/kg`;
 }

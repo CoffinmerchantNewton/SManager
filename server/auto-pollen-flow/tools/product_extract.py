@@ -28,6 +28,48 @@ POLLEN_SPECIES = [
     {"index": 9, "variable": "POLLEN_9", "name": "chenopodiaceae"},
 ]
 WRF_POLLEN_MET_VARIABLES = ["T2", "U10", "V10", "RAINC", "RAINNC", "RAINSH"]
+CITY_FORECAST_VARIABLES = [
+    "pollen_total",
+    "dominant_species_index",
+    "t2_c",
+    "wind10_ms",
+    "precip_step_mm",
+    "precip_accum_mm",
+]
+DEFAULT_CITY_POINTS = [
+    {"name": "\u5317\u4eac", "longitude": 116.4074, "latitude": 39.9042},
+    {"name": "\u5929\u6d25", "longitude": 117.2000, "latitude": 39.1333},
+    {"name": "\u4e0a\u6d77", "longitude": 121.4737, "latitude": 31.2304},
+    {"name": "\u5e7f\u5dde", "longitude": 113.2644, "latitude": 23.1291},
+    {"name": "\u6df1\u5733", "longitude": 114.0579, "latitude": 22.5431},
+    {"name": "\u6b66\u6c49", "longitude": 114.3054, "latitude": 30.5931},
+    {"name": "\u6210\u90fd", "longitude": 104.0665, "latitude": 30.5728},
+    {"name": "\u897f\u5b89", "longitude": 108.9398, "latitude": 34.3416},
+    {"name": "\u54c8\u5c14\u6ee8", "longitude": 126.5349, "latitude": 45.8038},
+    {"name": "\u6c88\u9633", "longitude": 123.4315, "latitude": 41.8057},
+    {"name": "\u957f\u6625", "longitude": 125.3235, "latitude": 43.8171},
+    {"name": "\u547c\u548c\u6d69\u7279", "longitude": 111.7492, "latitude": 40.8426},
+    {"name": "\u77f3\u5bb6\u5e84", "longitude": 114.5149, "latitude": 38.0428},
+    {"name": "\u592a\u539f", "longitude": 112.5489, "latitude": 37.8706},
+    {"name": "\u90d1\u5dde", "longitude": 113.6254, "latitude": 34.7466},
+    {"name": "\u6d4e\u5357", "longitude": 117.1201, "latitude": 36.6512},
+    {"name": "\u5357\u4eac", "longitude": 118.7969, "latitude": 32.0603},
+    {"name": "\u676d\u5dde", "longitude": 120.1551, "latitude": 30.2741},
+    {"name": "\u5408\u80a5", "longitude": 117.2272, "latitude": 31.8206},
+    {"name": "\u957f\u6c99", "longitude": 112.9388, "latitude": 28.2282},
+    {"name": "\u5357\u660c", "longitude": 115.8582, "latitude": 28.6829},
+    {"name": "\u798f\u5dde", "longitude": 119.2965, "latitude": 26.0745},
+    {"name": "\u91cd\u5e86", "longitude": 106.5516, "latitude": 29.5630},
+    {"name": "\u8d35\u9633", "longitude": 106.6302, "latitude": 26.6470},
+    {"name": "\u6606\u660e", "longitude": 102.8329, "latitude": 24.8801},
+    {"name": "\u5357\u5b81", "longitude": 108.3669, "latitude": 22.8170},
+    {"name": "\u6d77\u53e3", "longitude": 110.1983, "latitude": 20.0440},
+    {"name": "\u5170\u5dde", "longitude": 103.8343, "latitude": 36.0611},
+    {"name": "\u897f\u5b81", "longitude": 101.7782, "latitude": 36.6171},
+    {"name": "\u94f6\u5ddd", "longitude": 106.2309, "latitude": 38.4872},
+    {"name": "\u4e4c\u9c81\u6728\u9f50", "longitude": 87.6168, "latitude": 43.8256},
+    {"name": "\u62c9\u8428", "longitude": 91.1172, "latitude": 29.6469},
+]
 VARIABLE_METADATA = {
     "T2": {"long_name": "2-meter air temperature", "units": "K"},
     "U10": {"long_name": "10-meter eastward wind", "units": "m s-1"},
@@ -61,6 +103,9 @@ def main() -> int:
     summary_product, summary_path = extract_summary_product(run_id, products_dir, sources, output_dir)
     if summary_product and summary_path:
         products.append(summary_product)
+        city_product = extract_city_forecast_product(run_id, products_dir, summary_path, output_dir)
+        if city_product:
+            products.append(city_product)
 
     if copy_sources_enabled():
         for source in sources[:extract_limit()]:
@@ -442,6 +487,243 @@ def summary_units(variable: str, metadata: dict[str, str]) -> str:
 
 def pollen_species_attribute() -> str:
     return ";".join(f"{item['index']}={item['name']}" for item in POLLEN_SPECIES)
+
+
+def extract_city_forecast_product(
+    run_id: str,
+    products_dir: Path,
+    summary_path: Path,
+    output_dir: Path,
+) -> dict[str, Any] | None:
+    if not city_forecast_enabled():
+        return None
+    try:
+        payload = build_city_forecast(summary_path)
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "warning": "city_forecast_extract_failed",
+                    "source": str(summary_path),
+                    "error": exc.__class__.__name__,
+                    "message": str(exc),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return None
+    target = unique_target(output_dir, f"{summary_path.stem}_city_forecast.json")
+    write_json(target, payload)
+    return {
+        "name": target.name,
+        "path": str(target.relative_to(products_dir)),
+        "server_path": str(target),
+        "type": "city_forecast_json",
+        "mime": "application/json",
+        "region": os.environ.get("PRODUCT_REGION", "unknown"),
+        "pollen_type": os.environ.get("PRODUCT_POLLEN_TYPE", "pollen_total"),
+        "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
+        "workflow_node": "product_extract",
+        "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+    }
+
+
+def build_city_forecast(summary_path: Path) -> dict[str, Any]:
+    import numpy as np  # type: ignore
+
+    variables = city_forecast_variables()
+    arrays = open_netcdf_variables(summary_path, variables)
+    lats = reduce_to_2d(arrays["lat"])
+    lons = reduce_to_2d(arrays["lon"])
+    stacks = {
+        variable: values_to_time_stack(value, lats.shape)
+        for variable, value in arrays["values"].items()
+    }
+    if "pollen_total" not in stacks:
+        raise KeyError("city forecast requires pollen_total in summary NetCDF")
+
+    lead_hours = read_optional_time_axis(summary_path, "lead_hours", stacks["pollen_total"].shape[0])
+    forecast_days = read_optional_time_axis(summary_path, "forecast_day", stacks["pollen_total"].shape[0])
+    thresholds = pollen_risk_thresholds()
+    cities = []
+    for city in city_points():
+        row, col, distance_km = nearest_grid_cell(lats, lons, float(city["latitude"]), float(city["longitude"]))
+        forecast = []
+        for time_index in range(stacks["pollen_total"].shape[0]):
+            pollen_total = finite_float(stacks["pollen_total"][time_index, row, col])
+            forecast_day = forecast_days[time_index] if time_index < len(forecast_days) else None
+            lead_hour = lead_hours[time_index] if time_index < len(lead_hours) else None
+            step = {
+                "time_index": time_index,
+                "forecast_day": int(forecast_day) if forecast_day is not None else time_index + 1,
+                "lead_hours": lead_hour if lead_hour is not None else float(time_index * 24),
+                "pollen_total": pollen_total,
+                "risk": classify_pollen_risk(pollen_total, thresholds),
+            }
+            for variable, stack in stacks.items():
+                if variable == "pollen_total":
+                    continue
+                if time_index >= stack.shape[0]:
+                    continue
+                step[variable] = finite_float(stack[time_index, row, col])
+            if "dominant_species_index" in step:
+                step["dominant_species"] = pollen_species_name(step["dominant_species_index"])
+            forecast.append(step)
+        cities.append(
+            {
+                "name": city["name"],
+                "longitude": float(city["longitude"]),
+                "latitude": float(city["latitude"]),
+                "grid": {"row": int(row), "col": int(col), "distance_km": round(distance_km, 3)},
+                "forecast": forecast,
+            }
+        )
+    return {
+        "type": "city_forecast",
+        "source": summary_path.name,
+        "generated_at": now_iso(),
+        "variables": list(stacks),
+        "risk_thresholds": thresholds,
+        "species": [{"index": item["index"], "name": item["name"]} for item in POLLEN_SPECIES],
+        "cities": cities,
+    }
+
+
+def city_forecast_enabled() -> bool:
+    configured = os.environ.get("PRODUCT_CITY_FORECAST_ENABLED")
+    if configured is not None:
+        return configured.strip().lower() in {"1", "true", "yes", "on"}
+    return os.environ.get("PRODUCT_SUMMARY_PRESET", "").strip().lower() in WRF_POLLEN_PRESETS
+
+
+def city_forecast_variables() -> list[str]:
+    configured = split_env_list(os.environ.get("PRODUCT_CITY_FORECAST_VARIABLES"))
+    return unique_names(configured or CITY_FORECAST_VARIABLES)
+
+
+def city_points() -> list[dict[str, Any]]:
+    raw = os.environ.get("PRODUCT_CITY_POINTS_JSON")
+    if raw:
+        return normalize_city_points(json.loads(raw))
+    path = os.environ.get("PRODUCT_CITY_POINTS_FILE")
+    if path:
+        return normalize_city_points(json.loads(Path(path).read_text(encoding="utf-8")))
+    return DEFAULT_CITY_POINTS
+
+
+def normalize_city_points(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, dict) and payload.get("type") == "FeatureCollection":
+        items = []
+        for feature in payload.get("features", []):
+            coordinates = feature.get("geometry", {}).get("coordinates", [])
+            properties = feature.get("properties", {})
+            if len(coordinates) < 2:
+                continue
+            items.append(
+                {
+                    "name": properties.get("name") or properties.get("city") or "unknown",
+                    "longitude": coordinates[0],
+                    "latitude": coordinates[1],
+                }
+            )
+        return items
+    if isinstance(payload, dict) and "cities" in payload:
+        payload = payload["cities"]
+    if not isinstance(payload, list):
+        raise ValueError("city points must be a list, {'cities': [...]}, or GeoJSON FeatureCollection")
+    cities = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name") or item.get("city")
+        longitude = item.get("longitude", item.get("lon"))
+        latitude = item.get("latitude", item.get("lat"))
+        if name is None or longitude is None or latitude is None:
+            continue
+        cities.append({"name": str(name), "longitude": float(longitude), "latitude": float(latitude)})
+    if not cities:
+        raise ValueError("city point list is empty")
+    return cities
+
+
+def nearest_grid_cell(lats: Any, lons: Any, latitude: float, longitude: float) -> tuple[int, int, float]:
+    import numpy as np  # type: ignore
+
+    lat_data = np.asarray(lats, dtype=float)
+    lon_data = np.asarray(lons, dtype=float)
+    distances = (lat_data - latitude) ** 2 + (lon_data - longitude) ** 2
+    distances = np.where(np.isfinite(distances), distances, np.inf)
+    index = int(np.argmin(distances))
+    row, col = np.unravel_index(index, distances.shape)
+    return int(row), int(col), haversine_km(latitude, longitude, float(lat_data[row, col]), float(lon_data[row, col]))
+
+
+def haversine_km(lat_a: float, lon_a: float, lat_b: float, lon_b: float) -> float:
+    radius_km = 6371.0
+    phi_a = math.radians(lat_a)
+    phi_b = math.radians(lat_b)
+    d_phi = math.radians(lat_b - lat_a)
+    d_lambda = math.radians(lon_b - lon_a)
+    h = math.sin(d_phi / 2.0) ** 2 + math.cos(phi_a) * math.cos(phi_b) * math.sin(d_lambda / 2.0) ** 2
+    return 2.0 * radius_km * math.asin(min(1.0, math.sqrt(h)))
+
+
+def read_optional_time_axis(path: Path, variable: str, fallback_length: int) -> list[float | None]:
+    try:
+        arrays = open_netcdf_arrays(path, variable)
+        data = sanitize_array(arrays["value"]).reshape(-1)
+        return [finite_float(item) for item in data]
+    except Exception:
+        if variable == "forecast_day":
+            return [float(index + 1) for index in range(fallback_length)]
+        return [float(index * 24) for index in range(fallback_length)]
+
+
+def pollen_risk_thresholds() -> dict[str, float]:
+    raw = os.environ.get("PRODUCT_POLLEN_RISK_THRESHOLDS", "300,600,1000")
+    if raw.strip().startswith("{"):
+        payload = json.loads(raw)
+        return {
+            "medium": float(payload["medium"]),
+            "high": float(payload["high"]),
+            "critical": float(payload["critical"]),
+        }
+    values = [float(item.strip()) for item in raw.split(",") if item.strip()]
+    if len(values) != 3:
+        raise ValueError("PRODUCT_POLLEN_RISK_THRESHOLDS must be 'medium,high,critical'")
+    medium, high, critical = values
+    if not (medium <= high <= critical):
+        raise ValueError("PRODUCT_POLLEN_RISK_THRESHOLDS must be ordered")
+    return {"medium": medium, "high": high, "critical": critical}
+
+
+def classify_pollen_risk(value: float | None, thresholds: dict[str, float]) -> str:
+    if value is None or not math.isfinite(value):
+        return "unknown"
+    if value >= thresholds["critical"]:
+        return "critical"
+    if value >= thresholds["high"]:
+        return "high"
+    if value >= thresholds["medium"]:
+        return "medium"
+    return "low"
+
+
+def pollen_species_name(index: Any) -> str | None:
+    try:
+        numeric = int(round(float(index)))
+    except (TypeError, ValueError):
+        return None
+    for item in POLLEN_SPECIES:
+        if item["index"] == numeric:
+            return item["name"]
+    return None
+
+
+def finite_float(value: Any) -> float | None:
+    number = float(value)
+    return number if math.isfinite(number) else None
 
 
 def extract_geojson_product(
