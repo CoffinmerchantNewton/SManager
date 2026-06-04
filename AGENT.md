@@ -9,7 +9,7 @@
 当前运行环境分为两台机器：
 
 - 内网 CentOS 服务器：不能访问外网，负责 WPS、WRF、WRF-Pollen、后处理等重计算任务，可使用 Slurm 队列。
-- 跳板机笔记本：可以访问外网，也可以 SSH 登录内网服务器，负责下载 FNL、上传输入数据、轮询任务状态、下载产物、提供后端 API、运行 Hermes-agent 和前端。
+- 跳板机笔记本：可以访问外网，也可以 SSH 登录内网服务器，负责下载 FNL、上传输入数据、轮询任务状态、下载产物、提供后端 API、运行前端，并为 Hermes/AI 助手提供 CLI 控制面。
 
 当前 `wrf-pollen/auto-pollen/` 已经能做单次或批量运行：
 
@@ -19,7 +19,7 @@
 - `batch_eval_pollen.sh`：批量评估已有 WRF 输出。
 - `restart_all_runs.sh`：按 restart 文件续跑历史任务。
 
-当前 `backend/` 和 `frontend/` 是平台原型，主要是 CRUD、演示数据和 UI 壳，尚未接入真实 SSH、Slurm、运行目录、FNL 文件和产物索引。
+当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件和本地 storage 快照；`frontend/` 已有运行控制、FNL 管理、产物列表下载和主题切换。仍未完成的是把真实 WPS/WRF 节点命令、`product_extract` 产物提取、非空 `product_manifest` 和真实花粉分布地图渲染完整串起来。
 
 ## 总体原则
 
@@ -28,7 +28,7 @@
 3. 所有节点必须幂等：重复执行同一节点不会破坏已有成功产物。
 4. 所有关键状态必须结构化落盘，不能只靠日志文本。
 5. AI 自动重试必须受规则约束：先确定性诊断，再选择有限动作，超过次数通知人工。
-6. 后端、Hermes-agent、AI 助手尽量复用同一套 CLI，避免各自绕过业务逻辑。
+6. 后端、Hermes/AI 助手尽量复用同一套 CLI，避免各自绕过业务逻辑。
 7. 大文件不进数据库，数据库只保存元数据、索引、状态和路径。
 8. 每次优化都要以可维护性为前提：测试通过后直接修改到最有用的实现，不以补丁堆叠方式保留新旧两套实现。
 
@@ -36,7 +36,7 @@
 
 项目目录按职责拆成五层：
 
-1. `apps/`：跳板机上运行的用户界面、后端服务、Hermes-agent。
+1. `apps/`：跳板机上运行的用户界面和后端服务；不再维护独立 `apps/hermes-agent`。
 2. `packages/`：前后端和 agent 共用的契约、类型、CLI、诊断规则。
 3. `server/`：要部署到内网服务器的离线 flow 包装层。
 4. `runtime/`：跳板机本地运行时数据，不进 Git。
@@ -105,20 +105,9 @@ SManager/
       tests/
       package.json
 
-    hermes-agent/
-      hermes_agent/
-        agent.py
-        loops/
-          daily_scheduler.py
-          status_poller.py
-          fnl_guard.py
-          retry_guard.py
-          product_sync.py
-        policies/
-          retry_policy.yaml
-          notification_policy.yaml
-      tests/
-      pyproject.toml
+  skills/
+    smanager-hermes-cli/
+      SKILL.md
 
   packages/
     contracts/
@@ -223,22 +212,22 @@ runtime/.gitkeep
 - 不存业务规则，不直接拼服务器路径。
 - 页面围绕 `run_id`、DAG 节点、FNL 覆盖、产物浏览展开。
 
-`apps/hermes-agent/`：
+`skills/smanager-hermes-cli/`：
 
-- 长轮询或定时运行。
-- 调用后端 service 或共享 CLI，不直接复制后端业务逻辑。
-- 所有自动动作写入审计表。
+- Hermes/AI 助手的操作说明入口。
+- 只通过 `packages/cli/smanager.py` 调用后端 API，不直接 SSH 到服务器。
+- 当需要扩展自动值守能力时，优先扩展后端 API 和 CLI 契约，不恢复第二套 agent 代码。
 
 `packages/contracts/`：
 
 - 放 JSON Schema 或 Pydantic 可导出的契约。
-- 服务器 flow、后端、agent、前端类型都从这里对齐。
+- 服务器 flow、后端、CLI、前端类型都从这里对齐。
 - 状态文件字段变化必须先改 contracts。
 
 `packages/diagnostics/`：
 
 - 放错误模式和恢复动作。
-- AI 助手、Hermes-agent、后端诊断接口共用。
+- AI 助手、Hermes、后端诊断接口共用。
 
 `server/auto-pollen-flow/`：
 
@@ -264,7 +253,7 @@ Python 包：
 
 - 后端公共包：`smanager_common`
 - 服务器 flow：`auto_pollen_flow`
-- Hermes-agent：`hermes_agent`
+- Hermes/AI skill：`smanager-hermes-cli`
 
 CLI：
 
@@ -432,7 +421,7 @@ runs/<run_id>/events.jsonl
 write <file>.tmp -> fsync -> mv <file>.tmp <file>
 ```
 
-这样后端和 Hermes-agent 读取时不会遇到半截 JSON。
+这样后端和 Hermes/AI 助手读取时不会遇到半截 JSON。
 
 ## 服务器 CLI
 
@@ -475,7 +464,7 @@ post_job=$(sbatch --parsable --dependency=afterok:${wrf_job} postprocess.sh)
 
 - MVP 先沿用现有 `batch_run.sh` 的“prep 后提交 WRF”逻辑，但补结构化状态。
 - 第二阶段改为 `sbatch --dependency=afterok`，并记录所有 job id。
-- Hermes-agent 负责定时 `squeue/sacct` 和状态文件对账。
+- 外部 Hermes/AI 值守流程负责定时 `squeue/sacct` 和状态文件对账；本仓库通过后端 API 和 CLI 暴露查询入口。
 
 ## FNL 闭环
 
@@ -548,7 +537,7 @@ FNL manifest 示例：
 - 通过 SSH 调用服务器 CLI。
 - 管理 FNL 下载、校验、上传。
 - 提供前端 API。
-- 给 Hermes-agent 暴露可执行动作。
+- 给 Hermes/AI 助手暴露可执行动作。
 
 建议新增服务层：
 
@@ -692,9 +681,9 @@ storage/
 
 数据库只存路径和元数据，不直接存大文件。
 
-## Hermes-agent
+## Hermes/AI CLI 自动值守
 
-Hermes-agent 是跳板机上的自动值守器。
+本仓库不再维护独立 `apps/hermes-agent` 代码。Hermes 或 AI 助手应通过 `skills/smanager-hermes-cli/SKILL.md` 学习操作方式，并通过 `packages/cli/smanager.py` 调用后端 API。需要定时触发时，由外部 Hermes、cron 或 systemd timer 调用 CLI/API；业务逻辑仍收敛在后端和服务器 `flowctl`。
 
 职责：
 
@@ -704,12 +693,12 @@ Hermes-agent 是跳板机上的自动值守器。
 - 轮询状态、Slurm 队列和日志。
 - 判断是否需要自动重试。
 - 下载产物并更新数据库。
-- 发送机器人通知。
+- 发送机器人通知；第一版可先只写 `agent_actions` 审计和系统日志。
 
 建议循环：
 
 ```text
-tick
+external_tick_or_cli
   -> load_active_runs
   -> ensure_daily_run_created
   -> ensure_fnl_ready
@@ -768,7 +757,7 @@ tick
    - 今日运行状态
    - FNL 覆盖情况
    - Slurm 队列状态
-   - 最近错误和 Hermes-agent 动作
+   - 最近错误和 Hermes/AI 动作
    - 最新产物入口
 
 2. Run Detail
@@ -831,6 +820,26 @@ runs/<run_id>/products/product_manifest.json
 
 产物下载到跳板机后，后端写入 `products` 表，前端只读后端索引。
 
+当前实现状态：
+
+- 后端已经支持按 `product_manifest.json` 下载、索引和提供产品文件下载。
+- Products 页面已经能触发同步、筛选 run 产品并下载文件。
+- 服务器 `product_extract.sh` 仍是模板，尚未从 `wrfout` 或后处理结果提取 NetCDF/GeoJSON/PNG。
+- `package_products.sh` 当前只写空 manifest，尚未自动发现提取产物。
+- Cesium 花粉分布页面目前使用模拟城市点位，尚未加载真实 NetCDF 或由 NetCDF 转出的可视化产品。
+
+下一步推荐链路：
+
+```text
+wrfout / postprocess nc
+  -> product_extract: 提取目标变量和时次，输出轻量 nc/geojson/png
+  -> package_products: 写入 product_manifest.json
+  -> backend sync-products: 下载到 runtime/products/<run_id> 并入库
+  -> frontend Products / Map: 读取产品索引并渲染 GeoJSON/PNG/栅格层
+```
+
+前端不要直接读取服务器路径或原始大 NetCDF；若需要浏览器地图展示，应优先生成 GeoJSON、PNG overlay、GeoTIFF 切片或其他轻量产品。原始 `.nc` 可以作为下载归档产品同步，但不应作为第一版浏览器实时渲染格式。
+
 ## 分阶段实施路线
 
 ### Phase 0：梳理和约束
@@ -848,7 +857,7 @@ runs/<run_id>/products/product_manifest.json
 
 ### Phase 1：服务器状态化 MVP
 
-目标：让现有脚本可被后端/Hermes-agent 稳定观测。
+目标：让现有脚本可被后端和 Hermes/AI CLI 稳定观测。
 
 - 在 `auto-pollen` 下新增 `flow/`。
 - 实现 `state.py`：原子写 JSON 状态和 events.jsonl。
@@ -881,7 +890,7 @@ runs/<run_id>/products/product_manifest.json
 目标：优先使用服务器已有 FNL；只有服务器缺失或损坏时，跳板机才自动补齐。
 
 - 实现服务器 FNL 扫描接口，复用 `copy_fnl.py --scan-only` 或封装为 `flowctl fnl-verify`。
-- 后端/Hermes-agent 先调用服务器扫描，拿到缺失/损坏清单。
+- 后端和 Hermes/AI CLI 先调用服务器扫描，拿到缺失/损坏清单。
 - 实现跳板机 FNL 下载器。
 - 只下载缺失或损坏的时次。
 - 生成或更新 FNL manifest，记录来源和校验结果。
@@ -892,14 +901,14 @@ runs/<run_id>/products/product_manifest.json
 验收：
 
 - 服务器 FNL 完整时，不触发跳板机下载。
-- 故意删除服务器某个 FNL，Hermes-agent 能发现、下载/上传、服务器校验通过。
-- 故意放置一个非 GRIB 或过小文件，Hermes-agent 能识别损坏并只补该时次。
+- 故意删除服务器某个 FNL，后端 repair 或 Hermes/AI CLI 能发现、下载/上传、服务器校验通过。
+- 故意放置一个非 GRIB 或过小文件，后端 repair 或 Hermes/AI CLI 能识别损坏并只补该时次。
 
-### Phase 4：Hermes-agent 自动值守
+### Phase 4：Hermes/AI CLI 自动值守
 
 目标：每日定时运行和有限自动重试。
 
-- 实现 agent tick。
+- 通过后端 `agent/tick` API 和 CLI 快捷入口实现一次性 tick。
 - 实现调度规则。
 - 实现错误分类。
 - 实现 retry policy。
@@ -916,14 +925,16 @@ runs/<run_id>/products/product_manifest.json
 目标：前端可展示预报结果和历史结果。
 
 - 定义 product manifest。
-- 后处理生成 CSV/PNG/GeoJSON/GeoTIFF 等产品。
+- 后处理从 `wrfout` 或评估结果中提取目标花粉变量，生成轻量 `.nc` 归档、CSV、PNG、GeoJSON、GeoTIFF/切片等产品。
 - 后端下载并索引产品。
 - 前端 Run Detail 和 Products 页面展示真实产物。
+- 前端地图优先渲染 GeoJSON/PNG overlay/栅格切片，不直接依赖服务器路径或原始大 NetCDF。
 - 支持历史 run 查询。
 
 验收：
 
 - 前端能打开某次 run，看到 DAG、日志、诊断、产物和历史记录。
+- 从服务器提取出的产品能写入 manifest，被跳板机下载索引，并在前端作为地图层或下载文件出现。
 
 ### Phase 6：更强 AI 诊断
 
@@ -947,7 +958,7 @@ runs/<run_id>/products/product_manifest.json
 2. 在 `wrf-pollen/auto-pollen/flow/` 增加状态写入库和 `flowctl.py`。
 3. 增加 `flowctl plan/status/fnl-verify/logs`，先不重构 DAG。
 4. 后端增加 SSH 配置和 `/api/v1/runs/{run_id}/status`，直接读取服务器 `flowctl status --json`。
-5. Hermes-agent 先只做监控和通知，不立刻自动改参数。
+5. Hermes/AI 值守先只做监控和通知，不立刻自动改参数。
 
 这样能最快把系统从“跑脚本”推进到“可被平台观测和接管”。
 

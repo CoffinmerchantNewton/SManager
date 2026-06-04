@@ -1,11 +1,11 @@
 ---
 name: smanager-hermes-cli
-description: 当 Hermes 或 AI 助手需要通过跳板机 CLI 操作 SManager 花粉预报系统、查看 run/FNL/产物状态，或安全扩展 CLI/后端控制面且不改 Hermes-agent 内部代码时使用。
+description: 当 Hermes 或 AI 助手需要通过跳板机 CLI 操作 SManager 花粉预报系统、查看 run/FNL/产物状态，或安全扩展 CLI/后端控制面且不恢复第二套 Hermes-agent 代码时使用。
 ---
 
 # SManager Hermes CLI
 
-把跳板机 CLI 当作 Hermes 的控制面。不要直接 SSH 到 CentOS 服务器，也不要修改 `apps/hermes-agent/`，除非用户明确要求改 Hermes-agent 代码。
+把跳板机 CLI 当作 Hermes 的控制面。不要直接 SSH 到 CentOS 服务器，也不要恢复 `apps/hermes-agent/` 第二套 agent 代码，除非用户明确要求重新设计 agent 程序。
 
 所有命令从仓库根目录执行：
 
@@ -80,7 +80,7 @@ python3 packages/cli/smanager.py product-download --product-id <product_id> --ou
 
 ## 单次 Tick
 
-`agent-tick` 只作为后端 API 的 CLI 快捷入口使用。把它视为一次 CLI 操作，不要因此接管 Hermes-agent 代码。
+`agent-tick` 只作为后端 API 的 CLI 快捷入口使用。把它视为一次 CLI 操作，不要因此接管或恢复独立 Hermes-agent 代码。
 
 ```bash
 python3 packages/cli/smanager.py agent-tick \
@@ -183,7 +183,7 @@ python3 packages/cli/smanager.py cancel-run --run-id <run_id> --real
 
 ## 修改控制面
 
-当用户要求调整 Hermes 操作能力时，优先修改 CLI 或后端 API 契约，而不是修改 Hermes-agent 代码。
+当用户要求调整 Hermes 操作能力时，优先修改 CLI 或后端 API 契约，而不是恢复独立 Hermes-agent 代码。
 
 相关文件：
 

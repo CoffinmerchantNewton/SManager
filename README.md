@@ -1,167 +1,161 @@
 # China Pollen Forecast System
 
-基于 WRF-Pollen / WRF-Chem 的全国花粉扩散与业务预报平台
+基于 WRF-Pollen / WRF-Chem 的花粉扩散业务预报控制系统。当前 `dev` 分支的重点是把内网 CentOS 服务器上的离线 WPS/WRF/WRF-Pollen 运行流程，接入跳板机后端、CLI、前端和 Hermes/AI 辅助诊断控制面。
 
-## 项目结构
+## 当前结论
 
-```
+- `apps/hermes-agent/` 已不再作为维护入口；Hermes 或 AI 助手统一通过 `packages/cli/smanager.py` 和 `skills/smanager-hermes-cli/SKILL.md` 调用后端 API。
+- 服务器侧调度入口在 `server/auto-pollen-flow/`，负责 `plan/status/fnl-verify/submit/logs/events/diagnose/retry/cancel/products`。
+- 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
+- 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页目前仍是 Cesium + 模拟城市点位，不是实时 NetCDF 产物渲染。
+- `product_extract` 从 WRF 输出提取 NetCDF/GeoJSON/PNG 产品的链路尚未实现；当前只支持同步服务器 `product_manifest.json` 已声明的文件并下载到跳板机。
+
+## 目录结构
+
+```text
 SManager/
-├── backend/                 # FastAPI 后端
-│   ├── app/
-│   │   ├── api/            # API 路由
-│   │   ├── core/           # 核心配置
-│   │   ├── models/         # 数据库模型
-│   │   ├── schemas/        # Pydantic 模式
-│   │   ├── init_db.py      # 数据库初始化
-│   │   └── main.py         # 应用入口
-│   ├── requirements.txt
-│   ├── run.py
-│   └── README.md
-│
-├── frontend/               # React 前端
-│   ├── src/
-│   │   ├── components/    # 可复用组件
-│   │   ├── pages/         # 页面组件
-│   │   ├── services/      # API 服务
-│   │   ├── types/         # TypeScript 类型
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── package.json
-│   └── README.md
-│
-└── design_china_pollen_forecast_system/  # 设计文件
-    ├── prd.md
-    └── meteorological_precision_system/
-        └── DESIGN.md
+  AGENT.md                         # 工程规划、实现约束、阶段路线
+  backend/                         # FastAPI 跳板机后端
+  frontend/                        # React/Vite 前端
+  packages/
+    cli/smanager.py                # Hermes/AI/人工共用 CLI
+    contracts/                     # run/FNL/product JSON 契约
+  server/auto-pollen-flow/         # 部署到内网服务器的离线 flow 包装层
+  skills/smanager-hermes-cli/      # Hermes/AI 调用 CLI 的 skill
+  scripts/fake_fnl_download.py     # 本地 FNL 补齐闭环测试脚本
+  runtime/                         # 跳板机本地运行时数据，不进 Git
+  wrf-pollen/                      # WRF-Pollen 源码和既有 auto-pollen，当前不纳入本仓库提交
 ```
 
-## 快速开始
+## 快速启动
 
-### 后端启动
+建议使用已有 `joyagent` 环境运行后端：
 
 ```bash
-cd backend
-pip install -r requirements.txt
-python run.py
+conda activate joyagent
+cd /Users/wangxu/projects/SManager
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-后端将在 http://localhost:8000 启动
-
-API 文档: http://localhost:8000/docs
-
-### 前端启动
+前端：
 
 ```bash
-cd frontend
+cd /Users/wangxu/projects/SManager/frontend
 npm install
 npm run dev
 ```
 
-前端将在 http://localhost:3000 启动
+CLI：
 
-## 功能特性
-
-### 1. 预报门户 (Portal)
-- WebGIS 地图展示
-- 实时花粉浓度监控
-- 时间序列分析
-
-### 2. 管理员控制台
-- **Dashboard**: 系统概览和实时监控
-- **Workflow Editor**: 工作流 DAG 可视化编排
-- **Task Scheduler**: 定时任务管理
-- **Products Management**: 预报产品管理
-
-### 3. 后端 API
-- RESTful API 设计
-- SQLite 数据库
-- 自动生成示例数据
-- 完整的 CRUD 操作
-
-## 技术栈
-
-### 后端
-- **FastAPI**: 现代 Python Web 框架
-- **SQLAlchemy**: ORM
-- **SQLite**: 数据库
-- **Pydantic**: 数据验证
-
-### 前端
-- **React 19**: UI 框架
-- **TypeScript**: 类型安全
-- **React Router**: 路由管理
-- **Axios**: HTTP 客户端
-- **Tailwind CSS**: 样式框架
-- **Vite**: 构建工具
-
-## 设计系统
-
-基于 NASA 气象业务系统风格:
-- **深色主题**: #121414 背景
-- **科技蓝/青色**: 高亮和交互元素
-- **字体**: Inter (正文) + Space Grotesk (数据/标签)
-- **圆角**: 4px-8px 软方形几何
-- **间距**: 4px 基准网格
-
-## 默认登录
-
-- **密码**: `admin123`
-
-## API 端点
-
-### Workflows
-- `GET /api/v1/workflows` - 获取所有工作流
-- `GET /api/v1/workflows/{id}` - 获取工作流详情
-- `GET /api/v1/workflows/{id}/nodes` - 获取工作流节点
-
-### Tasks
-- `GET /api/v1/tasks` - 获取所有定时任务
-- `PATCH /api/v1/tasks/{id}/status` - 更新任务状态
-
-### Products
-- `GET /api/v1/products` - 获取预报产品列表
-- `GET /api/v1/products/{id}` - 获取预报产品详情
-- `GET /api/v1/products/{id}/download` - 下载已同步到跳板机的产品文件
-- `PATCH /api/v1/products/{id}/publish` - 切换发布状态
-- `DELETE /api/v1/products/{id}` - 删除产品
-
-### Run Control
-- `GET /api/v1/runs/{run_id}/status` - 获取服务器运行状态
-- `GET /api/v1/runs/{run_id}/diagnose` - 获取运行诊断建议
-- `POST /api/v1/runs/{run_id}/retry` - 重试指定节点
-- `POST /api/v1/runs/{run_id}/cancel` - 取消运行，默认建议先 dry-run
-- `GET /api/v1/runs/{run_id}/logs` - 获取运行日志
-- `POST /api/v1/runs/{run_id}/sync-products` - 同步并索引运行产物
-
-### Dashboard
-- `GET /api/v1/dashboard/stats` - 获取仪表板统计
-- `GET /api/v1/dashboard/logs` - 获取系统日志
-
-Dashboard 统计优先读取 `forecast_runs` 和 `forecast_run_nodes`：运行总数、运行中数量、失败数量来自 run 表；Slurm 排队/运行数来自带 `slurm_job_id` 的活动节点；健康度按失败率和当前运行压力计算。
-
-本地测试 FNL 补齐闭环时，可以将 `FNL_DOWNLOAD_COMMAND` 指向 `python3 scripts/fake_fnl_download.py`。该脚本只生成以 `GRIB` 开头的合成文件，用于验证后端下载、上传和二次校验流程，不代表真实 FNL 数据源。
-
-## 开发说明
-
-### 数据库初始化
-
-首次运行时，`run.py` 会自动初始化数据库并填充示例数据。
-
-### 环境变量
-
-前端 `.env` 文件:
-```
-VITE_API_URL=http://localhost:8000/api/v1
+```bash
+python3 packages/cli/smanager.py --api http://localhost:8000/api/v1 doctor
+python3 packages/cli/smanager.py --api http://localhost:8000/api/v1 storage
+python3 packages/cli/smanager.py --api http://localhost:8000/api/v1 runs --limit 20
 ```
 
-后端配置在 `backend/app/core/config.py`
+## 跳板机配置
 
-## 参考资料
+复制 `backend/.env.example` 到仓库根目录 `.env` 或 `backend/.env`，按部署环境修改：
 
-- PRD: `design_china_pollen_forecast_system/prd.md`
-- 设计系统: `design_china_pollen_forecast_system/meteorological_precision_system/DESIGN.md`
-- ecFlow 参考: `reference/ecflow/`
+```bash
+DATABASE_URL="sqlite:///./runtime/db/pollen_forecast.sqlite"
+SERVER_SSH_HOST="local"              # 生产环境改为内网服务器地址
+SERVER_FLOWCTL_PATH="./server/auto-pollen-flow/flowctl.py"
+SERVER_FLOW_ROOT="./runtime/server-flow"
+SERVER_FNL_ROOTS="./runtime/server-fnl"
+SERVER_FNL_UPLOAD_DIR="./runtime/server-fnl"
+FNL_DOWNLOAD_COMMAND=""
+JUMPBOX_FNL_CACHE_DIR="runtime/fnl"
+JUMPBOX_PRODUCTS_DIR="runtime/products"
+```
 
-## License
+本地测试 FNL 补齐闭环时，可以将 `FNL_DOWNLOAD_COMMAND` 指向：
 
-MIT
+```bash
+FNL_DOWNLOAD_COMMAND="python3 scripts/fake_fnl_download.py"
+```
+
+该脚本只生成以 `GRIB` 开头的合成文件，用于验证下载、上传和二次校验流程，不代表真实 FNL 数据源。
+
+## 已实现控制面
+
+服务器 flow：
+
+- `flowctl plan/list/status`
+- `flowctl fnl-verify`
+- `flowctl submit/run-node`
+- `flowctl logs/events/diagnose`
+- `flowctl retry/cancel`
+- `flowctl products`
+
+后端 API：
+
+- `GET/POST /api/v1/runs`
+- `GET /api/v1/runs/{run_id}/status`
+- `GET /api/v1/runs/{run_id}/logs`
+- `GET /api/v1/runs/{run_id}/events`
+- `GET /api/v1/runs/{run_id}/diagnose`
+- `POST /api/v1/runs/{run_id}/submit`
+- `POST /api/v1/runs/{run_id}/retry`
+- `POST /api/v1/runs/{run_id}/cancel`
+- `POST /api/v1/runs/{run_id}/sync-products`
+- `POST /api/v1/fnl/verify-server`
+- `POST /api/v1/fnl/repair`
+- `GET /api/v1/fnl/coverage`
+- `GET /api/v1/products`
+- `GET /api/v1/products/{product_id}/download`
+- `POST /api/v1/agent/tick`
+- `GET /api/v1/agent/actions`
+- `GET /api/v1/system/doctor`
+- `GET /api/v1/system/storage`
+
+CLI 常用入口：
+
+```bash
+python3 packages/cli/smanager.py doctor
+python3 packages/cli/smanager.py storage
+python3 packages/cli/smanager.py plan --start 2026060400 --end 2026060412 --period spring
+python3 packages/cli/smanager.py runs --limit 20
+python3 packages/cli/smanager.py status --run-id <run_id>
+python3 packages/cli/smanager.py fnl-verify --run-id <run_id>
+python3 packages/cli/smanager.py fnl-repair --run-id <run_id>
+python3 packages/cli/smanager.py submit --run-id <run_id> --dry-run
+python3 packages/cli/smanager.py events --run-id <run_id> --limit 100
+python3 packages/cli/smanager.py diagnose --run-id <run_id>
+python3 packages/cli/smanager.py sync-products --run-id <run_id>
+python3 packages/cli/smanager.py products --run-id <run_id>
+```
+
+## 前端状态
+
+- Dashboard、Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
+- 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
+- Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
+- Cesium 花粉分布页面目前使用静态城市点位和模拟浓度，不读取 NetCDF。
+
+真实花粉分布展示还需要下一步实现：
+
+1. 服务器 `product_extract` 从 `wrfout` 或后处理结果提取前端可读产品。
+2. `package_products` 写出非空 `product_manifest.json`。
+3. 后端 `sync-products` 下载并索引这些产品。
+4. 前端根据产品类型加载 GeoJSON/PNG/栅格切片等可视化层。
+
+不建议前端直接读取服务器路径或原始大 NetCDF；应通过后端产品索引和 manifest 暴露可展示产品。
+
+## 验证命令
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/smanager-pycache conda run --no-capture-output -n joyagent \
+  python -m compileall server/auto-pollen-flow backend/app packages/cli/smanager.py
+
+cd frontend
+npm run build
+```
+
+## 协作约束
+
+- 所有本次实现只提交到 `dev`。
+- 不提交 `runtime/`、FNL、WRF 输出、NetCDF 大文件。
+- 不维护 `apps/hermes-agent` 第二套 agent 代码；Hermes/AI 走 CLI skill。
+- 前端优化必须收敛为唯一实现，不长期保留新旧两套逻辑。
+- 真实 WPS/WRF 命令放在 commands-file 或节点脚本中，不写死在后端 Python 里。
