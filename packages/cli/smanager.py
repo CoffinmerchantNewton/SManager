@@ -91,6 +91,9 @@ def cmd_fnl_coverage(args) -> int:
         value = getattr(args, key)
         if value:
             query[key] = value
+    if args.repair_only:
+        query["needs_repair"] = "true"
+    query["limit"] = str(args.limit)
     url = api_url(args, "/fnl/coverage")
     if query:
         url += "?" + urllib.parse.urlencode(query)
@@ -214,6 +217,8 @@ def build_parser() -> argparse.ArgumentParser:
     coverage.add_argument("--start")
     coverage.add_argument("--end")
     coverage.add_argument("--status")
+    coverage.add_argument("--repair-only", action="store_true")
+    coverage.add_argument("--limit", type=int, default=500)
     coverage.set_defaults(func=cmd_fnl_coverage)
 
     submit = sub.add_parser("submit")

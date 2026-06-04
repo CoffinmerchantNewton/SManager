@@ -94,6 +94,7 @@ python3 packages/cli/smanager.py diagnose --run-id <run_id>
 ```bash
 python3 packages/cli/smanager.py fnl-coverage --start 2026060400 --end 2026060412
 python3 packages/cli/smanager.py fnl-coverage --status server_ok
+python3 packages/cli/smanager.py fnl-coverage --repair-only --limit 100
 ```
 
 - 查看自动动作审计：
@@ -182,7 +183,7 @@ python3 packages/cli/smanager.py cancel-run --run-id <run_id> --real
 - 代码改动后运行：
 
 ```bash
-python3 -m compileall server/auto-pollen-flow backend/app packages/cli/smanager.py
+PYTHONPYCACHEPREFIX=/tmp/smanager-pycache python3 -m compileall server/auto-pollen-flow backend/app packages/cli/smanager.py
 ```
 
 如果改了前端文件，再运行：

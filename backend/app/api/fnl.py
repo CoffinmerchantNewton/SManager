@@ -32,6 +32,7 @@ def fnl_coverage(
     start: str | None = None,
     end: str | None = None,
     status: str | None = None,
+    needs_repair: bool | None = None,
     limit: int = Query(default=500, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):
@@ -42,6 +43,10 @@ def fnl_coverage(
         query = query.filter(FnlFileRecord.valid_time <= end)
     if status:
         query = query.filter(FnlFileRecord.status == status)
+    if needs_repair is True:
+        query = query.filter(FnlFileRecord.status != "server_ok")
+    elif needs_repair is False:
+        query = query.filter(FnlFileRecord.status == "server_ok")
     records = query.order_by(FnlFileRecord.valid_time.asc()).limit(limit).all()
     return FlowResponse(
         data={
@@ -50,6 +55,7 @@ def fnl_coverage(
                     "valid_time": item.valid_time,
                     "file_name": item.file_name,
                     "status": item.status,
+                    "needs_repair": item.status != "server_ok",
                     "source": item.source,
                     "server_path": item.server_path,
                     "local_path": item.local_path,
