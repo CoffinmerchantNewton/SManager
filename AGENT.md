@@ -116,6 +116,8 @@ SManager/
       workflow_status.schema.json
       fnl_manifest.schema.json
       product_manifest.schema.json
+      agent_action.schema.json
+      diagnosis_analysis.schema.json
     cli/
       smanager.py
     diagnostics/
@@ -223,6 +225,7 @@ runtime/.gitkeep
 - 放 JSON Schema 或 Pydantic 可导出的契约。
 - 服务器 flow、后端、CLI、前端类型都从这里对齐。
 - 状态文件字段变化必须先改 contracts。
+- 当前覆盖 run spec、node status、workflow status、FNL manifest、product manifest、agent action 和 diagnosis analysis。
 
 `packages/diagnostics/`：
 

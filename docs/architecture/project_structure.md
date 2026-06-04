@@ -38,7 +38,7 @@ packages/
   python/
 ```
 
-`contracts` 存放 `run_spec`、节点状态、FNL manifest、产品 manifest 等 JSON Schema。
+`contracts` 存放 `run_spec`、节点状态、workflow 状态、FNL manifest、产品 manifest、agent action、diagnosis analysis 等 JSON Schema。
 
 `diagnostics` 存放错误模式和恢复动作，供后端、CLI 和 AI 助手共用。
 

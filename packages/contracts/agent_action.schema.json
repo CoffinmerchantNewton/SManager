@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smanager.local/contracts/agent_action.schema.json",
+  "title": "Agent Action",
+  "type": "object",
+  "required": ["id", "action_type", "status", "created_at"],
+  "properties": {
+    "id": { "type": "integer" },
+    "run_id": { "type": ["string", "null"] },
+    "action_type": { "type": "string" },
+    "reason": { "type": ["string", "null"] },
+    "status": { "type": "string", "enum": ["running", "success", "error", "skipped"] },
+    "input_json": { "type": ["string", "null"] },
+    "output_json": { "type": ["string", "null"] },
+    "created_at": { "type": ["string", "null"] },
+    "finished_at": { "type": ["string", "null"] }
+  }
+}

@@ -22,7 +22,7 @@ SManager/
   frontend/                        # React/Vite 前端
   packages/
     cli/smanager.py                # Hermes/AI/人工共用 CLI
-    contracts/                     # run/FNL/product JSON 契约
+    contracts/                     # run/workflow/FNL/product/agent/diagnosis JSON 契约
   server/auto-pollen-flow/         # 部署到内网服务器的离线 flow 包装层
   skills/smanager-hermes-cli/      # Hermes/AI 调用 CLI 的 skill
   scripts/fake_fnl_download.py     # 本地 FNL 补齐闭环测试脚本
