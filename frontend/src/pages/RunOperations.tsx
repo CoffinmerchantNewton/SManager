@@ -32,8 +32,9 @@ export default function RunOperations() {
   const [logs, setLogs] = useState('');
   const [selectedNode, setSelectedNode] = useState('fnl_verify');
   const [actions, setActions] = useState<AgentAction[]>([]);
+  const [diagnosis, setDiagnosis] = useState<any | null>(null);
   const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
 
   const activeRunId = runId || workflow?.run_id || form.run_id;
   const sortedNodes = useMemo(() => {
@@ -53,11 +54,14 @@ export default function RunOperations() {
 
   const runAction = async (label: string, action: () => Promise<void>) => {
     setBusy(label);
-    setMessage('');
+    setMessage(null);
     try {
       await action();
     } catch (error: any) {
-      setMessage(error?.response?.data?.detail?.message || error?.message || 'Operation failed');
+      setMessage({
+        kind: 'error',
+        text: error?.response?.data?.detail?.message || error?.message || 'Operation failed',
+      });
     } finally {
       setBusy('');
     }
@@ -73,7 +77,7 @@ export default function RunOperations() {
       const response = await runsApi.plan(payload);
       const plannedRunId = response.data.data.run_id;
       setRunId(plannedRunId);
-      setMessage(`Run planned: ${plannedRunId}`);
+      setMessage({ kind: 'info', text: `Run planned: ${plannedRunId}` });
       await refreshStatus(plannedRunId);
     });
 
@@ -125,6 +129,29 @@ export default function RunOperations() {
       if (!activeRunId) return;
       const response = await runsApi.logs(activeRunId, { node: selectedNode, tail: 200 });
       setLogs(response.data.logs);
+    });
+
+  const diagnoseRun = () =>
+    runAction('Diagnosing run', async () => {
+      if (!activeRunId) return;
+      const response = await runsApi.diagnose(activeRunId);
+      setDiagnosis(response.data.data);
+    });
+
+  const retrySelectedNode = (dryRun: boolean) =>
+    runAction(dryRun ? 'Retry Dry-run' : 'Retry Real', async () => {
+      if (!activeRunId || !selectedNode) return;
+      if (!dryRun && !confirm(`Retry node ${selectedNode} for ${activeRunId}?`)) {
+        return;
+      }
+      const response = await runsApi.retry(activeRunId, { node: selectedNode, dry_run: dryRun });
+      setMessage({
+        kind: 'info',
+        text: dryRun
+          ? `Retry dry-run checked for ${selectedNode}.`
+          : response.data.data?.message || `Retry submitted for ${selectedNode}.`,
+      });
+      await refreshStatus(activeRunId);
     });
 
   const loadActions = async (id: string) => {
@@ -181,8 +208,21 @@ export default function RunOperations() {
             <OpsButton label="Submit Dry-run" icon="send" busy={busy} disabled={!activeRunId} onClick={submitDryRun} />
             <OpsButton label="Sync Products" icon="download" busy={busy} disabled={!activeRunId} onClick={syncProducts} />
             <OpsButton label="Load Logs" icon="article" busy={busy} disabled={!activeRunId} onClick={loadLogs} />
+            <OpsButton label="Diagnose" icon="troubleshoot" busy={busy} disabled={!activeRunId} onClick={diagnoseRun} />
+            <OpsButton label="Retry Dry-run" icon="restart_alt" busy={busy} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(true)} />
+            <OpsButton label="Retry Real" icon="published_with_changes" busy={busy} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(false)} tone="danger" />
           </div>
-          {message && <div className="text-xs text-error bg-error-container/20 border border-error/20 rounded p-sm">{message}</div>}
+          {message && (
+            <div
+              className={`text-xs rounded p-sm border ${
+                message.kind === 'error'
+                  ? 'text-error bg-error-container/20 border-error/20'
+                  : 'text-on-surface-variant bg-surface-container-low border-white/10'
+              }`}
+            >
+              {message.text}
+            </div>
+          )}
         </div>
 
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
@@ -228,13 +268,37 @@ export default function RunOperations() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-gutter">
+      <section className="grid grid-cols-1 gap-gutter">
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
           <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
             <span className="font-label-caps text-label-caps text-on-surface-variant">Node Logs: {selectedNode}</span>
           </div>
           <pre className="p-md h-72 overflow-auto text-xs font-data-mono text-on-surface-variant whitespace-pre-wrap">{logs || 'No logs loaded.'}</pre>
         </div>
+        <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
+          <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
+            <span className="font-label-caps text-label-caps text-on-surface-variant">Diagnostics</span>
+          </div>
+          <div className="p-md space-y-sm h-72 overflow-auto">
+            {diagnosis?.findings?.map((finding: any, index: number) => (
+              <div key={`${finding.node || 'run'}-${finding.code || index}`} className="border border-white/10 rounded p-sm bg-surface-container-low">
+                <div className="flex items-center justify-between gap-sm">
+                  <span className="font-data-mono text-xs text-cyan-300">{finding.node || 'run'}</span>
+                  <StatusPill status={finding.code || 'finding'} />
+                </div>
+                <p className="text-xs text-on-surface-variant mt-xs">{finding.message || '-'}</p>
+                <p className="text-[10px] text-outline mt-xs">Action: {finding.suggested_action || 'inspect_logs'}</p>
+              </div>
+            ))}
+            {diagnosis && (diagnosis.findings?.length ?? 0) === 0 && (
+              <p className="text-sm text-outline">No findings reported for this run.</p>
+            )}
+            {!diagnosis && <p className="text-sm text-outline">No diagnostics loaded.</p>}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-gutter">
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
           <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
             <span className="font-label-caps text-label-caps text-on-surface-variant">Hermes Actions</span>
@@ -257,12 +321,30 @@ export default function RunOperations() {
   );
 }
 
-function OpsButton({ label, icon, busy, disabled, onClick }: { label: string; icon: string; busy: string; disabled?: boolean; onClick: () => void }) {
+function OpsButton({
+  label,
+  icon,
+  busy,
+  disabled,
+  onClick,
+  tone = 'primary',
+}: {
+  label: string;
+  icon: string;
+  busy: string;
+  disabled?: boolean;
+  onClick: () => void;
+  tone?: 'primary' | 'danger';
+}) {
   return (
     <button
       onClick={onClick}
       disabled={disabled || !!busy}
-      className="px-sm py-sm bg-primary-container text-on-primary-container rounded-lg text-xs font-semibold flex items-center justify-center gap-2 hover:shadow-[0_0_12px_rgba(0,102,255,0.25)] disabled:opacity-40"
+      className={`px-sm py-sm rounded-lg text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40 ${
+        tone === 'danger'
+          ? 'bg-error-container/30 text-error border border-error/30 hover:bg-error-container/40'
+          : 'bg-primary-container text-on-primary-container hover:shadow-[0_0_12px_rgba(0,102,255,0.25)]'
+      }`}
     >
       <span className="material-symbols-outlined text-sm">{icon}</span>
       {busy === label ? 'Working...' : label}
