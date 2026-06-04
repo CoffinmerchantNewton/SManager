@@ -1,7 +1,14 @@
-from pydantic_settings import BaseSettings
 from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=(".env", "backend/.env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     PROJECT_NAME: str = "China Pollen Forecast System"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
@@ -26,8 +33,5 @@ class Settings(BaseSettings):
     FNL_UPLOAD_METHOD: str = "rsync"
     JUMPBOX_PRODUCTS_DIR: str = "runtime/products"
     PRODUCT_SYNC_METHOD: str = "rsync"
-
-    class Config:
-        case_sensitive = True
 
 settings = Settings()

@@ -9,7 +9,16 @@ FastAPI backend for the China Pollen Forecast System.
 pip install -r requirements.txt
 ```
 
-2. Run the application:
+2. Create a local environment file:
+```bash
+cp backend/.env.example backend/.env
+```
+
+The backend reads `.env` from the repository root and `backend/.env`. Use `SERVER_SSH_HOST=local` for local smoke tests where `flowctl` runs on the same machine. For the jumpbox deployment, set `SERVER_SSH_HOST`, `SERVER_SSH_USER`, `SERVER_FLOWCTL_PATH`, `SERVER_FLOW_ROOT`, `SERVER_FNL_ROOTS`, and `SERVER_FNL_UPLOAD_DIR` for the CentOS server.
+
+FNL repair uses `FNL_DOWNLOAD_COMMAND` only after server-side verification reports missing or invalid files. The command receives `FNL_VALID_TIME`, `FNL_FILE_NAME`, and `FNL_OUTPUT_PATH`, and must write a GRIB2 file to `FNL_OUTPUT_PATH`.
+
+3. Run the application:
 ```bash
 python run.py
 ```
