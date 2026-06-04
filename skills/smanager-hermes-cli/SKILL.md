@@ -15,7 +15,15 @@ python3 packages/cli/smanager.py --api "${SMANAGER_API:-http://localhost:8000/ap
 
 ## 核心流程
 
-1. 创建或刷新一次运行：
+1. 先做跳板机控制面自检：
+
+```bash
+python3 packages/cli/smanager.py doctor
+```
+
+如果输出 `ok: false`，先根据 `data.checks` 中 `status=error` 的项目修复配置或依赖。
+
+2. 创建或刷新一次运行：
 
 ```bash
 python3 packages/cli/smanager.py plan \
@@ -27,7 +35,7 @@ python3 packages/cli/smanager.py plan \
   --met-provider FNL
 ```
 
-2. 先检查服务器侧 FNL：
+3. 先检查服务器侧 FNL：
 
 ```bash
 python3 packages/cli/smanager.py fnl-verify --run-id <run_id>
@@ -39,7 +47,7 @@ python3 packages/cli/smanager.py fnl-verify --run-id <run_id>
 python3 packages/cli/smanager.py fnl-repair --run-id <run_id>
 ```
 
-3. 先做安全提交预检：
+4. 先做安全提交预检：
 
 ```bash
 python3 packages/cli/smanager.py submit --run-id <run_id> --dry-run
@@ -51,7 +59,7 @@ python3 packages/cli/smanager.py submit --run-id <run_id> --dry-run
 python3 packages/cli/smanager.py submit --run-id <run_id>
 ```
 
-4. 轮询状态和日志：
+5. 轮询状态和日志：
 
 ```bash
 python3 packages/cli/smanager.py status --run-id <run_id>
@@ -59,7 +67,7 @@ python3 packages/cli/smanager.py logs --run-id <run_id> --node <node_name> --tai
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 ```
 
-5. 同步完成后的预报产物：
+6. 同步完成后的预报产物：
 
 ```bash
 python3 packages/cli/smanager.py sync-products --run-id <run_id>
@@ -86,6 +94,7 @@ python3 packages/cli/smanager.py agent-tick \
 - 查看运行诊断：
 
 ```bash
+python3 packages/cli/smanager.py doctor
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 ```
 

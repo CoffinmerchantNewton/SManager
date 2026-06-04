@@ -183,6 +183,10 @@ def cmd_agent_actions(args) -> int:
     return print_result(request_json("GET", api_url(args, "/agent/actions") + "?" + urllib.parse.urlencode(query)))
 
 
+def cmd_doctor(args) -> int:
+    return print_result(request_json("GET", api_url(args, "/system/doctor")))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Jumpbox CLI for SManager")
     parser.add_argument("--api", default=DEFAULT_API)
@@ -289,6 +293,9 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument("--status")
     actions.add_argument("--limit", type=int, default=100)
     actions.set_defaults(func=cmd_agent_actions)
+
+    doctor = sub.add_parser("doctor")
+    doctor.set_defaults(func=cmd_doctor)
     return parser
 
 
