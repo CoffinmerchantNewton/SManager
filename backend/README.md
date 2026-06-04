@@ -18,6 +18,14 @@ The backend reads `.env` from the repository root and `backend/.env`. Use `SERVE
 
 FNL repair uses `FNL_DOWNLOAD_COMMAND` only after server-side verification reports missing or invalid files. The command receives `FNL_VALID_TIME`, `FNL_FILE_NAME`, and `FNL_OUTPUT_PATH`, and must write a GRIB2 file to `FNL_OUTPUT_PATH`.
 
+For local smoke tests, you can set:
+```bash
+FNL_DOWNLOAD_COMMAND="python3 scripts/fake_fnl_download.py"
+FNL_FAKE_SIZE_MB=6
+```
+
+This writes a synthetic file beginning with `GRIB` and is only intended to test the repair/upload/control loop.
+
 3. Run the application:
 ```bash
 python run.py

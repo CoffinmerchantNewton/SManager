@@ -138,6 +138,8 @@ npm run dev
 
 Dashboard 统计优先读取 `forecast_runs` 和 `forecast_run_nodes`：运行总数、运行中数量、失败数量来自 run 表；Slurm 排队/运行数来自带 `slurm_job_id` 的活动节点；健康度按失败率和当前运行压力计算。
 
+本地测试 FNL 补齐闭环时，可以将 `FNL_DOWNLOAD_COMMAND` 指向 `python3 scripts/fake_fnl_download.py`。该脚本只生成以 `GRIB` 开头的合成文件，用于验证后端下载、上传和二次校验流程，不代表真实 FNL 数据源。
+
 ## 开发说明
 
 ### 数据库初始化
