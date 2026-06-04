@@ -30,6 +30,26 @@ export default function Layout({ children }: LayoutProps) {
               Dashboard
             </Link>
             <Link
+              to="/admin/runs"
+              className={`${
+                isActive('runs')
+                  ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
+                  : 'text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition-colors'
+              }`}
+            >
+              Runs
+            </Link>
+            <Link
+              to="/admin/fnl"
+              className={`${
+                isActive('fnl')
+                  ? 'text-cyan-400 border-b-2 border-cyan-400 pb-1'
+                  : 'text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition-colors'
+              }`}
+            >
+              FNL
+            </Link>
+            <Link
               to="/admin/workflow"
               className={`${
                 isActive('workflow')
@@ -95,6 +115,28 @@ export default function Layout({ children }: LayoutProps) {
           >
             <span className="material-symbols-outlined scale-90">dashboard</span>
             <span>Dashboard</span>
+          </Link>
+          <Link
+            to="/admin/runs"
+            className={`flex items-center gap-4 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+              isActive('runs')
+                ? 'bg-blue-600/10 text-cyan-400 border-r-2 border-cyan-400'
+                : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <span className="material-symbols-outlined scale-90">rocket_launch</span>
+            <span>Run Control</span>
+          </Link>
+          <Link
+            to="/admin/fnl"
+            className={`flex items-center gap-4 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+              isActive('fnl')
+                ? 'bg-blue-600/10 text-cyan-400 border-r-2 border-cyan-400'
+                : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <span className="material-symbols-outlined scale-90">cloud_sync</span>
+            <span>FNL Manager</span>
           </Link>
           <Link
             to="/admin/workflow"

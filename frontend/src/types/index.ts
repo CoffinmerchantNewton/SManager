@@ -76,3 +76,69 @@ export interface DashboardStats {
   running_workflows: number;
   failed_workflows: number;
 }
+
+export type ForecastRunStatus =
+  | 'pending'
+  | 'ready'
+  | 'running'
+  | 'success'
+  | 'error'
+  | 'retrying'
+  | 'cancelled';
+
+export interface ForecastRunNodeStatus {
+  run_id: string;
+  node: string;
+  status: ForecastRunStatus | 'skipped';
+  progress: number;
+  attempt: number;
+  slurm_job_id?: string | null;
+  started_at?: string | null;
+  updated_at: string;
+  finished_at?: string | null;
+  error_code?: string | null;
+  message: string;
+  log_files: string[];
+}
+
+export interface ForecastRunWorkflowStatus {
+  run_id: string;
+  status: ForecastRunStatus;
+  progress: number;
+  updated_at: string;
+  nodes: ForecastRunNodeStatus[];
+  run_spec_path?: string;
+}
+
+export interface FnlFileStatus {
+  valid_time: string;
+  file_name: string;
+  status: string;
+  needs_repair?: boolean;
+  source?: string | null;
+  server_path?: string | null;
+  local_path?: string | null;
+  size_bytes?: number | null;
+  valid_grib: boolean;
+  uploaded?: boolean;
+  repair_attempt?: number;
+  error_message?: string | null;
+  checked_at?: string | null;
+}
+
+export interface AgentAction {
+  id: number;
+  run_id?: string | null;
+  action_type: string;
+  reason?: string | null;
+  status: string;
+  input_json?: string | null;
+  output_json?: string | null;
+  created_at?: string | null;
+  finished_at?: string | null;
+}
+
+export interface FlowResponse<T = any> {
+  ok: boolean;
+  data: T;
+}

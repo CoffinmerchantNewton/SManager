@@ -38,4 +38,28 @@ export const dashboardApi = {
   getLogs: (params?: any) => api.get('/dashboard/logs', { params }),
 };
 
+export const runsApi = {
+  list: () => api.get('/runs'),
+  plan: (data: any) => api.post('/runs/', data),
+  status: (runId: string) => api.get(`/runs/${runId}/status`),
+  fnlVerify: (runId: string) => api.post(`/runs/${runId}/fnl-verify`, {}),
+  submit: (runId: string, data: any) => api.post(`/runs/${runId}/submit`, data),
+  logs: (runId: string, params?: any) => api.get(`/runs/${runId}/logs`, { params }),
+  diagnose: (runId: string) => api.get(`/runs/${runId}/diagnose`),
+  retry: (runId: string, data: any) => api.post(`/runs/${runId}/retry`, data),
+  products: (runId: string) => api.get(`/runs/${runId}/products`),
+  syncProducts: (runId: string) => api.post(`/runs/${runId}/sync-products`, {}),
+};
+
+export const fnlApi = {
+  verifyServer: (data: any) => api.post('/fnl/verify-server', data),
+  repair: (data: any) => api.post('/fnl/repair', data),
+  coverage: (params?: any) => api.get('/fnl/coverage', { params }),
+};
+
+export const agentApi = {
+  tick: (data: any) => api.post('/agent/tick', data),
+  actions: (params?: any) => api.get('/agent/actions', { params }),
+};
+
 export default api;

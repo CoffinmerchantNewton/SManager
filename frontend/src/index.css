@@ -39,3 +39,9 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
 }
+
+@layer components {
+  .ops-input {
+    @apply w-full bg-surface-container-low border border-white/10 rounded-lg px-sm py-sm text-sm text-on-surface outline-none focus:border-cyan-400/60 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+}
