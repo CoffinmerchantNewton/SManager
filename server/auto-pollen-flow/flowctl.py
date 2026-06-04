@@ -73,17 +73,23 @@ def build_spec(args) -> dict[str, Any]:
     domain = args.domain or "neimeng"
     run_id = args.run_id or default_run_id(start, args.period, domain, variant)
     command_config = load_command_config(args.commands_file)
+    global_env = command_config.get("env", {})
+    slurm_defaults = command_config.get("slurm_defaults", {})
     configured_nodes = command_config.get("nodes", {})
     nodes = []
     for name in DEFAULT_NODES:
         config = configured_nodes.get(name, {})
+        env = dict(global_env)
+        env.update(config.get("env", {}))
+        slurm = dict(slurm_defaults)
+        slurm.update(config.get("slurm", {}))
         nodes.append(
             {
                 "name": name,
                 "command": config.get("command"),
                 "cwd": config.get("cwd"),
-                "env": config.get("env", {}),
-                "slurm": config.get("slurm", {}),
+                "env": env,
+                "slurm": slurm,
             }
         )
     return {
