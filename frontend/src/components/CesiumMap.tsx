@@ -4,16 +4,22 @@ import * as Cesium from 'cesium';
 interface CesiumMapProps {
   cities: Array<{
     name: string;
-    x: number;
-    y: number;
+    longitude: number;
+    latitude: number;
     concentration: number;
     risk: string;
   }>;
+  productLayer?: {
+    name: string;
+    geojson: any;
+  } | null;
 }
 
-export default function CesiumMap({ cities }: CesiumMapProps) {
+export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
+  const citySourceRef = useRef<Cesium.CustomDataSource | null>(null);
+  const productSourceRef = useRef<Cesium.GeoJsonDataSource | null>(null);
 
   useEffect(() => {
     if (!cesiumContainer.current) return;
@@ -95,16 +101,29 @@ export default function CesiumMap({ cities }: CesiumMapProps) {
 
     void loadBoundaryLayers();
 
-    // Add city markers with pollen concentration
-    cities.forEach((city) => {
-      const lon = 73.5 + (city.x / 900) * (135.0 - 73.5);
-      const lat = 18.0 + ((700 - city.y) / 700) * (53.5 - 18.0);
+    return () => {
+      isDisposed = true;
+      if (viewerRef.current) {
+        viewerRef.current.destroy();
+        viewerRef.current = null;
+      }
+    };
+  }, []);
 
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    if (citySourceRef.current) {
+      viewer.dataSources.remove(citySourceRef.current, true);
+    }
+
+    const citySource = new Cesium.CustomDataSource('pollen-city-markers');
+    cities.forEach((city) => {
       const color = getRiskColorCesium(city.risk);
 
-      // Add circle for concentration
-      viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(lon, lat, 10000),
+      citySource.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 10000),
         ellipse: {
           semiMinorAxis: city.concentration * 500,
           semiMajorAxis: city.concentration * 500,
@@ -115,9 +134,8 @@ export default function CesiumMap({ cities }: CesiumMapProps) {
         },
       });
 
-      // Add city label
-      viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(lon, lat, 50000),
+      citySource.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 50000),
         label: {
           text: `${city.name}\n${city.concentration} n/m³`,
           font: '14px sans-serif',
@@ -137,14 +155,45 @@ export default function CesiumMap({ cities }: CesiumMapProps) {
       });
     });
 
-    return () => {
-      isDisposed = true;
-      if (viewerRef.current) {
-        viewerRef.current.destroy();
-        viewerRef.current = null;
-      }
-    };
+    citySourceRef.current = citySource;
+    void viewer.dataSources.add(citySource);
   }, [cities]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+
+    if (productSourceRef.current) {
+      viewer.dataSources.remove(productSourceRef.current, true);
+      productSourceRef.current = null;
+    }
+    if (!productLayer?.geojson) return;
+
+    let cancelled = false;
+    Cesium.GeoJsonDataSource.load(productLayer.geojson, {
+      clampToGround: true,
+      stroke: Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.95),
+      fill: Cesium.Color.fromCssColorString('#ff8a4c').withAlpha(0.32),
+      markerColor: Cesium.Color.fromCssColorString('#ffcc66'),
+      strokeWidth: 2,
+    })
+      .then(async (source) => {
+        if (cancelled || viewer.isDestroyed()) {
+          return;
+        }
+        source.name = productLayer.name;
+        applyProductLayerStyle(source);
+        productSourceRef.current = source;
+        await viewer.dataSources.add(source);
+      })
+      .catch((error) => {
+        console.error('Failed to load pollen product layer:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productLayer]);
 
   return <div ref={cesiumContainer} className="w-full h-full" />;
 }
@@ -174,6 +223,34 @@ function applyBoundaryStyle(
     entity.polygon.classificationType = new Cesium.ConstantProperty(
       Cesium.ClassificationType.BOTH,
     );
+  }
+}
+
+function applyProductLayerStyle(dataSource: Cesium.GeoJsonDataSource) {
+  for (const entity of dataSource.entities.values) {
+    if (entity.polygon) {
+      entity.polygon.fill = new Cesium.ConstantProperty(true);
+      entity.polygon.material = new Cesium.ColorMaterialProperty(
+        Cesium.Color.fromCssColorString('#ff8a4c').withAlpha(0.32),
+      );
+      entity.polygon.outline = new Cesium.ConstantProperty(true);
+      entity.polygon.outlineColor = new Cesium.ConstantProperty(
+        Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.95),
+      );
+      entity.polygon.outlineWidth = new Cesium.ConstantProperty(2);
+    }
+    if (entity.polyline) {
+      entity.polyline.material = new Cesium.ColorMaterialProperty(
+        Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.9),
+      );
+      entity.polyline.width = new Cesium.ConstantProperty(2);
+    }
+    if (entity.point) {
+      entity.point.pixelSize = new Cesium.ConstantProperty(9);
+      entity.point.color = new Cesium.ConstantProperty(Cesium.Color.fromCssColorString('#ffcc66'));
+      entity.point.outlineColor = new Cesium.ConstantProperty(Cesium.Color.BLACK);
+      entity.point.outlineWidth = new Cesium.ConstantProperty(1);
+    }
   }
 }
 

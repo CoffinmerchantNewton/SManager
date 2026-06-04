@@ -828,7 +828,7 @@ runs/<run_id>/products/product_manifest.json
 - 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则收集 `.nc`/`wrfout*` 文件，复制到 `products/extracted/` 并生成 `extracted_manifest.json`。
 - `package_products.sh` 已能把提取结果合成为非空 `product_manifest.json`。
 - 后端 `sync-products` 已验证可以下载并索引 `.nc` 产品，Products 页面可下载该文件。
-- Cesium 花粉分布页面目前使用模拟城市点位，尚未加载真实 NetCDF 或由 NetCDF 转出的轻量可视化产品。
+- Cesium 花粉分布页面已能尝试加载最新 GeoJSON/JSON 产品层；没有可用产品时使用模拟城市点位。尚未渲染原始 NetCDF，也尚未支持 PNG overlay、GeoTIFF/切片等更多地图层类型。
 
 下一步推荐链路：
 
@@ -841,7 +841,7 @@ wrfout / postprocess nc
 ```
 
 前端不要直接读取服务器路径或原始大 NetCDF；若需要浏览器地图展示，应优先生成 GeoJSON、PNG overlay、GeoTIFF 切片或其他轻量产品。原始 `.nc` 可以作为下载归档产品同步，但不应作为第一版浏览器实时渲染格式。
-已同步的 `.json/.geojson` 轻量产品可通过 `/api/v1/products/{product_id}/content` 返回 JSON 内容，供前端地图层加载。
+已同步的 `.json/.geojson` 轻量产品可通过 `/api/v1/products/{product_id}/content` 返回 JSON 内容，当前门户页会自动尝试加载最新 GeoJSON/JSON 产品层。
 
 ## 分阶段实施路线
 

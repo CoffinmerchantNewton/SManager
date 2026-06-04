@@ -7,7 +7,7 @@
 - `apps/hermes-agent/` 已不再作为维护入口；Hermes 或 AI 助手统一通过 `packages/cli/smanager.py` 和 `skills/smanager-hermes-cli/SKILL.md` 调用后端 API。
 - 服务器侧调度入口在 `server/auto-pollen-flow/`，负责 `plan/status/fnl-verify/submit/logs/events/diagnose/retry/cancel/products`。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
-- 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页目前仍是 Cesium + 模拟城市点位，不是实时 NetCDF 产物渲染。
+- 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会尝试加载最新 GeoJSON/JSON 产品层，并用模拟城市点位兜底。
 - `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件并写入产品 manifest，后端可同步下载到跳板机；变量裁剪、GeoJSON/PNG/切片生成和前端地图渲染仍待实现。
 
 ## 目录结构
@@ -133,13 +133,13 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_product_i
 - Dashboard、Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
 - 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
-- Cesium 花粉分布页面目前使用静态城市点位和模拟浓度，不读取真实产品层。
+- Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 GeoJSON/JSON 产品，经 `/content` 读取后叠加到地图；没有可用产品时使用静态城市点位和模拟浓度。
 
 真实花粉分布展示还需要下一步实现：
 
 1. 在 `product_extract` 中加入变量裁剪和轻量可视化产品生成，例如 GeoJSON、PNG overlay、GeoTIFF/切片。
 2. 后端 `sync-products` 下载并索引这些产品。
-3. 前端根据产品类型加载 GeoJSON/PNG/栅格切片等可视化层。
+3. 前端继续扩展 PNG overlay、GeoTIFF/切片等地图层类型。
 
 不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。已同步的 `.json/.geojson` 产品可以通过 `/api/v1/products/{product_id}/content` 读取。
 

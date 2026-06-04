@@ -1,7 +1,42 @@
+import { useEffect, useState } from 'react';
 import CesiumMap from '../components/CesiumMap';
 import { cities } from '../data/chinaMap';
+import { productsApi } from '../services/api';
+import type { ForecastProduct } from '../types';
 
 export default function Portal() {
+  const [productLayer, setProductLayer] = useState<{ name: string; geojson: any } | null>(null);
+  const [productStatus, setProductStatus] = useState('Using simulated city observations');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLatestProductLayer = async () => {
+      try {
+        const response = await productsApi.getAll({ status: 'ready', limit: 50 });
+        const product = (response.data as ForecastProduct[]).find(isInlineMapProduct);
+        if (!product) {
+          setProductStatus('No GeoJSON product layer indexed yet');
+          return;
+        }
+        const content = await productsApi.content(product.id);
+        if (cancelled) return;
+        setProductLayer({ name: product.product_name, geojson: content.data });
+        setProductStatus(`Layer: ${product.product_name}`);
+      } catch (error) {
+        console.error('Failed to load latest product layer:', error);
+        if (!cancelled) {
+          setProductStatus('Product layer unavailable; using simulated city observations');
+        }
+      }
+    };
+
+    void loadLatestProductLayer();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-on-background font-body-md">
       {/* TopNavBar */}
@@ -50,7 +85,7 @@ export default function Portal() {
       <main className="relative mt-14 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col">
         {/* WebGIS Map Container - Cesium */}
         <div className="relative flex-grow bg-slate-950 overflow-hidden">
-          <CesiumMap cities={cities} />
+          <CesiumMap cities={cities} productLayer={productLayer} />
           <div className="absolute inset-0 pointer-events-none border border-white/5"></div>
 
           {/* Floating Controls: Left */}
@@ -65,6 +100,10 @@ export default function Portal() {
                 <div>
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest">Active Model</p>
                   <p className="font-data-mono text-white">WRF-Chem v4.2.1</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">Map Product</p>
+                  <p className="font-data-mono text-white break-words">{productStatus}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest">Simulation Domain</p>
@@ -171,4 +210,10 @@ export default function Portal() {
       </main>
     </div>
   );
+}
+
+function isInlineMapProduct(product: ForecastProduct) {
+  const type = product.product_type.toLowerCase();
+  const path = product.file_path.toLowerCase();
+  return type.includes('geojson') || path.endsWith('.geojson') || path.endsWith('.json');
 }

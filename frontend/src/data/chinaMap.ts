@@ -35,14 +35,14 @@ export const provinces = [
 ];
 
 export const cities = [
-  { name: '北京', x: 570, y: 225, concentration: 842, risk: 'high' },
-  { name: '天津', x: 585, y: 240, concentration: 621, risk: 'medium' },
-  { name: '哈尔滨', x: 640, y: 150, concentration: 1104, risk: 'critical' },
-  { name: '西安', x: 500, y: 260, concentration: 214, risk: 'low' },
-  { name: '成都', x: 460, y: 350, concentration: 386, risk: 'medium' },
-  { name: '广州', x: 580, y: 475, concentration: 512, risk: 'high' },
-  { name: '上海', x: 630, y: 320, concentration: 456, risk: 'medium' },
-  { name: '武汉', x: 550, y: 340, concentration: 378, risk: 'medium' },
+  { name: '北京', longitude: 116.4074, latitude: 39.9042, concentration: 842, risk: 'high' },
+  { name: '天津', longitude: 117.2000, latitude: 39.1333, concentration: 621, risk: 'medium' },
+  { name: '哈尔滨', longitude: 126.5349, latitude: 45.8038, concentration: 1104, risk: 'critical' },
+  { name: '西安', longitude: 108.9398, latitude: 34.3416, concentration: 214, risk: 'low' },
+  { name: '成都', longitude: 104.0665, latitude: 30.5728, concentration: 386, risk: 'medium' },
+  { name: '广州', longitude: 113.2644, latitude: 23.1291, concentration: 512, risk: 'high' },
+  { name: '上海', longitude: 121.4737, latitude: 31.2304, concentration: 456, risk: 'medium' },
+  { name: '武汉', longitude: 114.3054, latitude: 30.5931, concentration: 378, risk: 'medium' },
 ];
 
 export const getRiskColor = (risk: string) => {
