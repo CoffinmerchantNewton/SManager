@@ -254,9 +254,16 @@ export default function ProductsManagement() {
                   ></div>
                 </button>
               </div>
-              <button className="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg">
-                <span className="material-symbols-outlined scale-90">visibility</span>
-              </button>
+              <a
+                href={productsApi.downloadUrl(product.id)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Download ${product.product_name}`}
+                title={`Download ${product.file_path}`}
+                className="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg"
+              >
+                <span className="material-symbols-outlined scale-90">download</span>
+              </a>
               <button
                 onClick={() => deleteProduct(product.id)}
                 className="p-2 bg-surface-container-high border border-outline-variant hover:border-error/50 hover:text-error transition-all rounded-lg"
