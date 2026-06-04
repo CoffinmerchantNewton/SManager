@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     JUMPBOX_FNL_CACHE_DIR: str = "runtime/fnl"
     FNL_MIN_MB: float = 5.0
     FNL_UPLOAD_METHOD: str = "rsync"
+    JUMPBOX_PRODUCTS_DIR: str = "runtime/products"
+    PRODUCT_SYNC_METHOD: str = "rsync"
 
     class Config:
         case_sensitive = True

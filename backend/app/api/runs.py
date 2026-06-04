@@ -7,6 +7,7 @@ from ..core.database import get_db
 from ..models.models import ForecastRun, ForecastRunNode, ForecastRunStatus
 from ..schemas.run_control import FlowResponse, LogsResponse, RetryRequest, RunPlanRequest, RunSubmitRequest
 from ..services.flow import ServerFlowService
+from ..services.products import ProductSyncService
 
 router = APIRouter()
 
@@ -86,6 +87,12 @@ def retry_run_node(run_id: str, payload: RetryRequest):
 @router.get("/{run_id}/products", response_model=FlowResponse)
 def get_run_products(run_id: str):
     return FlowResponse(data=service().products(run_id))
+
+
+@router.post("/{run_id}/sync-products", response_model=FlowResponse)
+def sync_run_products(run_id: str, db: Session = Depends(get_db)):
+    result = ProductSyncService(db).sync(run_id)
+    return FlowResponse(ok=bool(result.get("ok")), data=result)
 
 
 def sync_run_status(db: Session, run_id: str, workflow: dict) -> None:

@@ -98,6 +98,11 @@ def cmd_logs(args) -> int:
     return 0
 
 
+def cmd_sync_products(args) -> int:
+    print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/sync-products"), {}))
+    return 0
+
+
 def cmd_agent_tick(args) -> int:
     payload = {
         "run_id": args.run_id,
@@ -163,6 +168,10 @@ def build_parser() -> argparse.ArgumentParser:
     logs.add_argument("--node")
     logs.add_argument("--tail", type=int, default=200)
     logs.set_defaults(func=cmd_logs)
+
+    sync_products = sub.add_parser("sync-products")
+    sync_products.add_argument("--run-id", required=True)
+    sync_products.set_defaults(func=cmd_sync_products)
 
     tick = sub.add_parser("agent-tick")
     tick.add_argument("--run-id")

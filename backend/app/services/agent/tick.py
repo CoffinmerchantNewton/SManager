@@ -9,6 +9,7 @@ from ...schemas.run_control import AgentTickRequest
 from ..audit import create_action, finish_action
 from ..flow import ServerFlowService
 from ..fnl import FnlRepairService
+from ..products import ProductSyncService
 
 
 class AgentTickService:
@@ -54,7 +55,18 @@ class AgentTickService:
                 submit = {"ok": False, "skipped": True, "reason": "fnl_not_ready"}
 
             status = self.flow.status(run_id)
-            output = {"ok": bool(fnl.get("ok")), "run_id": run_id, "plan": plan, "fnl": fnl, "submit": submit, "status": status}
+            products = None
+            if status.get("status") == "success":
+                products = ProductSyncService(self.db).sync(run_id)
+            output = {
+                "ok": bool(fnl.get("ok")),
+                "run_id": run_id,
+                "plan": plan,
+                "fnl": fnl,
+                "submit": submit,
+                "status": status,
+                "products": products,
+            }
             finish_action(self.db, action, "success" if output["ok"] else "error", output)
             return output
         except Exception as exc:

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smanager.local/contracts/product_manifest.schema.json",
+  "title": "Product Manifest",
+  "type": "object",
+  "required": ["run_id", "products"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "server_path": { "type": "string" },
+          "type": { "type": "string" },
+          "mime": { "type": "string" },
+          "region": { "type": "string" },
+          "pollen_type": { "type": "string" },
+          "resolution": { "type": "string" },
+          "workflow_node": { "type": "string" },
+          "workflow_version": { "type": "string" },
+          "thumbnail_path": { "type": "string" }
+        }
+      }
+    }
+  }
+}

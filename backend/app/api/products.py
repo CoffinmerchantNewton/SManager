@@ -13,6 +13,7 @@ def get_products(
     limit: int = 20,
     region: Optional[str] = None,
     pollen_type: Optional[str] = None,
+    run_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
@@ -22,6 +23,8 @@ def get_products(
         query = query.filter(ForecastProduct.region == region)
     if pollen_type:
         query = query.filter(ForecastProduct.pollen_type == pollen_type)
+    if run_id:
+        query = query.filter(ForecastProduct.product_name.like(f"{run_id}:%"))
     if status:
         query = query.filter(ForecastProduct.status == status)
 
