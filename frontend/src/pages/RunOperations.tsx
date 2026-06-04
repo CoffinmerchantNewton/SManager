@@ -154,6 +154,25 @@ export default function RunOperations() {
       await refreshStatus(activeRunId);
     });
 
+  const cancelRun = (dryRun: boolean) =>
+    runAction(dryRun ? 'Cancel Dry-run' : 'Cancel Real', async () => {
+      if (!activeRunId) return;
+      if (!dryRun && !confirm(`Cancel run ${activeRunId}?`)) {
+        return;
+      }
+      const response = await runsApi.cancel(activeRunId, { dry_run: dryRun });
+      const data = response.data.data;
+      setMessage({
+        kind: 'info',
+        text: dryRun
+          ? `Cancel dry-run found ${(data.nodes ?? []).length} active nodes.`
+          : data.no_op
+            ? 'No active nodes to cancel.'
+            : `Cancel requested for ${(data.cancelled_nodes ?? []).length} nodes.`,
+      });
+      await refreshStatus(activeRunId);
+    });
+
   const loadActions = async (id: string) => {
     const response = await agentApi.actions({ run_id: id, limit: 20 });
     setActions(response.data.data.actions ?? []);
@@ -211,6 +230,8 @@ export default function RunOperations() {
             <OpsButton label="Diagnose" icon="troubleshoot" busy={busy} disabled={!activeRunId} onClick={diagnoseRun} />
             <OpsButton label="Retry Dry-run" icon="restart_alt" busy={busy} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(true)} />
             <OpsButton label="Retry Real" icon="published_with_changes" busy={busy} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(false)} tone="danger" />
+            <OpsButton label="Cancel Dry-run" icon="block" busy={busy} disabled={!activeRunId} onClick={() => cancelRun(true)} />
+            <OpsButton label="Cancel Real" icon="dangerous" busy={busy} disabled={!activeRunId} onClick={() => cancelRun(false)} tone="danger" />
           </div>
           {message && (
             <div

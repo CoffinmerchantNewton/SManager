@@ -47,6 +47,7 @@ export const runsApi = {
   logs: (runId: string, params?: any) => api.get(`/runs/${runId}/logs`, { params }),
   diagnose: (runId: string) => api.get(`/runs/${runId}/diagnose`),
   retry: (runId: string, data: any) => api.post(`/runs/${runId}/retry`, data),
+  cancel: (runId: string, data: any) => api.post(`/runs/${runId}/cancel`, data),
   products: (runId: string) => api.get(`/runs/${runId}/products`),
   syncProducts: (runId: string) => api.post(`/runs/${runId}/sync-products`, {}),
 };
