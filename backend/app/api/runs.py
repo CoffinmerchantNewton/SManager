@@ -63,11 +63,13 @@ def verify_run_fnl(run_id: str):
 
 
 @router.post("/{run_id}/submit", response_model=FlowResponse)
-def submit_run(run_id: str, payload: RunSubmitRequest):
-    result = service().submit(run_id, dry_run=payload.dry_run, allow_noop=payload.allow_noop)
+def submit_run(run_id: str, payload: RunSubmitRequest, db: Session = Depends(get_db)):
+    flow = service()
+    result = flow.submit(run_id, dry_run=payload.dry_run, allow_noop=payload.allow_noop)
     ok = bool(result.get("ok", result.get("_exit_code") == 0))
     if not ok and result.get("error"):
         raise HTTPException(status_code=400, detail=result)
+    sync_status_after_action(db, flow, run_id, result)
     return FlowResponse(data=result)
 
 
@@ -86,14 +88,18 @@ def diagnose_run(run_id: str):
 
 
 @router.post("/{run_id}/retry", response_model=FlowResponse)
-def retry_run_node(run_id: str, payload: RetryRequest):
-    result = service().retry(run_id, node=payload.node, dry_run=payload.dry_run)
+def retry_run_node(run_id: str, payload: RetryRequest, db: Session = Depends(get_db)):
+    flow = service()
+    result = flow.retry(run_id, node=payload.node, dry_run=payload.dry_run)
+    sync_status_after_action(db, flow, run_id, result)
     return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
 
 
 @router.post("/{run_id}/cancel", response_model=FlowResponse)
-def cancel_run(run_id: str, payload: CancelRunRequest):
-    result = service().cancel(run_id, dry_run=payload.dry_run)
+def cancel_run(run_id: str, payload: CancelRunRequest, db: Session = Depends(get_db)):
+    flow = service()
+    result = flow.cancel(run_id, dry_run=payload.dry_run)
+    sync_status_after_action(db, flow, run_id, result)
     return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
 
 
@@ -135,3 +141,10 @@ def sync_run_status(db: Session, run_id: str, workflow: dict) -> None:
         item.error_code = node.get("error_code")
         item.message = node.get("message")
     db.commit()
+
+
+def sync_status_after_action(db: Session, flow: ServerFlowService, run_id: str, result: dict) -> None:
+    ok = bool(result.get("ok", result.get("_exit_code") == 0))
+    if not ok or result.get("dry_run") or result.get("no_op"):
+        return
+    sync_run_status(db, run_id, flow.status(run_id))
