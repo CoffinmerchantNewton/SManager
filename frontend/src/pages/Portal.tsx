@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import CesiumMap from '../components/CesiumMap';
+import CesiumMap, { type MapProductLayer } from '../components/CesiumMap';
 import { cities } from '../data/chinaMap';
 import { productsApi } from '../services/api';
 import type { ForecastProduct } from '../types';
 
 export default function Portal() {
-  const [productLayer, setProductLayer] = useState<{ name: string; geojson: any } | null>(null);
+  const [productLayer, setProductLayer] = useState<MapProductLayer | null>(null);
   const [productStatus, setProductStatus] = useState('Using simulated city observations');
 
   useEffect(() => {
@@ -14,14 +14,27 @@ export default function Portal() {
     const loadLatestProductLayer = async () => {
       try {
         const response = await productsApi.getAll({ status: 'ready', limit: 50 });
-        const product = (response.data as ForecastProduct[]).find(isInlineMapProduct);
+        const products = response.data as ForecastProduct[];
+        const overlayMetadata = products.find(isOverlayMetadataProduct);
+        if (overlayMetadata) {
+          const content = await productsApi.content(overlayMetadata.id);
+          const overlayLayer = buildOverlayLayer(overlayMetadata, content.data, products);
+          if (cancelled) return;
+          if (overlayLayer) {
+            setProductLayer(overlayLayer);
+            setProductStatus(`Overlay: ${overlayLayer.name}`);
+            return;
+          }
+        }
+
+        const product = products.find(isInlineMapProduct);
         if (!product) {
-          setProductStatus('No GeoJSON product layer indexed yet');
+          setProductStatus('No map-ready product layer indexed yet');
           return;
         }
         const content = await productsApi.content(product.id);
         if (cancelled) return;
-        setProductLayer({ name: product.product_name, geojson: content.data });
+        setProductLayer({ kind: 'geojson', name: product.product_name, geojson: content.data });
         setProductStatus(`Layer: ${product.product_name}`);
       } catch (error) {
         console.error('Failed to load latest product layer:', error);
@@ -215,5 +228,83 @@ export default function Portal() {
 function isInlineMapProduct(product: ForecastProduct) {
   const type = product.product_type.toLowerCase();
   const path = product.file_path.toLowerCase();
-  return type.includes('geojson') || path.endsWith('.geojson') || path.endsWith('.json');
+  return (
+    type.includes('geojson') ||
+    path.endsWith('.geojson') ||
+    (path.endsWith('.json') && !isOverlayMetadataProduct(product))
+  );
+}
+
+function isOverlayMetadataProduct(product: ForecastProduct) {
+  const type = product.product_type.toLowerCase();
+  const path = product.file_path.toLowerCase();
+  return type.includes('png_overlay_metadata') || path.endsWith('.overlay.json');
+}
+
+function isOverlayImageProduct(product: ForecastProduct) {
+  const type = product.product_type.toLowerCase();
+  const path = product.file_path.toLowerCase();
+  return type === 'png_overlay' || type === 'map_png' || path.endsWith('.png');
+}
+
+function buildOverlayLayer(
+  metadataProduct: ForecastProduct,
+  metadata: any,
+  products: ForecastProduct[],
+): MapProductLayer | null {
+  if (!isOverlayMetadata(metadata)) {
+    return null;
+  }
+  const imageProduct = findOverlayImageProduct(metadataProduct, metadata, products);
+  if (!imageProduct) {
+    return null;
+  }
+  return {
+    kind: 'image_overlay',
+    name: metadataProduct.product_name,
+    imageUrl: productsApi.downloadUrl(imageProduct.id),
+    bounds: metadata.bounds,
+    opacity: metadata.opacity,
+  };
+}
+
+function findOverlayImageProduct(
+  metadataProduct: ForecastProduct,
+  metadata: PngOverlayMetadata,
+  products: ForecastProduct[],
+) {
+  const runId = metadataProduct.product_name.split(':')[0];
+  const expectedProductName = `${runId}:${metadata.image.name}`;
+  return products.find((product) => {
+    const path = product.file_path.toLowerCase();
+    return (
+      isOverlayImageProduct(product) &&
+      (product.product_name === expectedProductName || path.endsWith(`/${metadata.image.name.toLowerCase()}`))
+    );
+  });
+}
+
+interface PngOverlayMetadata {
+  type: 'png_overlay';
+  image: {
+    name: string;
+  };
+  bounds: {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  };
+  opacity?: number;
+}
+
+function isOverlayMetadata(value: any): value is PngOverlayMetadata {
+  return (
+    value?.type === 'png_overlay' &&
+    typeof value?.image?.name === 'string' &&
+    typeof value?.bounds?.west === 'number' &&
+    typeof value?.bounds?.south === 'number' &&
+    typeof value?.bounds?.east === 'number' &&
+    typeof value?.bounds?.north === 'number'
+  );
 }

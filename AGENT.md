@@ -804,10 +804,16 @@ runs/<run_id>/products/product_manifest.json
       "mime": "text/csv"
     },
     {
-      "type": "map_png",
+      "type": "png_overlay",
       "name": "pollen_d02_24h.png",
       "path": "products/pollen_d02_24h.png",
       "mime": "image/png"
+    },
+    {
+      "type": "png_overlay_metadata",
+      "name": "pollen_d02_24h.overlay.json",
+      "path": "products/pollen_d02_24h.overlay.json",
+      "mime": "application/json"
     },
     {
       "type": "geojson",
@@ -825,23 +831,23 @@ runs/<run_id>/products/product_manifest.json
 
 - 后端已经支持按 `product_manifest.json` 下载、索引和提供产品文件下载。
 - Products 页面已经能触发同步、筛选 run 产品并下载文件。
-- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则收集 `.nc`/`wrfout*` 文件，复制到 `products/extracted/` 并生成 `extracted_manifest.json`；设置 `PRODUCT_GEOJSON_VARIABLE` 后可从 NetCDF 生成抽样点 GeoJSON。
+- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则收集 `.nc`/`wrfout*` 文件，复制到 `products/extracted/` 并生成 `extracted_manifest.json`；设置 `PRODUCT_GEOJSON_VARIABLE` 后可从 NetCDF 生成抽样点 GeoJSON，设置 `PRODUCT_PNG_VARIABLE` 后可生成 PNG overlay 和 `*.overlay.json` 元数据。
 - `package_products.sh` 已能把提取结果合成为非空 `product_manifest.json`。
-- 后端 `sync-products` 已验证可以下载并索引 `.nc` 产品，Products 页面可下载该文件。
-- Cesium 花粉分布页面已能尝试加载最新 GeoJSON/JSON 产品层；没有可用产品时使用模拟城市点位。尚未渲染原始 NetCDF，也尚未支持 PNG overlay、GeoTIFF/切片等更多地图层类型。
+- 后端 `sync-products` 已验证可以下载并索引 `.nc`、`.geojson`、`.png` 和 `.overlay.json` 产品，Products 页面可下载这些文件。
+- Cesium 花粉分布页面已能优先加载最新 PNG overlay 产品层，回退 GeoJSON/JSON 产品层；没有可用产品时使用模拟城市点位。尚未渲染原始 NetCDF，也尚未支持 GeoTIFF/切片等更多地图层类型。
 
 下一步推荐链路：
 
 ```text
 wrfout / postprocess nc
-  -> product_extract: 收集 nc/wrfout；配置变量后生成抽样点 GeoJSON；后续增加等值线/png/切片生成
+  -> product_extract: 收集 nc/wrfout；配置变量后生成抽样点 GeoJSON 和 PNG overlay；后续增加等值线/切片生成
   -> package_products: 写入 product_manifest.json
   -> backend sync-products: 下载到 runtime/products/<run_id> 并入库
   -> frontend Products / Map: 读取产品索引并渲染 GeoJSON/PNG/栅格层
 ```
 
 前端不要直接读取服务器路径或原始大 NetCDF；若需要浏览器地图展示，应优先生成 GeoJSON、PNG overlay、GeoTIFF 切片或其他轻量产品。原始 `.nc` 可以作为下载归档产品同步，但不应作为第一版浏览器实时渲染格式。
-已同步的 `.json/.geojson` 轻量产品可通过 `/api/v1/products/{product_id}/content` 返回 JSON 内容，当前门户页会自动尝试加载最新 GeoJSON/JSON 产品层。
+已同步的 `.json/.geojson/.overlay.json` 轻量产品可通过 `/api/v1/products/{product_id}/content` 返回 JSON 内容，PNG 等二进制产品通过 `/download` 返回；当前门户页会优先加载最新 PNG overlay，并在没有 overlay 时尝试加载 GeoJSON/JSON 产品层。
 
 ## 分阶段实施路线
 

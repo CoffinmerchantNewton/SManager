@@ -7,8 +7,8 @@
 - `apps/hermes-agent/` 已不再作为维护入口；Hermes 或 AI 助手统一通过 `packages/cli/smanager.py` 和 `skills/smanager-hermes-cli/SKILL.md` 调用后端 API。
 - 服务器侧调度入口在 `server/auto-pollen-flow/`，负责 `plan/status/fnl-verify/submit/logs/events/diagnose/retry/cancel/products`。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
-- 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会尝试加载最新 GeoJSON/JSON 产品层，并用模拟城市点位兜底。
-- `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件，并可按 `PRODUCT_GEOJSON_VARIABLE` 从 NetCDF 生成抽样点 GeoJSON；后端可同步下载到跳板机；等值线、PNG overlay、GeoTIFF/切片仍待实现。
+- 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层，回退 GeoJSON/JSON 产品层，再回退模拟城市点位。
+- `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件，并可从 NetCDF 生成抽样点 GeoJSON 与 PNG overlay；后端可同步下载到跳板机；等值线、GeoTIFF/切片仍待实现。
 
 ## 目录结构
 
@@ -125,7 +125,7 @@ python3 packages/cli/smanager.py events --run-id <run_id> --limit 100
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py sync-products --run-id <run_id>
 python3 packages/cli/smanager.py products --run-id <run_id>
-python3 packages/cli/smanager.py product-content --product-id <geojson_product_id>
+python3 packages/cli/smanager.py product-content --product-id <geojson_or_overlay_metadata_product_id>
 ```
 
 ## 前端状态
@@ -133,15 +133,15 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_product_i
 - Dashboard、Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
 - 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
-- Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 GeoJSON/JSON 产品，经 `/content` 读取后叠加到地图；没有可用产品时使用静态城市点位和模拟浓度。
+- Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 `png_overlay_metadata` 产品，经 `/content` 读取 bounds 和 PNG 文件名，再用 `/download` 叠加 PNG；没有 overlay 时回退 GeoJSON/JSON 产品，最后使用静态城市点位和模拟浓度。
 
 真实花粉分布展示还需要下一步实现：
 
-1. 在 `product_extract` 中继续扩展等值线、PNG overlay、GeoTIFF/切片等可视化产品。
+1. 在 `product_extract` 中继续扩展等值线、GeoTIFF/切片等可视化产品。
 2. 后端 `sync-products` 下载并索引这些产品。
-3. 前端继续扩展 PNG overlay、GeoTIFF/切片等地图层类型。
+3. 前端继续扩展 GeoTIFF/切片等地图层类型。
 
-不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。已同步的 `.json/.geojson` 产品可以通过 `/api/v1/products/{product_id}/content` 读取。
+不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。已同步的 `.json/.geojson/.overlay.json` 产品可以通过 `/api/v1/products/{product_id}/content` 读取，PNG 等二进制产品通过 `/download` 读取。
 
 ## 验证命令
 

@@ -1,6 +1,25 @@
 import { useEffect, useRef } from 'react';
 import * as Cesium from 'cesium';
 
+export type MapProductLayer =
+  | {
+      kind: 'geojson';
+      name: string;
+      geojson: any;
+    }
+  | {
+      kind: 'image_overlay';
+      name: string;
+      imageUrl: string;
+      bounds: {
+        west: number;
+        south: number;
+        east: number;
+        north: number;
+      };
+      opacity?: number;
+    };
+
 interface CesiumMapProps {
   cities: Array<{
     name: string;
@@ -9,10 +28,7 @@ interface CesiumMapProps {
     concentration: number;
     risk: string;
   }>;
-  productLayer?: {
-    name: string;
-    geojson: any;
-  } | null;
+  productLayer?: MapProductLayer | null;
 }
 
 export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
@@ -20,6 +36,7 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const citySourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const productSourceRef = useRef<Cesium.GeoJsonDataSource | null>(null);
+  const productImageLayerRef = useRef<Cesium.ImageryLayer | null>(null);
 
   useEffect(() => {
     if (!cesiumContainer.current) return;
@@ -167,7 +184,33 @@ export default function CesiumMap({ cities, productLayer }: CesiumMapProps) {
       viewer.dataSources.remove(productSourceRef.current, true);
       productSourceRef.current = null;
     }
-    if (!productLayer?.geojson) return;
+    if (productImageLayerRef.current) {
+      viewer.imageryLayers.remove(productImageLayerRef.current, true);
+      productImageLayerRef.current = null;
+    }
+    if (!productLayer) return;
+
+    if (productLayer.kind === 'image_overlay') {
+      const rectangle = Cesium.Rectangle.fromDegrees(
+        productLayer.bounds.west,
+        productLayer.bounds.south,
+        productLayer.bounds.east,
+        productLayer.bounds.north,
+      );
+      const layer = viewer.imageryLayers.addImageryProvider(
+        new Cesium.SingleTileImageryProvider({
+          url: productLayer.imageUrl,
+          rectangle,
+        }),
+      );
+      layer.alpha = productLayer.opacity ?? 0.72;
+      productImageLayerRef.current = layer;
+      void viewer.camera.flyTo({
+        destination: rectangle,
+        duration: 0.8,
+      });
+      return;
+    }
 
     let cancelled = false;
     Cesium.GeoJsonDataSource.load(productLayer.geojson, {

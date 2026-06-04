@@ -76,7 +76,7 @@ python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py sync-products --run-id <run_id>
 python3 packages/cli/smanager.py products --run-id <run_id>
 python3 packages/cli/smanager.py product-download --product-id <product_id> --output runtime/downloads/product.dat
-python3 packages/cli/smanager.py product-content --product-id <geojson_product_id> --output runtime/downloads/product.geojson
+python3 packages/cli/smanager.py product-content --product-id <geojson_or_overlay_metadata_product_id> --output runtime/downloads/product.json
 ```
 
 ## 单次 Tick
@@ -125,8 +125,10 @@ python3 packages/cli/smanager.py agent-actions --action-type fnl_repair --status
 ```bash
 python3 packages/cli/smanager.py products --run-id <run_id> --status ready
 python3 packages/cli/smanager.py product-download --product-id <product_id>
-python3 packages/cli/smanager.py product-content --product-id <geojson_product_id>
+python3 packages/cli/smanager.py product-content --product-id <geojson_or_overlay_metadata_product_id>
 ```
+
+PNG overlay 会以两条产品记录出现：`png_overlay_metadata` 是可用 `product-content` 读取的 `*.overlay.json`，里面包含 bounds、变量名、色带和 PNG 文件名；`png_overlay` 是 PNG 本体，只能用 `product-download` 或前端 `/download` URL 读取。
 
 - 查看服务器节点日志：
 

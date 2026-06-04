@@ -3,7 +3,11 @@
     "FLOWCTL": "/g7/anxq/Zhangjt/workspace/auto-pollen-flow/flowctl.py",
     "NODE_COMMAND_DIR": "/g7/anxq/Zhangjt/workspace/auto-pollen-flow/node_commands",
     "AUTO_POLLEN_ROOT": "/g7/anxq/Zhangjt/workspace/auto-pollen",
-    "ENV_SCRIPT": "/g7/anxq/Zhangjt/workspace/load_env.sh"
+    "ENV_SCRIPT": "/g7/anxq/Zhangjt/workspace/load_env.sh",
+    "PYTHON_BIN": "python3",
+    "PRODUCT_GEOJSON_VARIABLE": "",
+    "PRODUCT_PNG_VARIABLE": "",
+    "PRODUCT_PNG_OPACITY": "0.72"
   },
   "slurm_defaults": {
     "partition": "normal",
