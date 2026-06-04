@@ -47,6 +47,13 @@ def print_json(data: Any) -> None:
     sys.stdout.write("\n")
 
 
+def print_result(data: Any) -> int:
+    print_json(data)
+    if isinstance(data, dict) and data.get("ok") is False:
+        return 1
+    return 0
+
+
 def api_url(args, path: str) -> str:
     return args.api.rstrip("/") + path
 
@@ -62,24 +69,20 @@ def cmd_plan(args) -> int:
         "met_provider": args.met_provider,
         "commands_file": args.commands_file,
     }
-    print_json(request_json("POST", api_url(args, "/runs/"), payload))
-    return 0
+    return print_result(request_json("POST", api_url(args, "/runs/"), payload))
 
 
 def cmd_status(args) -> int:
-    print_json(request_json("GET", api_url(args, f"/runs/{args.run_id}/status")))
-    return 0
+    return print_result(request_json("GET", api_url(args, f"/runs/{args.run_id}/status")))
 
 
 def cmd_fnl_verify(args) -> int:
-    print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/fnl-verify"), {}))
-    return 0
+    return print_result(request_json("POST", api_url(args, f"/runs/{args.run_id}/fnl-verify"), {}))
 
 
 def cmd_fnl_repair(args) -> int:
     payload = {"run_id": args.run_id, "start": args.start, "end": args.end}
-    print_json(request_json("POST", api_url(args, "/fnl/repair"), payload))
-    return 0
+    return print_result(request_json("POST", api_url(args, "/fnl/repair"), payload))
 
 
 def cmd_fnl_coverage(args) -> int:
@@ -91,14 +94,12 @@ def cmd_fnl_coverage(args) -> int:
     url = api_url(args, "/fnl/coverage")
     if query:
         url += "?" + urllib.parse.urlencode(query)
-    print_json(request_json("GET", url))
-    return 0
+    return print_result(request_json("GET", url))
 
 
 def cmd_submit(args) -> int:
     payload = {"dry_run": args.dry_run, "allow_noop": args.allow_noop}
-    print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/submit"), payload))
-    return 0
+    return print_result(request_json("POST", api_url(args, f"/runs/{args.run_id}/submit"), payload))
 
 
 def cmd_logs(args) -> int:
@@ -112,26 +113,21 @@ def cmd_logs(args) -> int:
 
 
 def cmd_diagnose(args) -> int:
-    print_json(request_json("GET", api_url(args, f"/runs/{args.run_id}/diagnose")))
-    return 0
+    return print_result(request_json("GET", api_url(args, f"/runs/{args.run_id}/diagnose")))
 
 
 def cmd_retry_node(args) -> int:
     payload = {"node": args.node, "dry_run": args.dry_run}
-    print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/retry"), payload))
-    return 0
+    return print_result(request_json("POST", api_url(args, f"/runs/{args.run_id}/retry"), payload))
 
 
 def cmd_cancel_run(args) -> int:
     payload = {"dry_run": args.dry_run}
-    result = request_json("POST", api_url(args, f"/runs/{args.run_id}/cancel"), payload)
-    print_json(result)
-    return 0 if result.get("ok") else 1
+    return print_result(request_json("POST", api_url(args, f"/runs/{args.run_id}/cancel"), payload))
 
 
 def cmd_sync_products(args) -> int:
-    print_json(request_json("POST", api_url(args, f"/runs/{args.run_id}/sync-products"), {}))
-    return 0
+    return print_result(request_json("POST", api_url(args, f"/runs/{args.run_id}/sync-products"), {}))
 
 
 def cmd_products(args) -> int:
@@ -143,8 +139,7 @@ def cmd_products(args) -> int:
     url = api_url(args, "/products")
     if query:
         url += "?" + urllib.parse.urlencode(query)
-    print_json(request_json("GET", url))
-    return 0
+    return print_result(request_json("GET", url))
 
 
 def cmd_product_download(args) -> int:
@@ -172,8 +167,7 @@ def cmd_agent_tick(args) -> int:
         "dry_run_submit": args.dry_run_submit,
         "allow_noop": args.allow_noop,
     }
-    print_json(request_json("POST", api_url(args, "/agent/tick"), payload))
-    return 0
+    return print_result(request_json("POST", api_url(args, "/agent/tick"), payload))
 
 
 def cmd_agent_actions(args) -> int:
@@ -183,8 +177,7 @@ def cmd_agent_actions(args) -> int:
         if value:
             query[key] = value
     query["limit"] = str(args.limit)
-    print_json(request_json("GET", api_url(args, "/agent/actions") + "?" + urllib.parse.urlencode(query)))
-    return 0
+    return print_result(request_json("GET", api_url(args, "/agent/actions") + "?" + urllib.parse.urlencode(query)))
 
 
 def build_parser() -> argparse.ArgumentParser:

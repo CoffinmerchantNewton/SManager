@@ -153,6 +153,8 @@ python3 packages/cli/smanager.py cancel-run --run-id <run_id> --real
 - `data.status.status` 和 `data.status.progress`: 运行状态。
 - `data.products.indexed_count` 或产物同步结果：已索引产物。
 
+当命令输出 JSON 且顶层 `ok` 为 `false` 时，CLI 退出码应为非零；自动化脚本应同时检查退出码和 `ok` 字段。
+
 如果 FNL 状态是 `server_ok`，不要下载或上传。只有 `missing`、`bad_magic`、`too_small`、`link_broken` 需要进入补齐。
 
 ## 修改控制面
@@ -168,7 +170,7 @@ python3 packages/cli/smanager.py cancel-run --run-id <run_id> --real
 - `backend/app/services/flow/server_flow.py`: bridge to server `flowctl`.
 - `server/auto-pollen-flow/flowctl.py`: server-side scheduling/status/FNL commands.
 
-保持 CLI 输出为机器可读 JSON。修改面向自动化的命令行为时，明确失败应返回非零退出码。
+保持 CLI 输出为机器可读 JSON。修改面向自动化的命令行为时，明确失败必须返回非零退出码。
 
 ## 安全规则
 
