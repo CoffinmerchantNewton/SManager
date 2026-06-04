@@ -10,6 +10,7 @@ from ..audit import create_action, finish_action
 from ..diagnostics import enrich_diagnosis
 from ..flow import ServerFlowService
 from ..fnl import FnlRepairService
+from ..notifications import NotificationService
 from ..products import ProductSyncService
 
 
@@ -72,6 +73,7 @@ class AgentTickService:
                 "diagnosis": diagnosis,
                 "products": products,
             }
+            output["notification"] = NotificationService(self.db).notify_run_issue(run_id, output)
             finish_action(self.db, action, "success" if output["ok"] else "error", output)
             return output
         except Exception as exc:

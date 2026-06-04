@@ -7,6 +7,7 @@
 - 后端 `.env` 已配置 `SERVER_SSH_HOST`、`SERVER_FLOWCTL_PATH`、`SERVER_FLOW_ROOT`、`SERVER_FNL_ROOTS`、`SERVER_FNL_UPLOAD_DIR`。
 - 内网服务器已部署 `server/auto-pollen-flow/`，并维护好生产 commands-file。
 - `FNL_DOWNLOAD_COMMAND` 可在跳板机生成目标 FNL 文件。
+- 如需机器人通知，配置 `NOTIFICATION_WEBHOOK_URL`；留空则不发送外部通知。
 
 ## One Tick
 

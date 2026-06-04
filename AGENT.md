@@ -920,6 +920,14 @@ wrfout / postprocess nc
 - 实现通知 webhook。
 - 记录每个 agent action。
 
+当前实现状态：
+
+- `agent/tick` 和 CLI `agent-tick` 已可执行一次性值守流程。
+- Scheduler 的 `POST /api/v1/tasks/{id}/run` 和 CLI `task-run` 已可基于任务模板触发一次 tick，默认 dry-run submit。
+- 诊断规则已能给出是否允许自动动作和是否需要人工介入。
+- `NOTIFICATION_WEBHOOK_URL` 可选配置；agent tick 失败或诊断要求人工时会发送 webhook，未配置则跳过并在输出中说明。
+- `agent_actions` 已记录 tick、FNL repair 和 notification 等自动动作。
+
 验收：
 
 - 一个完整每日 run 可无人值守完成。

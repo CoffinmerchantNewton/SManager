@@ -37,5 +37,7 @@ class Settings(BaseSettings):
     JUMPBOX_CACHE_DIR: str = "runtime/cache"
     PRODUCT_SYNC_METHOD: str = "rsync"
     PRODUCT_INLINE_MAX_MB: float = 20.0
+    NOTIFICATION_WEBHOOK_URL: Optional[str] = None
+    NOTIFICATION_WEBHOOK_TIMEOUT: int = 10
 
 settings = Settings()

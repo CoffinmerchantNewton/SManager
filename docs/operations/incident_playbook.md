@@ -44,6 +44,10 @@ python3 packages/cli/smanager.py retry-node --run-id <run_id> --node <node> --re
 - WRF CFL 或段错误尚未人工确认 restart/timestep 策略
 - 同一节点同类错误重复三次
 
+## Notifications
+
+默认不会向外发送通知。若跳板机后端配置了 `NOTIFICATION_WEBHOOK_URL`，`agent-tick` 在失败或诊断要求人工介入时会发送 JSON webhook，并在 `agent_actions` 中记录 `notification` 动作。
+
 ## Product Issues
 
 产品缺失时先看：

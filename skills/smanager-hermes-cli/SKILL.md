@@ -118,6 +118,8 @@ python3 packages/cli/smanager.py events --run-id <run_id> --level error --limit 
 
 优先用 `diagnose --summary` 读取 `analysis.summary` 和 `analysis.recommendations`，再用 `collect-context` 获取一次排障上下文包；它只读返回 run spec、状态、诊断、FNL manifest、产品 manifest、近期事件和日志尾部，适合交给 AI 总结问题。`auto_retry_allowed=true` 才能考虑自动动作；`requires_operator=true` 时不要直接真实重试，应先收集上下文或通知人工。
 
+如果后端配置了 `NOTIFICATION_WEBHOOK_URL`，`agent-tick` 失败或诊断要求人工介入时会自动发送 webhook，并写入 `agent_actions` 中的 `notification` 记录；未配置时输出会显示 `webhook_not_configured`，这不是错误。
+
 - 查看 FNL 数据库覆盖情况：
 
 ```bash
