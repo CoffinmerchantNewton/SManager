@@ -824,15 +824,16 @@ runs/<run_id>/products/product_manifest.json
 
 - 后端已经支持按 `product_manifest.json` 下载、索引和提供产品文件下载。
 - Products 页面已经能触发同步、筛选 run 产品并下载文件。
-- 服务器 `product_extract.sh` 仍是模板，尚未从 `wrfout` 或后处理结果提取 NetCDF/GeoJSON/PNG。
-- `package_products.sh` 当前只写空 manifest，尚未自动发现提取产物。
-- Cesium 花粉分布页面目前使用模拟城市点位，尚未加载真实 NetCDF 或由 NetCDF 转出的可视化产品。
+- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则收集 `.nc`/`wrfout*` 文件，复制到 `products/extracted/` 并生成 `extracted_manifest.json`。
+- `package_products.sh` 已能把提取结果合成为非空 `product_manifest.json`。
+- 后端 `sync-products` 已验证可以下载并索引 `.nc` 产品，Products 页面可下载该文件。
+- Cesium 花粉分布页面目前使用模拟城市点位，尚未加载真实 NetCDF 或由 NetCDF 转出的轻量可视化产品。
 
 下一步推荐链路：
 
 ```text
 wrfout / postprocess nc
-  -> product_extract: 提取目标变量和时次，输出轻量 nc/geojson/png
+  -> product_extract: 收集 nc/wrfout；后续增加变量裁剪和 geojson/png/切片生成
   -> package_products: 写入 product_manifest.json
   -> backend sync-products: 下载到 runtime/products/<run_id> 并入库
   -> frontend Products / Map: 读取产品索引并渲染 GeoJSON/PNG/栅格层

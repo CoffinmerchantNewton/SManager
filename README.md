@@ -8,7 +8,7 @@
 - 服务器侧调度入口在 `server/auto-pollen-flow/`，负责 `plan/status/fnl-verify/submit/logs/events/diagnose/retry/cancel/products`。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页目前仍是 Cesium + 模拟城市点位，不是实时 NetCDF 产物渲染。
-- `product_extract` 从 WRF 输出提取 NetCDF/GeoJSON/PNG 产品的链路尚未实现；当前只支持同步服务器 `product_manifest.json` 已声明的文件并下载到跳板机。
+- `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件并写入产品 manifest，后端可同步下载到跳板机；变量裁剪、GeoJSON/PNG/切片生成和前端地图渲染仍待实现。
 
 ## 目录结构
 
@@ -131,16 +131,15 @@ python3 packages/cli/smanager.py products --run-id <run_id>
 - Dashboard、Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
 - 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
-- Cesium 花粉分布页面目前使用静态城市点位和模拟浓度，不读取 NetCDF。
+- Cesium 花粉分布页面目前使用静态城市点位和模拟浓度，不读取真实产品层。
 
 真实花粉分布展示还需要下一步实现：
 
-1. 服务器 `product_extract` 从 `wrfout` 或后处理结果提取前端可读产品。
-2. `package_products` 写出非空 `product_manifest.json`。
-3. 后端 `sync-products` 下载并索引这些产品。
-4. 前端根据产品类型加载 GeoJSON/PNG/栅格切片等可视化层。
+1. 在 `product_extract` 中加入变量裁剪和轻量可视化产品生成，例如 GeoJSON、PNG overlay、GeoTIFF/切片。
+2. 后端 `sync-products` 下载并索引这些产品。
+3. 前端根据产品类型加载 GeoJSON/PNG/栅格切片等可视化层。
 
-不建议前端直接读取服务器路径或原始大 NetCDF；应通过后端产品索引和 manifest 暴露可展示产品。
+不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。
 
 ## 验证命令
 
