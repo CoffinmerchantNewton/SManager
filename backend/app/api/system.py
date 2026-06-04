@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.database import get_db
 from ..schemas.run_control import FlowResponse
+from ..services.storage import StorageService
 from ..services.ssh import SSHClient
 
 router = APIRouter()
@@ -126,3 +127,9 @@ def doctor(db: Session = Depends(get_db)):
             "version": settings.VERSION,
         },
     )
+
+
+@router.get("/storage", response_model=FlowResponse)
+def storage_snapshot():
+    snapshot = StorageService().snapshot()
+    return FlowResponse(ok=snapshot["error_count"] == 0, data=snapshot)

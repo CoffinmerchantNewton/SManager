@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     FNL_MIN_MB: float = 5.0
     FNL_UPLOAD_METHOD: str = "rsync"
     JUMPBOX_PRODUCTS_DIR: str = "runtime/products"
+    JUMPBOX_LOGS_DIR: str = "runtime/logs"
+    JUMPBOX_MANIFESTS_DIR: str = "runtime/manifests"
+    JUMPBOX_CACHE_DIR: str = "runtime/cache"
     PRODUCT_SYNC_METHOD: str = "rsync"
 
 settings = Settings()

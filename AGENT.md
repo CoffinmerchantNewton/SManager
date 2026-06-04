@@ -558,6 +558,7 @@ backend/app/services/
   server_flow.py      # submit/status/retry/logs/products
   fnl_store.py        # 下载、校验、manifest、上传
   product_store.py    # 产物下载、索引、本地文件服务
+  storage.py          # 跳板机 runtime 本地目录快照
   diagnostics.py      # 错误分类与建议动作
 ```
 
@@ -571,10 +572,14 @@ POST   /api/v1/runs/{run_id}/submit
 GET    /api/v1/runs/{run_id}/status
 GET    /api/v1/runs/{run_id}/nodes
 GET    /api/v1/runs/{run_id}/logs
+GET    /api/v1/runs/{run_id}/events
 POST   /api/v1/runs/{run_id}/retry
 POST   /api/v1/runs/{run_id}/cancel
+POST   /api/v1/runs/{run_id}/sync-products
 
 GET    /api/v1/fnl/coverage
+POST   /api/v1/fnl/repair
+POST   /api/v1/fnl/verify-server
 POST   /api/v1/fnl/download
 POST   /api/v1/fnl/upload
 POST   /api/v1/fnl/verify
@@ -582,6 +587,9 @@ POST   /api/v1/fnl/verify
 GET    /api/v1/products
 GET    /api/v1/products/{product_id}
 GET    /api/v1/products/{product_id}/download
+
+GET    /api/v1/system/doctor
+GET    /api/v1/system/storage
 
 GET    /api/v1/diagnostics/{run_id}
 POST   /api/v1/diagnostics/{run_id}/apply

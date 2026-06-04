@@ -197,6 +197,10 @@ def cmd_doctor(args) -> int:
     return print_result(request_json("GET", api_url(args, "/system/doctor")))
 
 
+def cmd_storage(args) -> int:
+    return print_result(request_json("GET", api_url(args, "/system/storage")))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Jumpbox CLI for SManager")
     parser.add_argument("--api", default=DEFAULT_API)
@@ -315,6 +319,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = sub.add_parser("doctor")
     doctor.set_defaults(func=cmd_doctor)
+
+    storage = sub.add_parser("storage")
+    storage.set_defaults(func=cmd_storage)
     return parser
 
 
