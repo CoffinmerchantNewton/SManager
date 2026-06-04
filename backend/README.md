@@ -65,3 +65,5 @@ Interactive API documentation is available at:
 ### Dashboard
 - `GET /api/v1/dashboard/stats` - Get dashboard statistics
 - `GET /api/v1/dashboard/logs` - Get system logs
+
+Dashboard stats are sourced from `forecast_runs` and `forecast_run_nodes`: run counts come from `forecast_runs`, active Slurm node count comes from nodes with `slurm_job_id`, and system health is derived from recent run failures and active run pressure.

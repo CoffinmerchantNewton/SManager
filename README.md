@@ -136,6 +136,8 @@ npm run dev
 - `GET /api/v1/dashboard/stats` - 获取仪表板统计
 - `GET /api/v1/dashboard/logs` - 获取系统日志
 
+Dashboard 统计优先读取 `forecast_runs` 和 `forecast_run_nodes`：运行总数、运行中数量、失败数量来自 run 表；Slurm 排队/运行数来自带 `slurm_job_id` 的活动节点；健康度按失败率和当前运行压力计算。
+
 ## 开发说明
 
 ### 数据库初始化
