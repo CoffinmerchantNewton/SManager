@@ -1,0 +1,44 @@
+# Local OS files
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.vite/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Jumpbox runtime data
+runtime/db/*.sqlite
+runtime/db/*.sqlite-*
+runtime/fnl/**
+runtime/products/**
+runtime/logs/**
+runtime/manifests/**
+runtime/cache/**
+!runtime/.gitkeep
+!runtime/db/.gitkeep
+!runtime/fnl/.gitkeep
+!runtime/products/.gitkeep
+!runtime/logs/.gitkeep
+!runtime/manifests/.gitkeep
+!runtime/cache/.gitkeep
+
+# Server-side heavy runtime outputs
+wrf-pollen/auto-pollen/runs/**
+wrf-pollen/auto-pollen/WPS/**
+wrf-pollen/auto-pollen/WRF/**
+wrf-pollen/auto-pollen/logs/**
