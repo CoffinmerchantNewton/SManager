@@ -51,9 +51,9 @@ npm run build
 ## 当前实现边界
 
 - 当前控制台已接入后端 API，但仍没有认证和权限系统。
+- Dashboard 已使用 `/dashboard/overview` 展示运行、FNL、产物、Hermes 动作和日志聚合。
 - 花粉地图优先渲染后端已同步的 PNG overlay 或 GeoJSON 产品；没有可用产品时使用本地城市点位兜底。
 - 原始 NetCDF 作为下载归档产品，不在浏览器直接渲染。
 - 下一步建议优先补齐：
   - 认证与操作权限
-  - Dashboard 的真实运行态势聚合
   - GeoTIFF/切片等更多地图层类型

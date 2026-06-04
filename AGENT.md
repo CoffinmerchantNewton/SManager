@@ -756,11 +756,7 @@ external_tick_or_cli
 优先页面：
 
 1. Dashboard
-   - 今日运行状态
-   - FNL 覆盖情况
-   - Slurm 队列状态
-   - 最近错误和 Hermes/AI 动作
-   - 最新产物入口
+   - 已接入 `/dashboard/overview`，展示今日运行态势、FNL 覆盖、Slurm 队列计数、最近 Hermes/AI 动作、最新产物入口和系统日志。
 
 2. Run Detail
    - 已有 `/admin/runs/:runId` 页面，展示 DAG 节点状态、progress、attempt、job id、诊断、事件、日志尾部、Hermes 动作和产品入口。

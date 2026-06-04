@@ -77,6 +77,53 @@ export interface DashboardStats {
   failed_workflows: number;
 }
 
+export interface DashboardRunSummary {
+  run_id: string;
+  status: ForecastRunStatus;
+  progress: number;
+  start_time?: string | null;
+  end_time?: string | null;
+  period?: string | null;
+  domain?: string | null;
+  variant?: string | null;
+  server_run_dir?: string | null;
+  last_error?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DashboardProductSummary {
+  id: number;
+  product_name: string;
+  product_type: string;
+  status: string;
+  region?: string | null;
+  pollen_type?: string | null;
+  resolution?: string | null;
+  release_time?: string | null;
+}
+
+export interface DashboardFnlSummary {
+  total: number;
+  server_ok: number;
+  uploaded: number;
+  needs_repair: number;
+}
+
+export interface DashboardOverview {
+  stats: DashboardStats;
+  runs: DashboardRunSummary[];
+  products: {
+    total: number;
+    ready: number;
+    error: number;
+    latest: DashboardProductSummary[];
+  };
+  fnl: DashboardFnlSummary;
+  actions: AgentAction[];
+  logs: SystemLog[];
+}
+
 export type ForecastRunStatus =
   | 'pending'
   | 'ready'

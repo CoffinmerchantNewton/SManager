@@ -134,7 +134,7 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_or_overla
 
 ## 前端状态
 
-- Dashboard、Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
+- Dashboard 已接入真实 overview 聚合，展示运行态势、FNL 覆盖、最新产物、Hermes 动作和日志；Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
 - 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
 - Run Detail 页面可以按 run 展示 DAG 节点、诊断、事件、日志尾部、Hermes 动作和已同步产物下载入口。
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
