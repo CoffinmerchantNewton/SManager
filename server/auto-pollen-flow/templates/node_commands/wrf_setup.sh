@@ -5,5 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 source_env_if_present
 
-echo "[wrf_setup] TODO: replace this template with WRF run directory setup"
-echo "[wrf_setup] FLOW_RUN_DIR=${FLOW_RUN_DIR:-}"
+require_var RUN_ID
+require_var FLOW_RUN_DIR
+
+run_configured_command "wrf_setup" "WRF_SETUP_COMMAND" "${WRF_SETUP_CWD:-${AUTO_POLLEN_ROOT:-${FLOW_RUN_DIR}}}"

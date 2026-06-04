@@ -208,6 +208,7 @@ python3 packages/cli/smanager.py cancel-run --run-id <run_id> --real
 
 - 不要 stage 或 commit 无关本地改动。
 - WPS/WRF 命令继续放在 commands-file 模板中，不要在 Python 里写死服务器路径。
+- 服务器节点脚本通过 `WPS_GEOGRID_COMMAND`、`WPS_UNGRIB_COMMAND`、`WPS_METGRID_COMMAND`、`WRF_SETUP_COMMAND`、`REAL_COMMAND`、`WRF_RUN_COMMAND` 等变量执行真实命令；需要调整节点行为时优先修改 commands-file。
 - 服务器 FNL 校验是权威来源；只有服务器校验报告可修复文件后，跳板机才下载。
 - 代码改动后运行：
 

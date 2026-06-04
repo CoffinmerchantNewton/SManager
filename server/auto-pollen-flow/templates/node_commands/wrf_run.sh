@@ -5,5 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 source_env_if_present
 
-echo "[wrf_run] TODO: replace this template with mpirun ./wrf.exe execution"
-echo "[wrf_run] RUN_ID=${RUN_ID:-}"
+require_var RUN_ID
+require_var FLOW_RUN_DIR
+
+run_configured_command "wrf_run" "WRF_RUN_COMMAND" "${WRF_RUN_CWD:-${WRF_RUN_DIR:-${FLOW_RUN_DIR}}}"

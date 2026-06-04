@@ -5,6 +5,8 @@
     "AUTO_POLLEN_ROOT": "/g7/anxq/Zhangjt/workspace/auto-pollen",
     "ENV_SCRIPT": "/g7/anxq/Zhangjt/workspace/load_env.sh",
     "PYTHON_BIN": "python3",
+    "WPS_WORK_DIR": "/g7/anxq/Zhangjt/workspace/WPS",
+    "WRF_RUN_DIR": "/g7/anxq/Zhangjt/workspace/wrf-runs/current",
     "PRODUCT_GEOJSON_VARIABLE": "",
     "PRODUCT_PNG_VARIABLE": "",
     "PRODUCT_PNG_OPACITY": "0.72"
@@ -20,31 +22,57 @@
       "command": "python3 \"$FLOWCTL\" fnl-verify --run-id \"$RUN_ID\""
     },
     "wps_geogrid": {
-      "command": "bash \"$NODE_COMMAND_DIR/wps_geogrid.sh\""
+      "command": "bash \"$NODE_COMMAND_DIR/wps_geogrid.sh\"",
+      "env": {
+        "WPS_GEOGRID_COMMAND": "./geogrid.exe"
+      }
     },
     "wps_ungrib": {
-      "command": "bash \"$NODE_COMMAND_DIR/wps_ungrib.sh\""
+      "command": "bash \"$NODE_COMMAND_DIR/wps_ungrib.sh\"",
+      "env": {
+        "WPS_UNGRIB_COMMAND": "./link_grib.csh /g1/COMMONDATA/glob/fnl/fnl_* && ./ungrib.exe"
+      }
     },
     "wps_metgrid": {
-      "command": "bash \"$NODE_COMMAND_DIR/wps_metgrid.sh\""
+      "command": "bash \"$NODE_COMMAND_DIR/wps_metgrid.sh\"",
+      "env": {
+        "WPS_METGRID_COMMAND": "./metgrid.exe"
+      }
     },
     "wrf_setup": {
-      "command": "bash \"$NODE_COMMAND_DIR/wrf_setup.sh\""
+      "command": "bash \"$NODE_COMMAND_DIR/wrf_setup.sh\"",
+      "env": {
+        "WRF_SETUP_COMMAND": "bash \"$AUTO_POLLEN_ROOT/scripts/setup_wrf_run.sh\""
+      }
     },
     "real": {
       "command": "bash \"$NODE_COMMAND_DIR/real.sh\"",
+      "env": {
+        "REAL_CWD": "/g7/anxq/Zhangjt/workspace/wrf-runs/current",
+        "REAL_COMMAND": "mpirun -np 64 ./real.exe"
+      },
       "slurm": {
         "cpus_per_task": 8
       }
     },
     "compute_gdd": {
-      "command": "bash \"$NODE_COMMAND_DIR/compute_gdd.sh\""
+      "command": "bash \"$NODE_COMMAND_DIR/compute_gdd.sh\"",
+      "env": {
+        "COMPUTE_GDD_COMMAND": "python3 \"$AUTO_POLLEN_ROOT/compute_gdd.py\""
+      }
     },
     "prep_pollen": {
-      "command": "bash \"$NODE_COMMAND_DIR/prep_pollen.sh\""
+      "command": "bash \"$NODE_COMMAND_DIR/prep_pollen.sh\"",
+      "env": {
+        "PREP_POLLEN_COMMAND": "python3 \"$AUTO_POLLEN_ROOT/prep_pollen_data.py\""
+      }
     },
     "wrf_run": {
       "command": "bash \"$NODE_COMMAND_DIR/wrf_run.sh\"",
+      "env": {
+        "WRF_RUN_CWD": "/g7/anxq/Zhangjt/workspace/wrf-runs/current",
+        "WRF_RUN_COMMAND": "mpirun -np 64 ./wrf.exe"
+      },
       "slurm": {
         "nodes": 2,
         "ntasks": 64,
@@ -52,7 +80,10 @@
       }
     },
     "postprocess_eval": {
-      "command": "bash \"$NODE_COMMAND_DIR/postprocess_eval.sh\""
+      "command": "bash \"$NODE_COMMAND_DIR/postprocess_eval.sh\"",
+      "env": {
+        "POSTPROCESS_EVAL_COMMAND": "python3 \"$AUTO_POLLEN_ROOT/batch_eval_pollen.py\""
+      }
     },
     "product_extract": {
       "command": "bash \"$NODE_COMMAND_DIR/product_extract.sh\""

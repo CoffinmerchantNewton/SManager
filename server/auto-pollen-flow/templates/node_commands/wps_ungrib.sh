@@ -5,5 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 source_env_if_present
 
-echo "[wps_ungrib] TODO: replace this template with ungrib command wiring"
-echo "[wps_ungrib] RUN_ID=${RUN_ID:-}"
+require_var RUN_ID
+require_var FLOW_RUN_DIR
+
+run_configured_command "wps_ungrib" "WPS_UNGRIB_COMMAND" "${WPS_UNGRIB_CWD:-${WPS_WORK_DIR:-${AUTO_POLLEN_ROOT:-${FLOW_RUN_DIR}}}}"

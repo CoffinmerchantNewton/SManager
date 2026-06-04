@@ -5,5 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 source_env_if_present
 
-echo "[prep_pollen] TODO: replace this template with prep_pollen_data.py execution"
-echo "[prep_pollen] RUN_ID=${RUN_ID:-}"
+require_var RUN_ID
+require_var FLOW_RUN_DIR
+
+run_configured_command "prep_pollen" "PREP_POLLEN_COMMAND" "${PREP_POLLEN_CWD:-${AUTO_POLLEN_ROOT:-${FLOW_RUN_DIR}}}"

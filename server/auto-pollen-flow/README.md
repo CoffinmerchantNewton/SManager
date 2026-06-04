@@ -61,6 +61,22 @@ export FNL_ROOTS=/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl
 
 未配置命令的节点不会被提交；除非显式 `--allow-noop`，否则 `submit` 会拒绝执行。
 
+仓库自带的 `templates/node_commands/*.sh` 是通用节点入口，不再默认 `echo TODO` 成功退出。除 `product_extract`、`package_products` 外，节点必须配置对应命令变量，否则会以退出码 `2` 失败：
+
+| 节点 | 命令变量 | 工作目录变量 |
+| --- | --- | --- |
+| `wps_geogrid` | `WPS_GEOGRID_COMMAND` | `WPS_GEOGRID_CWD` 或 `WPS_WORK_DIR` |
+| `wps_ungrib` | `WPS_UNGRIB_COMMAND` | `WPS_UNGRIB_CWD` 或 `WPS_WORK_DIR` |
+| `wps_metgrid` | `WPS_METGRID_COMMAND` | `WPS_METGRID_CWD` 或 `WPS_WORK_DIR` |
+| `wrf_setup` | `WRF_SETUP_COMMAND` | `WRF_SETUP_CWD` |
+| `real` | `REAL_COMMAND` | `REAL_CWD` 或 `WRF_RUN_DIR` |
+| `compute_gdd` | `COMPUTE_GDD_COMMAND` | `COMPUTE_GDD_CWD` |
+| `prep_pollen` | `PREP_POLLEN_COMMAND` | `PREP_POLLEN_CWD` |
+| `wrf_run` | `WRF_RUN_COMMAND` | `WRF_RUN_CWD` 或 `WRF_RUN_DIR` |
+| `postprocess_eval` | `POSTPROCESS_EVAL_COMMAND` | `POSTPROCESS_EVAL_CWD` |
+
+命令变量会通过 `bash -lc` 执行，因此可以包含已有模块加载、`mpirun`、脚本参数和 shell 连接符。工作目录不存在时节点会失败，避免在错误目录里静默产出无效结果。
+
 ## 产物提取
 
 `templates/node_commands/product_extract.sh` 默认调用 `tools/product_extract.py`：

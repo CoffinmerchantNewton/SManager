@@ -6,6 +6,7 @@
 
 - `apps/hermes-agent/` 已不再作为维护入口；Hermes 或 AI 助手统一通过 `packages/cli/smanager.py` 和 `skills/smanager-hermes-cli/SKILL.md` 调用后端 API。
 - 服务器侧调度入口在 `server/auto-pollen-flow/`，负责 `plan/status/fnl-verify/submit/logs/events/diagnose/collect-context/retry/cancel/products`。
+- 服务器节点脚本已改为可配置命令入口；WPS/WRF/后处理真实命令通过 commands-file 的 `*_COMMAND` 和 `*_CWD` 环境变量注入。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层，回退 GeoJSON/JSON 产品层，再回退模拟城市点位。
 - `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件，并可从 NetCDF 生成抽样点 GeoJSON 与 PNG overlay；后端可同步下载到跳板机；等值线、GeoTIFF/切片仍待实现。
