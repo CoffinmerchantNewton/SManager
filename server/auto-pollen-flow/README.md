@@ -83,9 +83,11 @@ export FNL_ROOTS=/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl
 
 - 默认扫描 run 目录下的 `*.nc` 和 `wrfout*`，复制到 `products/extracted/`。
 - 可用 `PRODUCT_SOURCE_GLOB` 覆盖扫描规则，多个 glob 用 `:` 分隔。
-- 设置 `PRODUCT_SUMMARY_VARIABLE` 后，会先从多个 `wrfout*`/`.nc` 中抽取目标变量，生成一个小的 `summary_netcdf`；启用 summary 时默认不复制原始大 `wrfout`，除非显式设置 `PRODUCT_COPY_SOURCES=true`。
+- 设置 `PRODUCT_SUMMARY_PRESET=wrf_pollen` 后，会按 `wrfout` 中的真实 WRF-Pollen 变量抽取 `POLLEN_1..9`、`T2`、`U10`、`V10`、`RAINC`、`RAINNC`、`RAINSH`，生成一个小的 `summary_netcdf`；启用 summary 时默认不复制原始大 `wrfout`，除非显式设置 `PRODUCT_COPY_SOURCES=true`。
+- `PRODUCT_SUMMARY_VARIABLES` 可用逗号或 `:` 指定自定义变量集；旧的 `PRODUCT_SUMMARY_VARIABLE` 单变量模式仍保留，用于非花粉或临时诊断。
+- WRF-Pollen summary 会派生 `pollen_total`、`dominant_species_index`、`t2_c`、`wind10_ms`、`precip_accum_mm`、`precip_step_mm`，其中 `dominant_species_index` 对应 `POLLEN_1..9` 的致敏物种编号。
 - `PRODUCT_SUMMARY_MAX_STEPS` 默认 `7`，适合 7 天预报；若输入是逐小时 `wrfout`，可用 `PRODUCT_SUMMARY_EVERY_NTH=24` 抽每天一个时间步。
-- `PRODUCT_SUMMARY_VERTICAL_INDEX`、`PRODUCT_SUMMARY_3D_AXIS`、`PRODUCT_SUMMARY_STEP_HOURS`、`PRODUCT_SUMMARY_NAME` 可控制垂直层、三维变量解释、时间间隔和输出文件名。
+- `PRODUCT_SUMMARY_VERTICAL_INDEX`、`PRODUCT_SUMMARY_3D_AXIS`、`PRODUCT_SUMMARY_STEP_HOURS`、`PRODUCT_SUMMARY_NAME`、`PRODUCT_SUMMARY_PRIMARY_VARIABLE` 可控制垂直层、三维变量解释、时间间隔、输出文件名和主变量；花粉模式默认主变量为 `pollen_total`。
 - 设置 `PRODUCT_GEOJSON_VARIABLE` 后，会从 NetCDF 变量生成点 GeoJSON 产品。
 - 设置 `PRODUCT_PNG_VARIABLE` 后，会从 NetCDF 变量生成 PNG overlay 和 `*.overlay.json` 元数据；`PRODUCT_OVERLAY_VARIABLE` 可作为同义配置。
 - NetCDF 读取优先使用 `netCDF4`，否则使用 `scipy.io.netcdf_file`；可用 `PYTHON_BIN=/path/to/python` 指定带依赖的 Python。

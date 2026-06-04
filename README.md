@@ -9,7 +9,7 @@
 - 服务器节点脚本已改为可配置命令入口；WPS/WRF/后处理真实命令通过 commands-file 的 `*_COMMAND` 和 `*_CWD` 环境变量注入。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层，回退 GeoJSON/JSON 产品层，再回退模拟城市点位。
-- `product_extract` 已支持按 glob 扫描服务器 run 目录中的 `.nc`/`wrfout*` 文件，并可预提取 7 天花粉小汇总 NetCDF、抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
+- `product_extract` 已支持按 `wrfout.txt` 对应的 WRF-Pollen 变量结构预提取 7 天小汇总 NetCDF，包含 `POLLEN_1..9`、气温、风、降水和派生的 `pollen_total`/主导物种/逐步降水；可继续生成抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
 
 ## 目录结构
 
@@ -140,11 +140,11 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_or_overla
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
 - Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 `png_overlay_metadata` 产品，经 `/content` 读取 bounds 和 PNG 文件名，再用 `/download` 叠加 PNG；没有 overlay 时回退 GeoJSON/JSON 产品，最后使用静态城市点位和模拟浓度。
 
-真实花粉分布展示还需要下一步实现：
+花粉分布展示仍需要下一步增强：
 
-1. 在 `product_extract` 中继续扩展等值线、GeoTIFF/切片等可视化产品。
-2. 后端 `sync-products` 下载并索引这些产品。
-3. 前端继续扩展 GeoTIFF/切片等地图层类型。
+1. 前端改为 Windy 风格的底图、时间轴和图层控制，直接面向 `pollen_total`、风险等级、主导致敏物种、气温、降水和风速展示。
+2. 基于 summary nc 继续生成城市预报 JSON 或轻量采样产品，用于城市查询和未来 7 天曲线。
+3. 继续扩展等值线、GeoTIFF/切片等地图层类型。
 
 不建议前端直接读取服务器路径或原始大 NetCDF；原始 `.nc` 更适合作为归档下载产品，地图首屏应通过后端产品索引和 manifest 暴露轻量可展示产品。已同步的 `.json/.geojson/.overlay.json` 产品可以通过 `/api/v1/products/{product_id}/content` 读取，PNG 等二进制产品通过 `/download` 读取。
 

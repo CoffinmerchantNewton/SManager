@@ -15,6 +15,38 @@ from typing import Any
 
 
 EXCLUDED_DIRS = {"products", "state", "logs", "slurm"}
+WRF_POLLEN_PRESETS = {"wrf_pollen", "pollen_forecast", "auto_pollen"}
+POLLEN_SPECIES = [
+    {"index": 1, "variable": "POLLEN_1", "name": "evergreen conifer"},
+    {"index": 2, "variable": "POLLEN_2", "name": "poplar and willow"},
+    {"index": 3, "variable": "POLLEN_3", "name": "oak"},
+    {"index": 4, "variable": "POLLEN_4", "name": "elm"},
+    {"index": 5, "variable": "POLLEN_5", "name": "white birch"},
+    {"index": 6, "variable": "POLLEN_6", "name": "larch"},
+    {"index": 7, "variable": "POLLEN_7", "name": "poaceae"},
+    {"index": 8, "variable": "POLLEN_8", "name": "artemisia"},
+    {"index": 9, "variable": "POLLEN_9", "name": "chenopodiaceae"},
+]
+WRF_POLLEN_MET_VARIABLES = ["T2", "U10", "V10", "RAINC", "RAINNC", "RAINSH"]
+VARIABLE_METADATA = {
+    "T2": {"long_name": "2-meter air temperature", "units": "K"},
+    "U10": {"long_name": "10-meter eastward wind", "units": "m s-1"},
+    "V10": {"long_name": "10-meter northward wind", "units": "m s-1"},
+    "RAINC": {"long_name": "accumulated cumulus precipitation", "units": "mm"},
+    "RAINNC": {"long_name": "accumulated grid-scale precipitation", "units": "mm"},
+    "RAINSH": {"long_name": "accumulated shallow cumulus precipitation", "units": "mm"},
+    "pollen_total": {"long_name": "total pollen concentration", "units": "grains/kg-dryair"},
+    "dominant_species_index": {"long_name": "dominant pollen species index", "units": "1"},
+    "t2_c": {"long_name": "2-meter air temperature", "units": "degC"},
+    "wind10_ms": {"long_name": "10-meter wind speed", "units": "m s-1"},
+    "precip_accum_mm": {"long_name": "accumulated precipitation", "units": "mm"},
+    "precip_step_mm": {"long_name": "precipitation since previous summary step", "units": "mm"},
+}
+for species in POLLEN_SPECIES:
+    VARIABLE_METADATA[species["variable"]] = {
+        "long_name": f"{species['name']} pollen concentration",
+        "units": "grains/kg-dryair",
+    }
 
 
 def main() -> int:
@@ -113,17 +145,17 @@ def extract_summary_product(
     sources: list[Path],
     output_dir: Path,
 ) -> tuple[dict[str, Any] | None, Path | None]:
-    variable = summary_variable()
-    if not variable:
+    variables = summary_variables()
+    if not variables:
         return None, None
     try:
-        summary_path, metadata = write_summary_netcdf(run_id, sources, output_dir, variable)
+        summary_path, metadata = write_summary_netcdf(run_id, sources, output_dir, variables)
     except Exception as exc:
         print(
             json.dumps(
                 {
                     "warning": "summary_netcdf_extract_failed",
-                    "variable": variable,
+                    "variables": variables,
                     "error": exc.__class__.__name__,
                     "message": str(exc),
                 },
@@ -141,11 +173,13 @@ def extract_summary_product(
             "type": "summary_netcdf",
             "mime": "application/x-netcdf",
             "region": os.environ.get("PRODUCT_REGION", "unknown"),
-            "pollen_type": os.environ.get("PRODUCT_POLLEN_TYPE", variable),
+            "pollen_type": os.environ.get("PRODUCT_POLLEN_TYPE", metadata["primary_variable"]),
             "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
             "workflow_node": "product_extract",
             "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
-            "summary_variable": variable,
+            "summary_variable": metadata["primary_variable"],
+            "summary_variables": metadata["summary_variables"],
+            "derived_variables": metadata["derived_variables"],
             "time_steps": metadata["time_steps"],
             "source_count": metadata["source_count"],
         },
@@ -157,14 +191,14 @@ def write_summary_netcdf(
     run_id: str,
     sources: list[Path],
     output_dir: Path,
-    variable: str,
+    variables: list[str],
 ) -> tuple[Path, dict[str, Any]]:
     import numpy as np  # type: ignore
     from scipy.io import netcdf_file  # type: ignore
 
-    records = collect_summary_records(sources, variable)
+    records = collect_summary_records(sources, variables)
     if not records:
-        raise ValueError(f"no summary records found for variable={variable}")
+        raise ValueError(f"no summary records found for variables={','.join(variables)}")
 
     every_nth = max(1, int(os.environ.get("PRODUCT_SUMMARY_EVERY_NTH", "1")))
     max_steps = max(1, int(os.environ.get("PRODUCT_SUMMARY_MAX_STEPS", "7")))
@@ -175,57 +209,78 @@ def write_summary_netcdf(
     first = selected[0]
     lats = np.asarray(first["lats"], dtype="f4")
     lons = np.asarray(first["lons"], dtype="f4")
-    values = np.stack([np.asarray(item["values"], dtype="f4") for item in selected], axis=0)
-    if values.shape[-2:] != lats.shape or values.shape[-2:] != lons.shape:
-        raise ValueError(f"summary shape mismatch: values={values.shape}, lat={lats.shape}, lon={lons.shape}")
+    if lats.shape != lons.shape:
+        raise ValueError(f"summary coordinate shape mismatch: lat={lats.shape}, lon={lons.shape}")
+    present_variables = present_summary_variables(variables, selected)
+    if not present_variables:
+        raise ValueError("summary record selection has no usable variables")
 
-    name = os.environ.get("PRODUCT_SUMMARY_NAME") or f"{run_id}_{variable}_summary.nc"
+    direct_values = {
+        variable: stack_selected_variable(selected, variable, lats.shape)
+        for variable in present_variables
+    }
+    derived_values = derive_summary_variables(direct_values)
+    all_values = {**direct_values, **derived_values}
+    primary_variable = summary_primary_variable(present_variables, derived_values)
+    primary_shape = all_values[primary_variable].shape
+    if primary_shape[-2:] != lats.shape or primary_shape[-2:] != lons.shape:
+        raise ValueError(f"summary shape mismatch: values={primary_shape}, lat={lats.shape}, lon={lons.shape}")
+
+    name = os.environ.get("PRODUCT_SUMMARY_NAME") or f"{run_id}_{primary_variable}_summary.nc"
     target = unique_target(output_dir, name)
     lead_step_hours = float(os.environ.get("PRODUCT_SUMMARY_STEP_HOURS", "24"))
     lead_hours = np.asarray([index * lead_step_hours for index in range(len(selected))], dtype="f4")
 
     with netcdf_file(target, mode="w") as dataset:
-        dataset.createDimension("time", values.shape[0])
-        dataset.createDimension("south_north", values.shape[1])
-        dataset.createDimension("west_east", values.shape[2])
+        dataset.createDimension("time", primary_shape[0])
+        dataset.createDimension("south_north", primary_shape[1])
+        dataset.createDimension("west_east", primary_shape[2])
         time_var = dataset.createVariable("lead_hours", "f", ("time",))
         time_var[:] = lead_hours
         time_var.units = "hours since forecast cycle"
         day_var = dataset.createVariable("forecast_day", "i", ("time",))
-        day_var[:] = np.arange(1, values.shape[0] + 1, dtype="i4")
+        day_var[:] = np.arange(1, primary_shape[0] + 1, dtype="i4")
         lat_var = dataset.createVariable("lat", "f", ("south_north", "west_east"))
         lat_var[:] = lats
         lat_var.units = "degrees_north"
         lon_var = dataset.createVariable("lon", "f", ("south_north", "west_east"))
         lon_var[:] = lons
         lon_var.units = "degrees_east"
-        value_var = dataset.createVariable(variable, "f", ("time", "south_north", "west_east"))
-        value_var[:] = values
-        value_var.long_name = os.environ.get("PRODUCT_SUMMARY_LONG_NAME", variable)
-        value_var.units = os.environ.get("PRODUCT_SUMMARY_UNITS", os.environ.get("PRODUCT_UNITS", "unknown"))
+        for variable, values in all_values.items():
+            value_var = dataset.createVariable(variable, "f", ("time", "south_north", "west_east"))
+            value_var[:] = values
+            metadata = VARIABLE_METADATA.get(variable, {})
+            value_var.long_name = summary_long_name(variable, metadata)
+            value_var.units = summary_units(variable, metadata)
         dataset.run_id = run_id
         dataset.generated_at = now_iso()
-        dataset.summary_variable = variable
+        dataset.summary_variable = primary_variable
+        dataset.summary_variables = ",".join(present_variables)
+        dataset.derived_variables = ",".join(derived_values)
+        dataset.pollen_species = pollen_species_attribute()
         dataset.source_files = ",".join(item["source"].name for item in selected)
 
     return target, {
-        "time_steps": int(values.shape[0]),
+        "primary_variable": primary_variable,
+        "summary_variables": present_variables,
+        "derived_variables": list(derived_values),
+        "time_steps": int(primary_shape[0]),
         "source_count": len({item["source"] for item in selected}),
     }
 
 
-def collect_summary_records(sources: list[Path], variable: str) -> list[dict[str, Any]]:
+def collect_summary_records(sources: list[Path], variables: list[str]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for source in sources:
         try:
-            records.extend(read_summary_records(source, variable))
+            records.extend(read_summary_records(source, variables))
         except Exception as exc:
             print(
                 json.dumps(
                     {
                         "warning": "summary_source_skipped",
                         "source": str(source),
-                        "variable": variable,
+                        "variables": variables,
                         "error": exc.__class__.__name__,
                         "message": str(exc),
                     },
@@ -236,21 +291,42 @@ def collect_summary_records(sources: list[Path], variable: str) -> list[dict[str
     return records
 
 
-def read_summary_records(path: Path, variable: str) -> list[dict[str, Any]]:
-    arrays = open_netcdf_arrays(path, variable)
+def read_summary_records(path: Path, variables: list[str]) -> list[dict[str, Any]]:
+    arrays = open_netcdf_variables(path, variables)
     lats = reduce_to_2d(arrays["lat"])
     lons = reduce_to_2d(arrays["lon"])
-    stack = values_to_time_stack(arrays["value"], lats.shape)
+    stacks = {
+        variable: values_to_time_stack(value, lats.shape)
+        for variable, value in arrays["values"].items()
+    }
+    if not stacks:
+        raise KeyError(f"none of these variables exist: {', '.join(variables)}")
+    max_time = max(stack.shape[0] for stack in stacks.values())
     records = []
-    for index in range(stack.shape[0]):
-        records.append({"source": path, "record_index": index, "values": stack[index], "lats": lats, "lons": lons})
+    for index in range(max_time):
+        values_by_var = {}
+        for variable, stack in stacks.items():
+            if index < stack.shape[0]:
+                values_by_var[variable] = stack[index]
+            elif stack.shape[0] == 1:
+                values_by_var[variable] = stack[0]
+        if values_by_var:
+            records.append(
+                {
+                    "source": path,
+                    "record_index": index,
+                    "values_by_var": values_by_var,
+                    "lats": lats,
+                    "lons": lons,
+                }
+            )
     return records
 
 
 def values_to_time_stack(array: Any, lat_shape: tuple[int, int]):
     import numpy as np  # type: ignore
 
-    data = np.asarray(array)
+    data = sanitize_array(array)
     vertical_index = int(os.environ.get("PRODUCT_SUMMARY_VERTICAL_INDEX", os.environ.get("PRODUCT_VERTICAL_INDEX", "0")))
     axis_3d = os.environ.get("PRODUCT_SUMMARY_3D_AXIS", "time").lower()
     if data.ndim == 4:
@@ -269,6 +345,103 @@ def values_to_time_stack(array: Any, lat_shape: tuple[int, int]):
     if data.ndim != 3 or data.shape[-2:] != lat_shape:
         raise ValueError(f"expected summary stack as time/y/x, got shape={data.shape}, lat_shape={lat_shape}")
     return data
+
+
+def present_summary_variables(variables: list[str], selected: list[dict[str, Any]]) -> list[str]:
+    present = set()
+    for item in selected:
+        present.update(item["values_by_var"])
+    return [variable for variable in variables if variable in present]
+
+
+def stack_selected_variable(selected: list[dict[str, Any]], variable: str, shape: tuple[int, int]):
+    import numpy as np  # type: ignore
+
+    arrays = []
+    for item in selected:
+        value = item["values_by_var"].get(variable)
+        if value is None:
+            arrays.append(np.full(shape, np.nan, dtype="f4"))
+            continue
+        data = sanitize_array(value).astype("f4", copy=False)
+        if data.shape != shape:
+            raise ValueError(f"summary shape mismatch for {variable}: value={data.shape}, grid={shape}")
+        arrays.append(data)
+    return np.stack(arrays, axis=0)
+
+
+def derive_summary_variables(values: dict[str, Any]) -> dict[str, Any]:
+    import numpy as np  # type: ignore
+
+    derived: dict[str, Any] = {}
+    pollen_values = [
+        (species["index"], values[species["variable"]])
+        for species in POLLEN_SPECIES
+        if species["variable"] in values
+    ]
+    if pollen_values:
+        pollen_stack = np.stack([sanitize_array(item[1]).astype("f4", copy=False) for item in pollen_values], axis=0)
+        finite_stack = np.where(np.isfinite(pollen_stack), pollen_stack, 0.0)
+        derived["pollen_total"] = np.sum(finite_stack, axis=0).astype("f4", copy=False)
+        species_indices = np.asarray([item[0] for item in pollen_values], dtype="f4")
+        candidate = np.where(np.isfinite(pollen_stack), pollen_stack, -np.inf)
+        has_value = np.any(np.isfinite(pollen_stack), axis=0)
+        winner = np.argmax(candidate, axis=0)
+        dominant = species_indices[winner].astype("f4", copy=False)
+        dominant = np.where(has_value, dominant, np.nan).astype("f4", copy=False)
+        derived["dominant_species_index"] = dominant
+
+    if "T2" in values:
+        derived["t2_c"] = (sanitize_array(values["T2"]).astype("f4", copy=False) - np.float32(273.15)).astype("f4")
+
+    if "U10" in values and "V10" in values:
+        u10 = sanitize_array(values["U10"]).astype("f4", copy=False)
+        v10 = sanitize_array(values["V10"]).astype("f4", copy=False)
+        derived["wind10_ms"] = np.sqrt(u10 * u10 + v10 * v10).astype("f4")
+
+    rain_parts = [sanitize_array(values[name]).astype("f4", copy=False) for name in ("RAINC", "RAINNC", "RAINSH") if name in values]
+    if rain_parts:
+        precip_accum = np.sum(np.stack(rain_parts, axis=0), axis=0).astype("f4", copy=False)
+        derived["precip_accum_mm"] = precip_accum
+        precip_step = np.empty_like(precip_accum, dtype="f4")
+        precip_step[0] = np.maximum(precip_accum[0], 0.0)
+        if precip_accum.shape[0] > 1:
+            precip_step[1:] = np.maximum(precip_accum[1:] - precip_accum[:-1], 0.0)
+        derived["precip_step_mm"] = precip_step
+
+    return derived
+
+
+def summary_primary_variable(present_variables: list[str], derived_values: dict[str, Any]) -> str:
+    configured = os.environ.get("PRODUCT_SUMMARY_PRIMARY_VARIABLE")
+    if configured and configured.strip():
+        name = configured.strip()
+        if name in present_variables or name in derived_values:
+            return name
+        raise ValueError(f"PRODUCT_SUMMARY_PRIMARY_VARIABLE is not available: {name}")
+    if "pollen_total" in derived_values:
+        return "pollen_total"
+    return present_variables[0]
+
+
+def summary_long_name(variable: str, metadata: dict[str, str]) -> str:
+    if variable == summary_variable():
+        configured = os.environ.get("PRODUCT_SUMMARY_LONG_NAME")
+        if configured:
+            return configured
+    return metadata.get("long_name", variable)
+
+
+def summary_units(variable: str, metadata: dict[str, str]) -> str:
+    if variable == summary_variable():
+        configured = os.environ.get("PRODUCT_SUMMARY_UNITS") or os.environ.get("PRODUCT_UNITS")
+        if configured:
+            return configured
+    return metadata.get("units", "unknown")
+
+
+def pollen_species_attribute() -> str:
+    return ";".join(f"{item['index']}={item['name']}" for item in POLLEN_SPECIES)
 
 
 def extract_geojson_product(
@@ -470,6 +643,35 @@ def open_netcdf_arrays(path: Path, variable: str) -> dict[str, Any]:
         }
 
 
+def open_netcdf_variables(path: Path, variables: list[str]) -> dict[str, Any]:
+    try:
+        from netCDF4 import Dataset  # type: ignore
+
+        with Dataset(path) as dataset:
+            values = {name: dataset.variables[name][:] for name in variables if name in dataset.variables}
+            if not values:
+                raise KeyError(f"none of these variables exist: {', '.join(variables)}")
+            return {
+                "values": values,
+                "lat": first_variable(dataset.variables, lat_variable_names())[:],
+                "lon": first_variable(dataset.variables, lon_variable_names())[:],
+            }
+    except ModuleNotFoundError:
+        pass
+
+    from scipy.io import netcdf_file  # type: ignore
+
+    with netcdf_file(path, mode="r", mmap=False) as dataset:
+        values = {name: dataset.variables[name].data.copy() for name in variables if name in dataset.variables}
+        if not values:
+            raise KeyError(f"none of these variables exist: {', '.join(variables)}")
+        return {
+            "values": values,
+            "lat": first_variable(dataset.variables, lat_variable_names()).data.copy(),
+            "lon": first_variable(dataset.variables, lon_variable_names()).data.copy(),
+        }
+
+
 def first_variable(variables: dict[str, Any], names: list[str]) -> Any:
     for name in names:
         if name in variables:
@@ -490,7 +692,7 @@ def lon_variable_names() -> list[str]:
 def reduce_to_2d(array: Any):
     import numpy as np  # type: ignore
 
-    data = np.asarray(array)
+    data = sanitize_array(array)
     time_index = int(os.environ.get("PRODUCT_TIME_INDEX", "0"))
     vertical_index = int(os.environ.get("PRODUCT_VERTICAL_INDEX", "0"))
     while data.ndim > 2:
@@ -503,6 +705,15 @@ def reduce_to_2d(array: Any):
     if data.ndim != 2:
         raise ValueError(f"expected 2D data after slicing, got shape={data.shape}")
     return data
+
+
+def sanitize_array(array: Any):
+    import numpy as np  # type: ignore
+
+    data = np.ma.asarray(array)
+    if np.ma.isMaskedArray(data):
+        data = data.filled(np.nan)
+    return np.asarray(data)
 
 
 def geojson_stride(shape: tuple[int, int]) -> int:
@@ -519,11 +730,44 @@ def summary_variable() -> str | None:
     return value.strip() if value and value.strip() else None
 
 
+def summary_variables() -> list[str]:
+    explicit = split_env_list(os.environ.get("PRODUCT_SUMMARY_VARIABLES"))
+    if explicit:
+        return unique_names(explicit)
+
+    legacy = summary_variable()
+    if legacy:
+        return [legacy]
+
+    preset = os.environ.get("PRODUCT_SUMMARY_PRESET", "").strip().lower()
+    if preset in WRF_POLLEN_PRESETS:
+        return unique_names([item["variable"] for item in POLLEN_SPECIES] + WRF_POLLEN_MET_VARIABLES)
+
+    return []
+
+
+def split_env_list(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.replace(os.pathsep, ",").split(",") if item.strip()]
+
+
+def unique_names(names: list[str]) -> list[str]:
+    result = []
+    seen = set()
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        result.append(name)
+    return result
+
+
 def copy_sources_enabled() -> bool:
     configured = os.environ.get("PRODUCT_COPY_SOURCES")
     if configured is not None:
         return configured.strip().lower() in {"1", "true", "yes", "on"}
-    return summary_variable() is None
+    return not summary_variables()
 
 
 def png_overlay_variable() -> str | None:

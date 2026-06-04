@@ -826,7 +826,7 @@ runs/<run_id>/products/product_manifest.json
 
 - 后端已经支持按 `product_manifest.json` 下载、索引和提供产品文件下载。
 - Products 页面已经能触发同步、筛选 run 产品并下载文件。
-- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则扫描 `.nc`/`wrfout*` 文件；设置 `PRODUCT_SUMMARY_VARIABLE` 后可先生成小型 `summary_netcdf`，用于 7 天花粉预报这类轻量同步场景，且默认不再复制原始大 `wrfout`。设置 `PRODUCT_GEOJSON_VARIABLE` 后可从 NetCDF 生成抽样点 GeoJSON，设置 `PRODUCT_PNG_VARIABLE` 后可生成 PNG overlay 和 `*.overlay.json` 元数据。
+- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则扫描 `.nc`/`wrfout*` 文件；设置 `PRODUCT_SUMMARY_PRESET=wrf_pollen` 后会按 `wrfout.txt` 对应的真实变量结构抽取 `POLLEN_1..9`、`T2`、`U10`、`V10`、`RAINC`、`RAINNC`、`RAINSH`，并派生 `pollen_total`、`dominant_species_index`、`t2_c`、`wind10_ms`、`precip_accum_mm`、`precip_step_mm`，用于 7 天花粉预报这类轻量同步场景；启用 summary 后默认不再复制原始大 `wrfout`。`PRODUCT_SUMMARY_VARIABLES`/`PRODUCT_SUMMARY_VARIABLE` 可用于自定义或旧式单变量提取。设置 `PRODUCT_GEOJSON_VARIABLE` 后可从 NetCDF 生成抽样点 GeoJSON，设置 `PRODUCT_PNG_VARIABLE` 后可生成 PNG overlay 和 `*.overlay.json` 元数据。
 - `package_products.sh` 已能把提取结果合成为非空 `product_manifest.json`。
 - 后端 `sync-products` 已验证可以下载并索引 `.nc`、`.geojson`、`.png` 和 `.overlay.json` 产品，Products 页面可下载这些文件。
 - Cesium 花粉分布页面已能优先加载最新 PNG overlay 产品层，回退 GeoJSON/JSON 产品层；没有可用产品时使用模拟城市点位。尚未渲染原始 NetCDF，也尚未支持 GeoTIFF/切片等更多地图层类型。
@@ -835,7 +835,7 @@ runs/<run_id>/products/product_manifest.json
 
 ```text
 wrfout / postprocess nc
-  -> product_extract: 从 wrfout 预提取 7 天小 summary nc；基于 summary 生成抽样点 GeoJSON 和 PNG overlay；后续增加等值线/切片生成
+  -> product_extract: 从 wrfout 预提取 7 天小 summary nc，包含总花粉、主导物种、气温、降水、风速；基于 summary 生成抽样点 GeoJSON 和 PNG overlay；后续增加城市预报 JSON、等值线/切片生成
   -> package_products: 写入 product_manifest.json
   -> backend sync-products: 下载到 runtime/products/<run_id> 并入库
   -> frontend Products / Map: 读取产品索引并渲染 GeoJSON/PNG/栅格层
