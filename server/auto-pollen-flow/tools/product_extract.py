@@ -26,10 +26,18 @@ def main() -> int:
 
     sources = discover_sources(run_dir)
     products = []
-    for source in sources[:extract_limit()]:
-        target = unique_target(output_dir, source.name)
-        shutil.copy2(source, target)
-        products.append(product_item(run_id, products_dir, target))
+    summary_product, summary_path = extract_summary_product(run_id, products_dir, sources, output_dir)
+    if summary_product and summary_path:
+        products.append(summary_product)
+
+    if copy_sources_enabled():
+        for source in sources[:extract_limit()]:
+            target = unique_target(output_dir, source.name)
+            shutil.copy2(source, target)
+            products.append(product_item(run_id, products_dir, target))
+
+    visual_sources = [summary_path] if summary_path else sources[:extract_limit()]
+    for source in visual_sources:
         geojson_product = extract_geojson_product(run_id, products_dir, source, output_dir)
         if geojson_product:
             products.append(geojson_product)
@@ -97,6 +105,170 @@ def product_item(run_id: str, products_dir: Path, path: Path) -> dict[str, Any]:
         "workflow_node": "product_extract",
         "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
     }
+
+
+def extract_summary_product(
+    run_id: str,
+    products_dir: Path,
+    sources: list[Path],
+    output_dir: Path,
+) -> tuple[dict[str, Any] | None, Path | None]:
+    variable = summary_variable()
+    if not variable:
+        return None, None
+    try:
+        summary_path, metadata = write_summary_netcdf(run_id, sources, output_dir, variable)
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "warning": "summary_netcdf_extract_failed",
+                    "variable": variable,
+                    "error": exc.__class__.__name__,
+                    "message": str(exc),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return None, None
+    relative = summary_path.relative_to(products_dir)
+    return (
+        {
+            "name": summary_path.name,
+            "path": str(relative),
+            "server_path": str(summary_path),
+            "type": "summary_netcdf",
+            "mime": "application/x-netcdf",
+            "region": os.environ.get("PRODUCT_REGION", "unknown"),
+            "pollen_type": os.environ.get("PRODUCT_POLLEN_TYPE", variable),
+            "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
+            "workflow_node": "product_extract",
+            "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+            "summary_variable": variable,
+            "time_steps": metadata["time_steps"],
+            "source_count": metadata["source_count"],
+        },
+        summary_path,
+    )
+
+
+def write_summary_netcdf(
+    run_id: str,
+    sources: list[Path],
+    output_dir: Path,
+    variable: str,
+) -> tuple[Path, dict[str, Any]]:
+    import numpy as np  # type: ignore
+    from scipy.io import netcdf_file  # type: ignore
+
+    records = collect_summary_records(sources, variable)
+    if not records:
+        raise ValueError(f"no summary records found for variable={variable}")
+
+    every_nth = max(1, int(os.environ.get("PRODUCT_SUMMARY_EVERY_NTH", "1")))
+    max_steps = max(1, int(os.environ.get("PRODUCT_SUMMARY_MAX_STEPS", "7")))
+    selected = records[::every_nth][:max_steps]
+    if not selected:
+        raise ValueError("summary record selection is empty")
+
+    first = selected[0]
+    lats = np.asarray(first["lats"], dtype="f4")
+    lons = np.asarray(first["lons"], dtype="f4")
+    values = np.stack([np.asarray(item["values"], dtype="f4") for item in selected], axis=0)
+    if values.shape[-2:] != lats.shape or values.shape[-2:] != lons.shape:
+        raise ValueError(f"summary shape mismatch: values={values.shape}, lat={lats.shape}, lon={lons.shape}")
+
+    name = os.environ.get("PRODUCT_SUMMARY_NAME") or f"{run_id}_{variable}_summary.nc"
+    target = unique_target(output_dir, name)
+    lead_step_hours = float(os.environ.get("PRODUCT_SUMMARY_STEP_HOURS", "24"))
+    lead_hours = np.asarray([index * lead_step_hours for index in range(len(selected))], dtype="f4")
+
+    with netcdf_file(target, mode="w") as dataset:
+        dataset.createDimension("time", values.shape[0])
+        dataset.createDimension("south_north", values.shape[1])
+        dataset.createDimension("west_east", values.shape[2])
+        time_var = dataset.createVariable("lead_hours", "f", ("time",))
+        time_var[:] = lead_hours
+        time_var.units = "hours since forecast cycle"
+        day_var = dataset.createVariable("forecast_day", "i", ("time",))
+        day_var[:] = np.arange(1, values.shape[0] + 1, dtype="i4")
+        lat_var = dataset.createVariable("lat", "f", ("south_north", "west_east"))
+        lat_var[:] = lats
+        lat_var.units = "degrees_north"
+        lon_var = dataset.createVariable("lon", "f", ("south_north", "west_east"))
+        lon_var[:] = lons
+        lon_var.units = "degrees_east"
+        value_var = dataset.createVariable(variable, "f", ("time", "south_north", "west_east"))
+        value_var[:] = values
+        value_var.long_name = os.environ.get("PRODUCT_SUMMARY_LONG_NAME", variable)
+        value_var.units = os.environ.get("PRODUCT_SUMMARY_UNITS", os.environ.get("PRODUCT_UNITS", "unknown"))
+        dataset.run_id = run_id
+        dataset.generated_at = now_iso()
+        dataset.summary_variable = variable
+        dataset.source_files = ",".join(item["source"].name for item in selected)
+
+    return target, {
+        "time_steps": int(values.shape[0]),
+        "source_count": len({item["source"] for item in selected}),
+    }
+
+
+def collect_summary_records(sources: list[Path], variable: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for source in sources:
+        try:
+            records.extend(read_summary_records(source, variable))
+        except Exception as exc:
+            print(
+                json.dumps(
+                    {
+                        "warning": "summary_source_skipped",
+                        "source": str(source),
+                        "variable": variable,
+                        "error": exc.__class__.__name__,
+                        "message": str(exc),
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+    return records
+
+
+def read_summary_records(path: Path, variable: str) -> list[dict[str, Any]]:
+    arrays = open_netcdf_arrays(path, variable)
+    lats = reduce_to_2d(arrays["lat"])
+    lons = reduce_to_2d(arrays["lon"])
+    stack = values_to_time_stack(arrays["value"], lats.shape)
+    records = []
+    for index in range(stack.shape[0]):
+        records.append({"source": path, "record_index": index, "values": stack[index], "lats": lats, "lons": lons})
+    return records
+
+
+def values_to_time_stack(array: Any, lat_shape: tuple[int, int]):
+    import numpy as np  # type: ignore
+
+    data = np.asarray(array)
+    vertical_index = int(os.environ.get("PRODUCT_SUMMARY_VERTICAL_INDEX", os.environ.get("PRODUCT_VERTICAL_INDEX", "0")))
+    axis_3d = os.environ.get("PRODUCT_SUMMARY_3D_AXIS", "time").lower()
+    if data.ndim == 4:
+        data = data[:, vertical_index, :, :]
+    elif data.ndim == 3:
+        if axis_3d == "vertical":
+            data = data[vertical_index : vertical_index + 1, :, :]
+        elif data.shape[-2:] == lat_shape:
+            pass
+        else:
+            data = data[0:1, :, :]
+    elif data.ndim == 2:
+        data = data.reshape((1, *data.shape))
+    else:
+        data = reduce_to_2d(data).reshape((1, *lat_shape))
+    if data.ndim != 3 or data.shape[-2:] != lat_shape:
+        raise ValueError(f"expected summary stack as time/y/x, got shape={data.shape}, lat_shape={lat_shape}")
+    return data
 
 
 def extract_geojson_product(
@@ -340,6 +512,18 @@ def geojson_stride(shape: tuple[int, int]) -> int:
     max_points = max(1, int(os.environ.get("PRODUCT_GEOJSON_MAX_POINTS", "2000")))
     total = max(1, shape[0] * shape[1])
     return max(1, math.ceil(math.sqrt(total / max_points)))
+
+
+def summary_variable() -> str | None:
+    value = os.environ.get("PRODUCT_SUMMARY_VARIABLE")
+    return value.strip() if value and value.strip() else None
+
+
+def copy_sources_enabled() -> bool:
+    configured = os.environ.get("PRODUCT_COPY_SOURCES")
+    if configured is not None:
+        return configured.strip().lower() in {"1", "true", "yes", "on"}
+    return summary_variable() is None
 
 
 def png_overlay_variable() -> str | None:

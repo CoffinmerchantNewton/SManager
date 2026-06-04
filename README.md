@@ -9,7 +9,7 @@
 - 服务器节点脚本已改为可配置命令入口；WPS/WRF/后处理真实命令通过 commands-file 的 `*_COMMAND` 和 `*_CWD` 环境变量注入。
 - 跳板机后端在 `backend/`，负责 SSH/local 调用服务器 flow、FNL 补齐、产物同步、运行事件入库、本地 storage 快照和前端 API。
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层，回退 GeoJSON/JSON 产品层，再回退模拟城市点位。
-- `product_extract` 已支持按 glob 收集服务器 run 目录中的 `.nc`/`wrfout*` 文件，并可从 NetCDF 生成抽样点 GeoJSON 与 PNG overlay；后端可同步下载到跳板机；等值线、GeoTIFF/切片仍待实现。
+- `product_extract` 已支持按 glob 扫描服务器 run 目录中的 `.nc`/`wrfout*` 文件，并可预提取 7 天花粉小汇总 NetCDF、抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
 
 ## 目录结构
 

@@ -7,6 +7,10 @@
     "PYTHON_BIN": "python3",
     "WPS_WORK_DIR": "/g7/anxq/Zhangjt/workspace/WPS",
     "WRF_RUN_DIR": "/g7/anxq/Zhangjt/workspace/wrf-runs/current",
+    "PRODUCT_SUMMARY_VARIABLE": "",
+    "PRODUCT_SUMMARY_MAX_STEPS": "7",
+    "PRODUCT_SUMMARY_EVERY_NTH": "1",
+    "PRODUCT_COPY_SOURCES": "false",
     "PRODUCT_GEOJSON_VARIABLE": "",
     "PRODUCT_PNG_VARIABLE": "",
     "PRODUCT_PNG_OPACITY": "0.72"

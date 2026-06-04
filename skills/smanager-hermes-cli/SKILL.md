@@ -134,6 +134,8 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_or_overla
 
 PNG overlay 会以两条产品记录出现：`png_overlay_metadata` 是可用 `product-content` 读取的 `*.overlay.json`，里面包含 bounds、变量名、色带和 PNG 文件名；`png_overlay` 是 PNG 本体，只能用 `product-download` 或前端 `/download` URL 读取。
 
+如果产品 manifest 中有 `summary_netcdf`，优先把它视为后续分析和可视化的轻量数据源；不要为了诊断或展示主动同步、下载全部原始 `wrfout`。7 天逐日花粉预报通常通过 `PRODUCT_SUMMARY_VARIABLE`、`PRODUCT_SUMMARY_MAX_STEPS=7` 生成小汇总 nc。
+
 - 查看服务器节点日志：
 
 ```bash
