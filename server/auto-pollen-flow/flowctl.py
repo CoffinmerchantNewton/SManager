@@ -310,13 +310,28 @@ def cmd_diagnose(args) -> int:
 def cmd_retry(args) -> int:
     flow_paths = paths()
     spec = load_spec(flow_paths, args.run_id)
-    node_by_name(spec, args.node)
-    update_node_status(flow_paths, args.run_id, args.node, "retrying", "retry requested", progress=0)
+    node = node_by_name(spec, args.node)
     if args.dry_run or not sbatch_available():
-        print_json({"ok": True, "dry_run": True, "message": "retry marked; sbatch not executed"})
+        write_event(
+            flow_paths,
+            args.run_id,
+            "retry_dry_run",
+            "retry dry-run requested",
+            node=args.node,
+            payload={"sbatch_available": sbatch_available(), "dry_run": args.dry_run},
+        )
+        print_json(
+            {
+                "ok": True,
+                "dry_run": True,
+                "sbatch_available": sbatch_available(),
+                "run_id": args.run_id,
+                "node": args.node,
+                "message": "retry validated; sbatch not executed",
+            }
+        )
         return 0
     script_path = flow_paths.slurm_dir(args.run_id) / f"retry_{args.node}.sbatch"
-    node = node_by_name(spec, args.node)
     node_script(script_path, Path(__file__).resolve(), args.run_id, args.node, node, flow_paths.logs_dir(args.run_id))
     job_id = submit_sbatch(script_path)
     update_node_status(flow_paths, args.run_id, args.node, "ready", "retry submitted to Slurm", slurm_job_id=job_id)

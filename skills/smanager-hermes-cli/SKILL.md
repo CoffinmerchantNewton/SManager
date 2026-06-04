@@ -124,6 +124,8 @@ python3 packages/cli/smanager.py logs --run-id <run_id> --tail 300
 python3 packages/cli/smanager.py retry-node --run-id <run_id> --node <node_name> --dry-run
 ```
 
+dry-run 只用于验证动作计划，不应改变服务器节点状态。
+
 只有诊断输出和 dry-run 输出都确认无误后，才允许真实重试：
 
 ```bash
