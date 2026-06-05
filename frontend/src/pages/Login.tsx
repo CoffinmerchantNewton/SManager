@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 interface LoginProps {
   onLogin: () => void;
@@ -9,12 +9,14 @@ export default function Login({ onLogin }: LoginProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = (location.state as { from?: string } | null)?.from || '/admin/dashboard';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === 'admin123') {
       onLogin();
-      navigate('/admin/dashboard');
+      navigate(redirectTo, { replace: true });
     } else {
       setError('Invalid password');
     }

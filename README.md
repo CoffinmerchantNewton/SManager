@@ -11,6 +11,7 @@
 - 诊断规则在 `packages/diagnostics/`，后端 diagnose/context 会返回 `analysis`，标识风险等级、推荐动作、是否允许自动处理和建议 CLI。
 - 通知 webhook 默认关闭；配置 `NOTIFICATION_WEBHOOK_URL` 后，agent tick 失败或诊断要求人工时会发送 JSON 通知并写入 `agent_actions`。
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层和 `city_forecast_json` 城市预报，支持城市查询、未来 7 天时间轴、风险等级、主导物种、气温、降水和风速展示；缺产品时回退示例城市点位。
+- 2026-06-05 本地跳板机验证已通过：`smanager` conda 环境和 Node/npm 可运行后端与 Vite 前端，Dashboard/Run Detail 能显示服务器真实 run `2026052100_spring_neimeng_official` 的进度、DAG 节点、日志尾部和诊断信息。
 - `product_extract` 已支持按 `wrfout.txt` 对应的 WRF-Pollen 变量结构预提取 7 天小汇总 NetCDF，包含 `POLLEN_1..9`、气温、风、降水和派生的 `pollen_total`/主导物种/逐步降水；可继续生成城市 7 天预报 JSON、抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
 
 ## 各端进度盘点
@@ -157,6 +158,18 @@ npm install
 npm run dev
 ```
 
+Windows 跳板机本地一键启动：
+
+```bat
+start_smanager.bat
+```
+
+该脚本会用 `smanager` conda 环境启动后端 `http://localhost:8000`，并启动前端 `http://localhost:5173`。只检查本地依赖、不打开服务窗口时可运行：
+
+```bat
+start_smanager.bat --check
+```
+
 CLI：
 
 ```bash
@@ -251,8 +264,16 @@ python3 packages/cli/smanager.py product-content --product-id <geojson_or_overla
 - Dashboard 已接入真实 overview 聚合，展示运行态势、FNL 覆盖、最新产物、Hermes 动作和日志；Runs、FNL、Products、Scheduler、Workflow 等页面已存在。
 - 右上角支持 `科研`/`小猪` 主题切换，主题 token 集中在 CSS 变量中维护。
 - Run Detail 页面可以按 run 展示 DAG 节点、诊断、事件、日志尾部、Hermes 动作和已同步产物下载入口。
+- 管理端登录状态已在当前浏览器会话内持久化，直接访问 `/admin/runs/<run_id>` 时登录后会回到原详情页；Run Detail 的事件列表 key 已避免同一时刻多节点事件导致的 React 重复 key 警告。
 - Products 页面可以按 run 同步产物索引，并下载后端已同步到跳板机的产品文件。
 - Cesium 花粉分布页面会尝试从 `/api/v1/products` 选择最新 `png_overlay_metadata` 和 `city_forecast_json` 产品；overlay 经 `/content` 读取 bounds 和 PNG 文件名，再用 `/download` 叠加 PNG，城市预报 JSON 用于城市查询、7 天时间轴、风险等级、主导物种、气温、降水和风速。没有产品时回退静态城市点位。
+
+当前本地可视化验收记录：
+
+- 后端 `http://localhost:8000` 健康检查正常，`/api/v1/system/doctor` 无 error；当前仅提示本地 `rsync` 未安装、`FNL_DOWNLOAD_COMMAND` 未配置。
+- 前端 `http://localhost:5173` 可登录管理端，Dashboard 显示真实 run `2026052100_spring_neimeng_official` 为 `running`、总进度 `66.67%`。
+- Run Detail 可展示 12 个 DAG 节点，其中 `wrf_run` 为 `running 1%`，`postprocess_eval`、`product_extract`、`package_products` 为 `ready`；页面无桌面端横向溢出。
+- 管理端窄屏布局仍有横向溢出，主要来自侧栏和表格布局，后续可作为单独响应式优化项处理。
 
 花粉分布展示仍需要下一步增强：
 

@@ -198,7 +198,7 @@ export default function RunDetail() {
         <Panel title="Recent Events">
           <div className="max-h-[380px] overflow-auto divide-y divide-white/5">
             {events.map((event, index) => (
-              <div key={`${event.created_at ?? index}-${event.event_type ?? 'event'}`} className="py-sm">
+              <div key={`${event.created_at ?? 'event'}-${event.event_type ?? 'event'}-${event.node ?? 'run'}-${index}`} className="py-sm">
                 <div className="flex flex-wrap items-center justify-between gap-sm">
                   <span className="font-data-mono text-xs text-cyan-300">{event.event_type ?? 'event'}</span>
                   <span className="text-[10px] text-outline">{event.created_at ?? '-'}</span>

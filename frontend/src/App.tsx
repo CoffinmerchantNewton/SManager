@@ -11,14 +11,21 @@ import FnlManagement from './pages/FnlManagement';
 import Portal from './pages/Portal';
 import Login from './pages/Login';
 
+const AUTH_STORAGE_KEY = 'smanager.admin.authenticated';
+
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => window.sessionStorage.getItem(AUTH_STORAGE_KEY) === 'true');
+
+  const handleLogin = () => {
+    window.sessionStorage.setItem(AUTH_STORAGE_KEY, 'true');
+    setIsAuthenticated(true);
+  };
 
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Portal />} />
-        <Route path="/login" element={<Login onLogin={() => setIsAuthenticated(true)} />} />
+        <Route path="/login" element={<Login onLogin={handleLogin} />} />
 
         <Route
           path="/admin/*"
@@ -37,7 +44,7 @@ function App() {
                 </Routes>
               </Layout>
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/login" replace state={{ from: window.location.pathname }} />
             )
           }
         />
