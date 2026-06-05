@@ -118,6 +118,12 @@ def main() -> int:
         geojson_product = extract_geojson_product(run_id, products_dir, source, output_dir)
         if geojson_product:
             products.append(geojson_product)
+        contour_product = extract_contour_product(run_id, products_dir, source, output_dir)
+        if contour_product:
+            products.append(contour_product)
+        geotiff_product = extract_geotiff_product(run_id, products_dir, source, output_dir)
+        if geotiff_product:
+            products.append(geotiff_product)
         products.extend(extract_png_overlay_products(run_id, products_dir, source, output_dir))
 
     manifest = {
@@ -181,6 +187,8 @@ def product_item(run_id: str, products_dir: Path, path: Path) -> dict[str, Any]:
         "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
         "workflow_node": "product_extract",
         "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+        "source_run_id": run_id,
+        "subtype": product_type,
     }
 
 
@@ -223,6 +231,10 @@ def extract_summary_product(
             "workflow_node": "product_extract",
             "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
             "summary_variable": metadata["primary_variable"],
+            "variable": metadata["primary_variable"],
+            "unit": variable_units(metadata["primary_variable"]),
+            "source_run_id": run_id,
+            "subtype": "summary",
             "summary_variables": metadata["summary_variables"],
             "derived_variables": metadata["derived_variables"],
             "time_steps": metadata["time_steps"],
@@ -526,6 +538,10 @@ def extract_city_forecast_product(
         "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
         "workflow_node": "product_extract",
         "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+        "source_run_id": run_id,
+        "subtype": "city_forecast",
+        "variable": "pollen_total",
+        "unit": variable_units("pollen_total"),
     }
 
 
@@ -768,6 +784,11 @@ def extract_geojson_product(
         "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
         "workflow_node": "product_extract",
         "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+        "source_run_id": run_id,
+        "subtype": "sample_points",
+        "variable": variable,
+        "unit": variable_units(variable),
+        "bounds": dataset["bounds"],
     }
 
 
@@ -799,7 +820,215 @@ def read_netcdf_points(path: Path, variable: str) -> dict[str, Any]:
                     },
                 }
             )
-    return {"features": features}
+    return {"features": features, "bounds": grid_bounds(lats, lons)}
+
+
+def extract_contour_product(
+    run_id: str,
+    products_dir: Path,
+    source: Path,
+    output_dir: Path,
+) -> dict[str, Any] | None:
+    variable = contour_variable()
+    if not variable:
+        return None
+    try:
+        grid = read_netcdf_grid(source, variable)
+        target = write_contour_geojson(source, output_dir, variable, grid)
+        status = "generated"
+        product_type = "contour_geojson"
+        mime = "application/geo+json"
+    except ModuleNotFoundError as exc:
+        target = write_capability_status(output_dir, source, variable, "contour", "skipped", exc)
+        status = "skipped"
+        product_type = "capability_status"
+        mime = "application/json"
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "warning": "contour_extract_failed",
+                    "source": str(source),
+                    "variable": variable,
+                    "error": exc.__class__.__name__,
+                    "message": str(exc),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return None
+    relative = target.relative_to(products_dir)
+    return {
+        "name": target.name,
+        "path": str(relative),
+        "server_path": str(target),
+        "type": product_type,
+        "mime": mime,
+        "region": os.environ.get("PRODUCT_REGION", "unknown"),
+        "pollen_type": os.environ.get("PRODUCT_POLLEN_TYPE", variable),
+        "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
+        "workflow_node": "product_extract",
+        "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+        "source_run_id": run_id,
+        "subtype": "contour" if status == "generated" else "capability_status",
+        "variable": variable,
+        "unit": variable_units(variable),
+        "capability_status": status,
+    }
+
+
+def write_contour_geojson(source: Path, output_dir: Path, variable: str, grid: dict[str, Any]) -> Path:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # type: ignore
+
+    values = grid["values"]
+    levels = contour_levels(values)
+    if not levels:
+        raise ValueError("cannot derive finite contour levels")
+    figure, axes = plt.subplots()
+    contour_set = axes.contour(grid["lons"], grid["lats"], values, levels=levels)
+    features = []
+    for level, segments in zip(contour_set.levels, contour_set.allsegs):
+        for segment in segments:
+            if len(segment) < 2:
+                continue
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[float(x), float(y)] for x, y in segment],
+                    },
+                    "properties": {"variable": variable, "value": float(level), "source": source.name},
+                }
+            )
+    contour_levels_used = [float(level) for level in contour_set.levels]
+    plt.close(figure)
+    target = unique_target(output_dir, f"{source.stem}_{variable}_contours.geojson")
+    write_json(
+        target,
+        {
+            "type": "FeatureCollection",
+            "features": features,
+            "metadata": {
+                "variable": variable,
+                "unit": variable_units(variable),
+                "bounds": grid_bounds(grid["lats"], grid["lons"]),
+                "levels": contour_levels_used,
+            },
+        },
+    )
+    return target
+
+
+def extract_geotiff_product(
+    run_id: str,
+    products_dir: Path,
+    source: Path,
+    output_dir: Path,
+) -> dict[str, Any] | None:
+    variable = geotiff_variable()
+    if not variable:
+        return None
+    try:
+        grid = read_netcdf_grid(source, variable)
+        target = write_geotiff(source, output_dir, variable, grid)
+        status = "generated"
+        product_type = "geotiff"
+        mime = "image/tiff; application=geotiff"
+    except ModuleNotFoundError as exc:
+        target = write_capability_status(output_dir, source, variable, "geotiff", "skipped", exc)
+        status = "skipped"
+        product_type = "capability_status"
+        mime = "application/json"
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "warning": "geotiff_extract_failed",
+                    "source": str(source),
+                    "variable": variable,
+                    "error": exc.__class__.__name__,
+                    "message": str(exc),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return None
+    relative = target.relative_to(products_dir)
+    return {
+        "name": target.name,
+        "path": str(relative),
+        "server_path": str(target),
+        "type": product_type,
+        "mime": mime,
+        "region": os.environ.get("PRODUCT_REGION", "unknown"),
+        "pollen_type": os.environ.get("PRODUCT_POLLEN_TYPE", variable),
+        "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
+        "workflow_node": "product_extract",
+        "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+        "source_run_id": run_id,
+        "subtype": "raster" if status == "generated" else "capability_status",
+        "variable": variable,
+        "unit": variable_units(variable),
+        "capability_status": status,
+    }
+
+
+def write_geotiff(source: Path, output_dir: Path, variable: str, grid: dict[str, Any]) -> Path:
+    import numpy as np  # type: ignore
+    import rasterio  # type: ignore
+    from rasterio.transform import from_bounds  # type: ignore
+
+    values = orient_values_for_image(grid["values"], grid["lats"], grid["lons"]).astype("float32")
+    bounds = grid_bounds(grid["lats"], grid["lons"])
+    transform = from_bounds(bounds["west"], bounds["south"], bounds["east"], bounds["north"], values.shape[1], values.shape[0])
+    target = unique_target(output_dir, f"{source.stem}_{variable}.tif")
+    with rasterio.open(
+        target,
+        "w",
+        driver="GTiff",
+        height=values.shape[0],
+        width=values.shape[1],
+        count=1,
+        dtype="float32",
+        crs="EPSG:4326",
+        transform=transform,
+        nodata=np.nan,
+    ) as dataset:
+        dataset.write(values, 1)
+        dataset.update_tags(variable=variable, unit=variable_units(variable), source=source.name)
+    return target
+
+
+def write_capability_status(
+    output_dir: Path,
+    source: Path,
+    variable: str,
+    capability: str,
+    status: str,
+    error: Exception,
+) -> Path:
+    target = unique_target(output_dir, f"{source.stem}_{variable}_{capability}.{status}.json")
+    write_json(
+        target,
+        {
+            "type": "capability_status",
+            "capability": capability,
+            "status": status,
+            "source": source.name,
+            "variable": variable,
+            "unit": variable_units(variable),
+            "error": error.__class__.__name__,
+            "message": str(error),
+            "generated_at": now_iso(),
+        },
+    )
+    return target
 
 
 def extract_png_overlay_products(
@@ -836,6 +1065,10 @@ def extract_png_overlay_products(
         "resolution": os.environ.get("PRODUCT_RESOLUTION", "unknown"),
         "workflow_node": "product_extract",
         "workflow_version": os.environ.get("PRODUCT_WORKFLOW_VERSION", run_id),
+        "source_run_id": run_id,
+        "variable": variable,
+        "unit": variable_units(variable),
+        "bounds": metadata["bounds"],
     }
     return [
         {
@@ -844,6 +1077,7 @@ def extract_png_overlay_products(
             "server_path": str(png_path),
             "type": "png_overlay",
             "mime": "image/png",
+            "subtype": "image_overlay",
             **common,
         },
         {
@@ -852,6 +1086,7 @@ def extract_png_overlay_products(
             "server_path": str(metadata_path),
             "type": "png_overlay_metadata",
             "mime": "application/json",
+            "subtype": "overlay_metadata",
             "related_image": metadata["image"]["name"],
             **common,
         },
@@ -1055,6 +1290,38 @@ def copy_sources_enabled() -> bool:
 def png_overlay_variable() -> str | None:
     value = os.environ.get("PRODUCT_PNG_VARIABLE") or os.environ.get("PRODUCT_OVERLAY_VARIABLE")
     return value.strip() if value and value.strip() else None
+
+
+def contour_variable() -> str | None:
+    value = os.environ.get("PRODUCT_CONTOUR_VARIABLE") or os.environ.get("PRODUCT_ISOLINE_VARIABLE")
+    return value.strip() if value and value.strip() else None
+
+
+def geotiff_variable() -> str | None:
+    value = os.environ.get("PRODUCT_GEOTIFF_VARIABLE") or os.environ.get("PRODUCT_COG_VARIABLE")
+    return value.strip() if value and value.strip() else None
+
+
+def variable_units(variable: str) -> str:
+    return os.environ.get("PRODUCT_UNITS") or VARIABLE_METADATA.get(variable, {}).get("units", "unknown")
+
+
+def contour_levels(values: Any) -> list[float]:
+    import numpy as np  # type: ignore
+
+    configured = split_env_list(os.environ.get("PRODUCT_CONTOUR_LEVELS"))
+    if configured:
+        return [float(item) for item in configured]
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return []
+    min_value = float(np.nanmin(finite))
+    max_value = float(np.nanmax(finite))
+    if min_value == max_value:
+        return []
+    count = max(2, int(os.environ.get("PRODUCT_CONTOUR_LEVEL_COUNT", "8")))
+    return [float(item) for item in np.linspace(min_value, max_value, count + 2)[1:-1]]
 
 
 def orient_values_for_image(values: Any, lats: Any, lons: Any) -> Any:
