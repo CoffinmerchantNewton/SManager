@@ -13,6 +13,115 @@
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层和 `city_forecast_json` 城市预报，支持城市查询、未来 7 天时间轴、风险等级、主导物种、气温、降水和风速展示；缺产品时回退示例城市点位。
 - `product_extract` 已支持按 `wrfout.txt` 对应的 WRF-Pollen 变量结构预提取 7 天小汇总 NetCDF，包含 `POLLEN_1..9`、气温、风、降水和派生的 `pollen_total`/主导物种/逐步降水；可继续生成城市 7 天预报 JSON、抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
 
+## 各端进度盘点
+
+### 服务器端 `server/auto-pollen-flow`
+
+已完成：
+
+- `flowctl` 已作为服务器唯一调度入口，覆盖 `plan/list/status/fnl-verify/submit/run-node/logs/events/diagnose/collect-context/retry/cancel/products`。
+- 运行状态已落到结构化文件，节点状态包含进度、attempt、Slurm job id、错误码、日志路径等信息，后端和 CLI 可以稳定读取。
+- FNL 校验只在服务器侧扫描本地目录，不联网下载；manifest 会标记 `missing/bad_magic/too_small/link_broken/server_ok` 和 `needs_repair`。
+- DAG 节点脚本已拆出 WPS geogrid/ungrib/metgrid、real、GDD、pollen prep、WRF run、评估、产品提取、产品打包等步骤。
+- 真实 WPS/WRF/后处理命令通过 commands-file 注入，节点脚本不再写死生产路径。
+- `product_extract` 已支持生成轻量 `summary_netcdf`、`city_forecast_json`、抽样 GeoJSON、PNG overlay 和 overlay 元数据。
+- 部署脚本已提供 `server/deploy/sync_to_server.sh` 和 `install_server_flow.sh`，用于同步服务器 flow 包。
+
+未完成：
+
+- 还没有填入生产 CentOS 服务器上的真实 commands-file，包括 WPS/WRF/WRF-Pollen 路径、模块加载、队列参数、业务区域参数。
+- Slurm 真实集群上的端到端验证还没有完成，当前只能证明本地/脚本层逻辑可运行。
+- 节点级资源参数、失败重试次数、超时策略仍偏基础，需要结合服务器队列经验校准。
+- 产品层仍缺等值线、GeoTIFF、XYZ/WMTS 切片等更适合大范围连续场展示的产物。
+- 还没有把完整生产 runbook 中的服务器目录、权限、日志轮转、磁盘清理策略固化成安装检查。
+
+### 跳板机后端 `backend`
+
+已完成：
+
+- FastAPI 后端已接入服务器 `flowctl`，支持 local/SSH 两种执行模式。
+- Runs API 已覆盖建 run、状态同步、提交、日志、事件、诊断、上下文、重试、取消、产物同步。
+- FNL API 已实现服务器优先校验；缺失或损坏时调用 `FNL_DOWNLOAD_COMMAND` 在跳板机下载，再用 `rsync/scp` 上传服务器并二次校验。
+- Products API 已支持产物列表、下载、JSON/GeoJSON/overlay 元数据 inline 读取、发布状态切换和删除。
+- Scheduler API 已支持计划任务配置和手动触发 `agent tick`。
+- Dashboard API 已聚合 run、FNL、products、agent actions、system logs 等运行态势。
+- SQLite 模型已覆盖 workflow、run、node、event、FNL、product、scheduled task、agent action、system log 等核心元数据。
+- 规则化诊断已接入 `packages/diagnostics`，后端 diagnose/context 会返回风险等级、建议动作、建议 CLI 和是否允许自动处理。
+- 通知 webhook 可选配置，默认关闭；失败或需要人工处理时可写审计并发送 JSON 通知。
+
+未完成：
+
+- 还没有正式迁移框架，当前仍依赖 `Base.metadata.create_all`，后续需要 Alembic 或等价迁移方案。
+- 认证授权仍是原型级，管理接口还没有生产级登录、角色、审计边界和密钥管理。
+- 后端定时调度目前偏控制入口，生产上仍需要 systemd timer/cron/Hermes 调用策略落地。
+- 文件存储仍是本地轻量目录控制器，缺清理策略、配额、归档、备份和大文件生命周期管理。
+- 与真实 FNL 下载源的命令、凭据、失败退避策略尚未内置，只预留外部命令接口。
+- 缺少面向真实服务器网络抖动、SSH 中断、Slurm 异常返回的集成测试。
+
+### CLI 与 Hermes/AI 控制面 `packages/cli`、`skills/smanager-hermes-cli`
+
+已完成：
+
+- 不再维护独立 `apps/hermes-agent`；Hermes/AI/人工统一通过 CLI 调后端 API。
+- CLI 已覆盖 doctor、storage、plan、runs、status、FNL verify/repair/coverage、submit、logs、events、diagnose、collect-context、retry/cancel、products、agent tick/actions、tasks/task-run。
+- `diagnose --summary` 可输出更适合 AI 快速判断的诊断摘要。
+- Skill 已说明 Hermes 如何巡检、补齐 FNL、提交/轮询、读取产品、诊断、重试和取消。
+- 自动动作会写入 `agent_actions`，便于后端、前端和审计统一查看。
+
+未完成：
+
+- Hermes 的定时策略、值守频率、最大自动处理次数、人工确认边界还没有在生产环境固化。
+- CLI 缺少更友好的批量操作、交互式选择、配置模板生成和生产环境预检向导。
+- AI 自动恢复规则还比较保守，更多 WPS/WRF/WRF-Pollen 错误类型需要从真实日志中持续沉淀。
+
+### 前端 `frontend`
+
+已完成：
+
+- 已有门户花粉分布页和管理控制台。
+- Dashboard 展示运行态势、FNL 覆盖、最新产物、Hermes 动作和系统日志。
+- Runs/Run Detail 可查看 run DAG、节点状态、诊断、事件、日志尾部、Hermes 动作和已同步产物下载入口。
+- FNL 页面可查看覆盖状态并触发补齐流程。
+- Products 页面可按 run 同步服务器产物、索引、下载和管理发布状态。
+- Scheduler 页面可维护调度任务，并支持立即触发。
+- Portal 使用 Cesium 展示中国区域，支持 PNG overlay、GeoJSON 回退、城市查询、未来 7 天时间轴、风险等级、主导物种、气温、降水和风速。
+- Portal 已按 run 组织产品包，避免花粉底图和城市预报取到不同 run。
+- 主题已集中为 `科研/小猪` 两套 token，Portal 和管理控制台都可切换。
+
+未完成：
+
+- Windy 风格仍只是基础方向，尚未实现完整的时间播放条、图层面板、风场粒子、色标单位联动、地图拾取点查询。
+- 城市风险等级阈值仍需要业务校准，城市列表也需要替换为正式站点/城市配置。
+- 前端还没有直接展示历史预报对比、历史曲线、站点实测对比和误差评估。
+- 当前地图主要支持 PNG overlay/GeoJSON；大范围高性能瓦片、等值线和 GeoTIFF 还没接入。
+- 管理端部分老页面存在 lint 历史问题，已改动的新 Portal/Layout/theme 文件可通过 lint，但全前端 lint 还需要单独清理。
+- 登录鉴权仍是原型状态，生产 UI 需要真实认证、权限控制和会话处理。
+
+### 契约、文档与测试
+
+已完成：
+
+- `packages/contracts` 已有 run spec、node status、workflow status、FNL manifest、product manifest、agent action、diagnosis analysis JSON Schema。
+- 已有 FNL runbook、日常巡检 runbook、服务器 flow runbook、事故处理 playbook。
+- 后端已有 scheduled task、diagnostics、notifications、contracts 等单元测试。
+- 常用验证命令包括后端 compileall、后端 unittest、前端 build、局部前端 lint。
+
+未完成：
+
+- 契约还没有自动生成前端 TypeScript 类型或后端 Pydantic 模型。
+- 缺少服务器 flow 的系统化 pytest 测试夹具，尤其是 Slurm mock、真实 product manifest、异常日志样本。
+- 缺少端到端测试：创建 run -> FNL 校验/补齐 -> submit dry-run/真实提交 -> status -> product sync -> Portal 展示。
+- 文档还缺生产部署拓扑、数据契约细节、重试策略和安全策略的最终版。
+
+### 总体剩余里程碑
+
+1. 填写并验证生产 commands-file，把真实 WPS/WRF/WRF-Pollen 路径、模块加载、Slurm 队列、区域和季节参数接入服务器 flow。
+2. 在 CentOS 服务器上跑通一次完整 dry-run，再跑通一次真实小窗口预报：FNL 校验、WPS、WRF、产品提取、产物同步、前端展示。
+3. 接入真实 FNL 下载命令和凭据管理，验证“服务器已有但可能损坏 -> 跳板机补齐上传 -> 二次校验”的闭环。
+4. 完善产品体系：正式城市/站点配置、风险阈值、等值线/瓦片/GeoTIFF、历史预报归档和对比。
+5. 完善生产运维：认证授权、通知机器人、定时任务、日志轮转、磁盘清理、备份恢复、部署检查。
+6. 清理前端全仓库 lint 历史问题，补齐后端/服务器/前端端到端测试。
+
 ## 目录结构
 
 ```text
