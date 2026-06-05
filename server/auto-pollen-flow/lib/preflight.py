@@ -43,7 +43,7 @@ def run_preflight(flow_root: Path, command_config: dict[str, Any] | None = None)
         if value:
             checks.append(check_path(key.lower(), Path(value), required=key in {"NODE_COMMAND_DIR", "AUTO_POLLEN_ROOT"}))
 
-    checks.extend(check_fnl_roots())
+    checks.extend(check_fnl_roots(env))
     checks.extend(check_node_commands(env, node_configs))
 
     slurm_defaults = config.get("slurm_defaults", {})
@@ -102,8 +102,8 @@ def check_path(name: str, path: Path, required: bool, kind: str | None = None, w
     }
 
 
-def check_fnl_roots() -> list[dict[str, Any]]:
-    roots = roots_from_env()
+def check_fnl_roots(config_env: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    roots = roots_from_config(config_env or {}) or roots_from_env()
     if not roots:
         return [
             {
@@ -115,6 +115,13 @@ def check_fnl_roots() -> list[dict[str, Any]]:
             }
         ]
     return [check_path(f"fnl_root:{index}", root, required=index == 0, kind="dir") for index, root in enumerate(roots)]
+
+
+def roots_from_config(config_env: dict[str, str]) -> list[Path]:
+    raw = config_env.get("FNL_ROOTS")
+    if raw:
+        return [Path(part) for part in raw.split(":") if part]
+    return [Path(config_env[key]) for key in ("FNL_ROOT", "FNL_FALLBACK_ROOT") if config_env.get(key)]
 
 
 def check_node_commands(global_env: dict[str, str], node_configs: dict[str, Any]) -> list[dict[str, Any]]:

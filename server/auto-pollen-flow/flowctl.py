@@ -60,7 +60,10 @@ def print_json(data: Any) -> None:
 def load_command_config(path: str | None) -> dict[str, Any]:
     if not path:
         return {}
-    data = read_json(Path(path), default={})
+    config_path = Path(path)
+    if not config_path.is_file():
+        raise FileNotFoundError(f"commands file not found: {config_path}")
+    data = read_json(config_path, default={})
     if not isinstance(data, dict):
         raise ValueError("commands file must contain a JSON object")
     return data
@@ -480,9 +483,9 @@ def collect_log_tails(log_dir: Path, tail: int, max_logs: int) -> list[dict[str,
     if not log_dir.exists():
         return []
     logs = []
-    for path in sorted(log_dir.glob("*")):
-        if not path.is_file():
-            continue
+    files = [path for path in log_dir.glob("*") if path.is_file()]
+    files.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    for path in files:
         logs.append(
             {
                 "name": path.name,

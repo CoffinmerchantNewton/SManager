@@ -1,11 +1,11 @@
 {
   "env": {
-    "FLOWCTL": "/g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/flowctl.py",
-    "NODE_COMMAND_DIR": "/g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/templates/node_commands",
+    "FLOWCTL": "/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/flowctl.py",
+    "NODE_COMMAND_DIR": "/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/node_commands",
     "AUTO_POLLEN_ROOT": "/g7/anxq/Zhangjt/workspace/auto-pollen",
     "AUTO_POLLEN_TEMPLATE_DIR": "/g7/anxq/Zhangjt/workspace/auto-pollen/template",
     "ENV_SCRIPT": "/g7/anxq/Zhangjt/workspace/auto-pollen/load_env.sh",
-    "PYTHON_BIN": "python3",
+    "PYTHON_BIN": "/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python",
     "WPS_WORK_DIR": "/g7/anxq/Zhangjt/workspace/auto-pollen/WPS",
     "WRF_RUN_DIR": "/g7/anxq/Zhangjt/workspace/auto-pollen/run",
     "FNL_ROOTS": "/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl",
@@ -21,7 +21,7 @@
     "PRODUCT_PNG_VARIABLE": "pollen_total",
     "PRODUCT_PNG_OPACITY": "0.72",
     "PRODUCT_CITY_FORECAST_ENABLED": "true",
-    "PRODUCT_CITY_POINTS_FILE": "/g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/templates/run_spec/stations.china_pollen.json",
+    "PRODUCT_CITY_POINTS_FILE": "/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/stations.china_pollen.json",
     "PRODUCT_POLLEN_RISK_THRESHOLDS": "300,600,1000"
   },
   "slurm_defaults": {
