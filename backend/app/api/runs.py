@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import subprocess
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
-from ..models.models import ForecastRun, ForecastRunNode, ForecastRunStatus
+from ..models.models import AgentAction, ForecastProduct, ForecastRun, ForecastRunEvent, ForecastRunNode, ForecastRunStatus
 from ..schemas.run_control import (
     CancelRunRequest,
     FlowResponse,
@@ -133,8 +135,35 @@ def collect_run_context(
     tail: int = Query(default=120, ge=1, le=5000),
     event_limit: int = Query(default=100, ge=1, le=5000),
     max_logs: int = Query(default=12, ge=1, le=100),
+    live: bool = Query(default=False),
+    db: Session = Depends(get_db),
 ):
-    result = service().collect_context(run_id, tail=tail, event_limit=event_limit, max_logs=max_logs)
+    if not live:
+        return FlowResponse(ok=True, data=collect_db_context(db, run_id, event_limit=event_limit))
+    try:
+        result = service().collect_context(run_id, tail=tail, event_limit=event_limit, max_logs=max_logs)
+    except subprocess.TimeoutExpired as exc:
+        fallback = collect_db_context(
+            db,
+            run_id,
+            event_limit=event_limit,
+            warning={
+                "code": "server_context_timeout",
+                "message": f"Server collect-context timed out after {exc.timeout} seconds; showing database snapshot.",
+            },
+        )
+        return FlowResponse(ok=False, data=fallback)
+    except Exception as exc:
+        fallback = collect_db_context(
+            db,
+            run_id,
+            event_limit=event_limit,
+            warning={
+                "code": exc.__class__.__name__,
+                "message": f"Server collect-context failed; showing database snapshot: {exc}",
+            },
+        )
+        return FlowResponse(ok=False, data=fallback)
     if isinstance(result.get("diagnose"), dict):
         result["diagnose"] = enrich_diagnosis(result["diagnose"], run_id=run_id)
     return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
@@ -212,3 +241,131 @@ def sync_status_after_action(db: Session, flow: ServerFlowService, run_id: str, 
     if not ok or result.get("dry_run") or result.get("no_op"):
         return
     sync_run_status(db, run_id, flow.status(run_id))
+
+
+def collect_db_context(
+    db: Session,
+    run_id: str,
+    event_limit: int = 100,
+    warning: dict | None = None,
+) -> dict:
+    run = db.query(ForecastRun).filter(ForecastRun.run_id == run_id).first()
+    nodes = (
+        db.query(ForecastRunNode)
+        .filter(ForecastRunNode.run_id == run_id)
+        .order_by(ForecastRunNode.id.asc())
+        .all()
+    )
+    events = (
+        db.query(ForecastRunEvent)
+        .filter(ForecastRunEvent.run_id == run_id)
+        .order_by(ForecastRunEvent.id.desc())
+        .limit(event_limit)
+        .all()
+    )
+    products = (
+        db.query(ForecastProduct)
+        .filter(ForecastProduct.product_name.like(f"{run_id}:%"))
+        .order_by(ForecastProduct.release_time.desc())
+        .all()
+    )
+    actions = (
+        db.query(AgentAction)
+        .filter(AgentAction.run_id == run_id)
+        .order_by(AgentAction.id.desc())
+        .limit(50)
+        .all()
+    )
+    findings = []
+    if warning:
+        findings.append(
+            {
+                "level": "warning",
+                "code": warning["code"],
+                "node": "server_flow",
+                "message": warning["message"],
+                "suggested_action": "check_server_flow_connectivity",
+            }
+        )
+    return {
+        "ok": warning is None,
+        "source": "database_snapshot",
+        "run_id": run_id,
+        "run_dir": run.server_run_dir if run else None,
+        "status": {
+            "run_id": run_id,
+            "status": status_value(run.status) if run else "pending",
+            "progress": float(run.progress or 0) if run else 0,
+            "updated_at": iso_or_none(run.updated_at) if run else None,
+            "nodes": [serialize_node(node) for node in nodes],
+        },
+        "diagnose": enrich_diagnosis({"ok": warning is None, "findings": findings}, run_id=run_id),
+        "events": [serialize_event(event) for event in events],
+        "logs": [],
+        "product_manifest": {
+            "run_id": run_id,
+            "products": [serialize_product_manifest_item(product) for product in products],
+        },
+        "agent_actions": [serialize_action(action) for action in actions],
+    }
+
+
+def serialize_node(node: ForecastRunNode) -> dict:
+    return {
+        "run_id": node.run_id,
+        "node": node.node_name,
+        "status": node.status,
+        "progress": float(node.progress or 0),
+        "attempt": int(node.attempt or 0),
+        "slurm_job_id": node.slurm_job_id,
+        "error_code": node.error_code,
+        "message": node.message or "",
+        "updated_at": iso_or_none(node.updated_at),
+        "log_files": [],
+    }
+
+
+def serialize_event(event: ForecastRunEvent) -> dict:
+    return {
+        "event_type": event.event_type,
+        "node": event.node_name,
+        "level": event.level,
+        "message": event.message,
+        "payload": event.payload_json,
+        "created_at": event.created_at,
+    }
+
+
+def serialize_product_manifest_item(product: ForecastProduct) -> dict:
+    return {
+        "name": product.product_name,
+        "type": product.product_type,
+        "subtype": product.subtype,
+        "variable": product.variable,
+        "unit": product.unit,
+        "bounds": product.bounds,
+        "lead_time": product.lead_time,
+        "source_run_id": product.source_run_id,
+        "capability_status": product.capability_status,
+        "path": product.file_path,
+    }
+
+
+def serialize_action(action: AgentAction) -> dict:
+    return {
+        "id": action.id,
+        "run_id": action.run_id,
+        "action_type": action.action_type,
+        "reason": action.reason,
+        "status": action.status,
+        "created_at": iso_or_none(action.created_at),
+        "finished_at": iso_or_none(action.finished_at),
+    }
+
+
+def status_value(status) -> str:
+    return status.value if hasattr(status, "value") else str(status)
+
+
+def iso_or_none(value) -> str | None:
+    return value.isoformat() if value else None
