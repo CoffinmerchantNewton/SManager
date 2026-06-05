@@ -70,7 +70,7 @@ class ScheduledTask(Base):
     status = Column(Enum(TaskStatus), default=TaskStatus.ACTIVE)
     cron_expression = Column(String(255))
     region = Column(String(255))
-    template = Column(String(255))
+    template = Column(Text)
     workflow_id = Column(Integer, nullable=True)
     last_run = Column(DateTime(timezone=True), nullable=True)
     last_result = Column(String(255), nullable=True)

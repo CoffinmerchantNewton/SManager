@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
   status ENUM('ACTIVE','INACTIVE','FAILED'),
   cron_expression VARCHAR(255),
   region VARCHAR(255),
-  template VARCHAR(255),
+  template TEXT,
   workflow_id INT NULL,
   last_run DATETIME NULL,
   last_result VARCHAR(255) NULL,

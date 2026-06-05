@@ -156,12 +156,22 @@ def cleanup_storage(payload: StorageCleanupRequest):
 @router.get("/preflight", response_model=FlowResponse)
 def preflight(commands_file: str | None = None, db: Session = Depends(get_db)):
     doctor_result = doctor(db)
-    flow_result = ServerFlowService().preflight(commands_file=commands_file)
+    selected_commands_file = commands_file or default_commands_file()
+    flow_result = ServerFlowService().preflight(commands_file=selected_commands_file)
     ok = bool(doctor_result.ok) and bool(flow_result.get("ok", flow_result.get("_exit_code") == 0))
     return FlowResponse(
         ok=ok,
         data={
             "doctor": doctor_result.data,
             "flow": flow_result,
+            "commands_file": selected_commands_file,
         },
     )
+
+
+def default_commands_file() -> str | None:
+    if settings.SERVER_COMMANDS_FILE:
+        return settings.SERVER_COMMANDS_FILE
+    if settings.SERVER_FLOW_WORKDIR:
+        return f"{settings.SERVER_FLOW_WORKDIR.rstrip('/')}/templates/run_spec/commands.auto_pollen.production.json"
+    return None

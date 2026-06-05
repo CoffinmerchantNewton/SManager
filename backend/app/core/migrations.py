@@ -15,6 +15,7 @@ MIGRATIONS = [
     ("20260605_0001_create_metadata", "Create or verify core metadata tables"),
     ("20260605_0002_product_manifest_metadata", "Add product manifest metadata columns"),
     ("20260605_0003_run_node_wrfout_progress", "Add WRF output progress metadata to run nodes"),
+    ("20260606_0004_scheduled_task_template_text", "Expand scheduled task template storage"),
 ]
 
 PRODUCT_METADATA_COLUMNS = {
@@ -42,6 +43,8 @@ def run_migrations(engine: Engine) -> None:
                 add_missing_columns(engine, "forecast_products", PRODUCT_METADATA_COLUMNS)
             elif version == "20260605_0003_run_node_wrfout_progress":
                 add_missing_columns(engine, "forecast_run_nodes", RUN_NODE_WRFOUT_COLUMNS)
+            elif version == "20260606_0004_scheduled_task_template_text":
+                expand_scheduled_task_template(engine)
             with Session(engine) as db:
                 db.add(SchemaMigration(version=version, description=description))
                 db.commit()
@@ -61,6 +64,13 @@ def add_missing_columns(engine: Engine, table_name: str, columns: dict[str, str]
     with engine.begin() as connection:
         for name, ddl in missing:
             connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {name} {ddl}"))
+
+
+def expand_scheduled_task_template(engine: Engine) -> None:
+    backend = engine.url.get_backend_name()
+    if backend in {"mysql", "mariadb"}:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE scheduled_tasks MODIFY COLUMN template TEXT"))
 
 
 @contextmanager

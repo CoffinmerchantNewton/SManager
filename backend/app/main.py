@@ -1,13 +1,16 @@
 from fastapi import FastAPI
 from fastapi import Depends
 from fastapi.middleware.cors import CORSMiddleware
-from .core.database import engine
+from .core.database import SessionLocal, engine
 from .core.config import settings
 from .core.migrations import run_migrations
+from .core.seeds import seed_operational_defaults
 from .core.security import require_admin
 from .api import workflows, tasks, products, dashboard, runs, fnl, agent, system, auth
 
 run_migrations(engine)
+with SessionLocal() as seed_db:
+    seed_operational_defaults(seed_db)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

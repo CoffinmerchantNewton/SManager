@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     SERVER_FLOWCTL_PATH: str = "~/auto-pollen-flow/flowctl.py"
     SERVER_FLOW_WORKDIR: Optional[str] = None
     SERVER_FLOW_ROOT: Optional[str] = None
+    SERVER_COMMANDS_FILE: Optional[str] = None
     SERVER_FNL_ROOTS: Optional[str] = None
     SERVER_FNL_UPLOAD_DIR: Optional[str] = None
     SERVER_SSH_TIMEOUT: int = 20
