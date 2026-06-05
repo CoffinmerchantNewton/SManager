@@ -42,3 +42,5 @@ wrf-pollen/auto-pollen/runs/**
 wrf-pollen/auto-pollen/WPS/**
 wrf-pollen/auto-pollen/WRF/**
 wrf-pollen/auto-pollen/logs/**
+/__pycache__
+*.pyc

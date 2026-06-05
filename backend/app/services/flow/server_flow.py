@@ -149,7 +149,7 @@ class ServerFlowService:
             env["FNL_ROOTS"] = settings.SERVER_FNL_UPLOAD_DIR
         if settings.FNL_MIN_MB:
             env["FNL_MIN_MB"] = str(settings.FNL_MIN_MB)
-        command = ["python3", settings.SERVER_FLOWCTL_PATH, *args]
+        command = [settings.SERVER_PYTHON_BIN, settings.SERVER_FLOWCTL_PATH, *args]
         return self.ssh.run(command, cwd=settings.SERVER_FLOW_WORKDIR, env=env, check=check)
 
     @staticmethod

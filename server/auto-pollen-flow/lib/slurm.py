@@ -4,6 +4,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,7 @@ def node_script(
     walltime = slurm.get("walltime")
     lines = [
         "#!/bin/bash",
+        "#SBATCH --comment=WRF",
         f"#SBATCH -J pollen_{node_name}",
         f"#SBATCH -p {partition}",
         f"#SBATCH -N {nodes}",
@@ -76,9 +78,10 @@ def node_script(
     ]
     if walltime:
         lines.append(f"#SBATCH -t {walltime}")
+    python_bin = slurm.get("python") or os.environ.get("FLOW_PYTHON") or sys.executable or "python3"
     command = " ".join(
         shlex.quote(part)
-        for part in ["python3", str(flowctl), "run-node", "--run-id", run_id, "--node", node_name]
+        for part in [python_bin, str(flowctl), "run-node", "--run-id", run_id, "--node", node_name]
     )
     lines.extend(["", "set -eo pipefail", command, ""])
     script_path.parent.mkdir(parents=True, exist_ok=True)

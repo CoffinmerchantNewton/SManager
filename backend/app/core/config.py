@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     SERVER_SSH_HOST: Optional[str] = None
     SERVER_SSH_USER: Optional[str] = None
     SERVER_SSH_PORT: int = 22
+    SERVER_PYTHON_BIN: str = "python3"
     SERVER_FLOWCTL_PATH: str = "~/auto-pollen-flow/flowctl.py"
     SERVER_FLOW_WORKDIR: Optional[str] = None
     SERVER_FLOW_ROOT: Optional[str] = None
