@@ -180,3 +180,11 @@ class AgentAction(Base):
     output_json = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     finished_at = Column(DateTime(timezone=True), nullable=True)
+
+class SchemaMigration(Base):
+    __tablename__ = "schema_migrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    version = Column(String, unique=True, index=True)
+    description = Column(Text)
+    applied_at = Column(DateTime(timezone=True), server_default=func.now())

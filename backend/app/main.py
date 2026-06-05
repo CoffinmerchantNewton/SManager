@@ -1,10 +1,13 @@
 from fastapi import FastAPI
+from fastapi import Depends
 from fastapi.middleware.cors import CORSMiddleware
-from .core.database import engine, Base
+from .core.database import engine
 from .core.config import settings
-from .api import workflows, tasks, products, dashboard, runs, fnl, agent, system
+from .core.migrations import run_migrations
+from .core.security import require_admin
+from .api import workflows, tasks, products, dashboard, runs, fnl, agent, system, auth
 
-Base.metadata.create_all(bind=engine)
+run_migrations(engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -20,14 +23,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(workflows.router, prefix=f"{settings.API_V1_STR}/workflows", tags=["workflows"])
-app.include_router(tasks.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["tasks"])
+admin_dependencies = [Depends(require_admin)]
+
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
+app.include_router(workflows.router, prefix=f"{settings.API_V1_STR}/workflows", tags=["workflows"], dependencies=admin_dependencies)
+app.include_router(tasks.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["tasks"], dependencies=admin_dependencies)
 app.include_router(products.router, prefix=f"{settings.API_V1_STR}/products", tags=["products"])
-app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
-app.include_router(runs.router, prefix=f"{settings.API_V1_STR}/runs", tags=["runs"])
-app.include_router(fnl.router, prefix=f"{settings.API_V1_STR}/fnl", tags=["fnl"])
-app.include_router(agent.router, prefix=f"{settings.API_V1_STR}/agent", tags=["agent"])
-app.include_router(system.router, prefix=f"{settings.API_V1_STR}/system", tags=["system"])
+app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"], dependencies=admin_dependencies)
+app.include_router(runs.router, prefix=f"{settings.API_V1_STR}/runs", tags=["runs"], dependencies=admin_dependencies)
+app.include_router(fnl.router, prefix=f"{settings.API_V1_STR}/fnl", tags=["fnl"], dependencies=admin_dependencies)
+app.include_router(agent.router, prefix=f"{settings.API_V1_STR}/agent", tags=["agent"], dependencies=admin_dependencies)
+app.include_router(system.router, prefix=f"{settings.API_V1_STR}/system", tags=["system"], dependencies=admin_dependencies)
 
 @app.get("/")
 def root():

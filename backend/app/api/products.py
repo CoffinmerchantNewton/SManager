@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..core.database import get_db
 from ..core.config import settings
+from ..core.security import require_admin
 from ..models.models import ForecastProduct
 from ..schemas.schemas import ForecastProductCreate, ForecastProductPublishRequest, ForecastProductResponse
 
@@ -72,7 +73,7 @@ def get_product_content(product_id: int, db: Session = Depends(get_db)):
     return JSONResponse(content=payload, media_type=media_type)
 
 @router.post("/", response_model=ForecastProductResponse)
-def create_product(product: ForecastProductCreate, db: Session = Depends(get_db)):
+def create_product(product: ForecastProductCreate, db: Session = Depends(get_db), _: dict = Depends(require_admin)):
     db_product = ForecastProduct(**product.model_dump())
     db.add(db_product)
     db.commit()
@@ -85,6 +86,7 @@ def toggle_publish(
     payload: ForecastProductPublishRequest | None = Body(default=None),
     is_published: bool | None = Query(default=None),
     db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
 ):
     product = db.query(ForecastProduct).filter(ForecastProduct.id == product_id).first()
     if not product:
@@ -97,7 +99,7 @@ def toggle_publish(
     return {"message": "Product publish status updated"}
 
 @router.delete("/{product_id}")
-def delete_product(product_id: int, db: Session = Depends(get_db)):
+def delete_product(product_id: int, db: Session = Depends(get_db), _: dict = Depends(require_admin)):
     product = db.query(ForecastProduct).filter(ForecastProduct.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")

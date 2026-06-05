@@ -15,11 +15,14 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./pollen_forecast.db"
 
+    ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"
     SECRET_KEY: str = "your-secret-key-change-in-production"
+    AUTH_TOKEN_EXPIRE_MINUTES: int = 720
 
     SERVER_SSH_HOST: Optional[str] = None
     SERVER_SSH_USER: Optional[str] = None
+    SERVER_SSH_PASSWORD: Optional[str] = None
     SERVER_SSH_PORT: int = 22
     SERVER_PYTHON_BIN: str = "python3"
     SERVER_FLOWCTL_PATH: str = "~/auto-pollen-flow/flowctl.py"
@@ -40,5 +43,9 @@ class Settings(BaseSettings):
     PRODUCT_INLINE_MAX_MB: float = 20.0
     NOTIFICATION_WEBHOOK_URL: Optional[str] = None
     NOTIFICATION_WEBHOOK_TIMEOUT: int = 10
+    STORAGE_RETENTION_DAYS: int = 30
+    STORAGE_MAX_GB: float = 50.0
+    AGENT_MAX_AUTO_ACTIONS_PER_RUN: int = 3
+    AGENT_TICK_INTERVAL_MINUTES: int = 30
 
 settings = Settings()

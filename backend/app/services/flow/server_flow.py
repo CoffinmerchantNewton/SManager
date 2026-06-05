@@ -46,6 +46,12 @@ class ServerFlowService:
     def list_runs(self) -> dict[str, Any]:
         return self._flow_json(["list"])
 
+    def preflight(self, commands_file: str | None = None) -> dict[str, Any]:
+        args = ["preflight"]
+        if commands_file:
+            args.extend(["--commands-file", commands_file])
+        return self._flow_json(args, check=False)
+
     def status(self, run_id: str) -> dict[str, Any]:
         return self._flow_json(["status", "--run-id", run_id, "--json"])
 

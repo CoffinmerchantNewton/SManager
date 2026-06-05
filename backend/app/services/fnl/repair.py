@@ -150,6 +150,9 @@ class FnlRepairService:
             Path(remote_dir).mkdir(parents=True, exist_ok=True)
             shutil.copy2(local_path, remote_path)
             return remote_path
+        if settings.SERVER_SSH_PASSWORD:
+            self.ssh.upload_file(local_path, remote_path)
+            return remote_path
 
         self.ssh.run(["mkdir", "-p", remote_dir])
         method = settings.FNL_UPLOAD_METHOD.lower()

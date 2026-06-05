@@ -5,16 +5,24 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..core.database import get_db
 from ..schemas.run_control import FlowResponse
+from ..services.flow import ServerFlowService
 from ..services.storage import StorageService
 from ..services.ssh import SSHClient
 
 router = APIRouter()
+
+
+class StorageCleanupRequest(BaseModel):
+    dry_run: bool = True
+    retention_days: int | None = None
+    max_gb: float | None = None
 
 
 def check(name: str, status: str, message: str, detail: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -133,3 +141,27 @@ def doctor(db: Session = Depends(get_db)):
 def storage_snapshot():
     snapshot = StorageService().snapshot()
     return FlowResponse(ok=snapshot["error_count"] == 0, data=snapshot)
+
+
+@router.post("/storage/cleanup", response_model=FlowResponse)
+def cleanup_storage(payload: StorageCleanupRequest):
+    result = StorageService().cleanup(
+        dry_run=payload.dry_run,
+        retention_days=payload.retention_days,
+        max_gb=payload.max_gb,
+    )
+    return FlowResponse(ok=bool(result["ok"]), data=result)
+
+
+@router.get("/preflight", response_model=FlowResponse)
+def preflight(commands_file: str | None = None, db: Session = Depends(get_db)):
+    doctor_result = doctor(db)
+    flow_result = ServerFlowService().preflight(commands_file=commands_file)
+    ok = bool(doctor_result.ok) and bool(flow_result.get("ok", flow_result.get("_exit_code") == 0))
+    return FlowResponse(
+        ok=ok,
+        data={
+            "doctor": doctor_result.data,
+            "flow": flow_result,
+        },
+    )
