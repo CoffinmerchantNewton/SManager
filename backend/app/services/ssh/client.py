@@ -115,6 +115,10 @@ class SSHClient:
             str(self.port),
             "-o",
             f"ConnectTimeout={self.timeout}",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "NumberOfPasswordPrompts=0",
             target,
             " ".join(remote_parts),
         ]

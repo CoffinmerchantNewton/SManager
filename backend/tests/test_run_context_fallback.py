@@ -27,7 +27,19 @@ class RunContextFallbackTest(unittest.TestCase):
                 )
             )
             db.add(ForecastRunNode(run_id="run-a", node_name="fnl_verify", status="success", progress=100, attempt=1))
-            db.add(ForecastRunNode(run_id="run-a", node_name="wrf_run", status="running", progress=20, attempt=2))
+            db.add(
+                ForecastRunNode(
+                    run_id="run-a",
+                    node_name="wrf_run",
+                    status="running",
+                    progress=50,
+                    attempt=2,
+                    wrfout_progress_json=(
+                        '{"available":true,"progress":50.0,'
+                        '"latest_forecast_time":"2026-05-24T12:00:00Z"}'
+                    ),
+                )
+            )
             db.commit()
 
             context = collect_db_context(db, "run-a")
@@ -36,6 +48,7 @@ class RunContextFallbackTest(unittest.TestCase):
         self.assertEqual(context["status"]["status"], "running")
         self.assertEqual(len(context["status"]["nodes"]), 2)
         self.assertEqual(context["status"]["nodes"][1]["node"], "wrf_run")
+        self.assertEqual(context["status"]["nodes"][1]["wrfout_progress"]["progress"], 50.0)
 
 
 if __name__ == "__main__":

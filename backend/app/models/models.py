@@ -152,6 +152,7 @@ class ForecastRunNode(Base):
     slurm_job_id = Column(String(255), nullable=True)
     error_code = Column(String(255), nullable=True)
     message = Column(Text, nullable=True)
+    wrfout_progress_json = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class ForecastRunEvent(Base):

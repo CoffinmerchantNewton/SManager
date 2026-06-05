@@ -85,7 +85,10 @@ def candidate_output_dirs(paths: FlowPaths, spec: dict[str, Any]) -> list[Path]:
     for key in ("WRFOUT_DIR", "WRF_OUTPUT_DIR", "WRF_RUN_CWD", "WRF_RUN_DIR"):
         value = env.get(key)
         if value:
-            candidates.append(Path(expand_env(value, env)))
+            base = Path(expand_env(value, env))
+            candidates.append(base)
+            candidates.append(base / "output")
+    candidates.extend(auto_pollen_wrf_output_dirs(env, spec))
     if wrf_node.get("cwd"):
         candidates.append(Path(expand_env(str(wrf_node["cwd"]), env)))
     candidates.append(paths.run_dir(spec["run_id"]))
@@ -102,6 +105,37 @@ def candidate_output_dirs(paths: FlowPaths, spec: dict[str, Any]) -> list[Path]:
         seen.add(str(resolved))
         unique.append(resolved)
     return unique
+
+
+def auto_pollen_wrf_output_dirs(env: dict[str, str], spec: dict[str, Any]) -> list[Path]:
+    auto_root = env.get("AUTO_POLLEN_ROOT")
+    if not auto_root:
+        return []
+    run_name = wrf_archive_run_name(spec)
+    if not run_name:
+        return []
+    run_dir = Path(expand_env(auto_root, env)) / "WRF" / run_name
+    return [run_dir / "output", run_dir]
+
+
+def wrf_archive_run_name(spec: dict[str, Any]) -> str | None:
+    start = short_cycle(spec.get("start"))
+    end = short_cycle(spec.get("end"))
+    if not start or not end:
+        return None
+    return f"wrf{start}-{end}"
+
+
+def short_cycle(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if re.fullmatch(r"\d{10}", text):
+        return text[2:]
+    try:
+        return parse_cycle(text).strftime("%y%m%d%H")
+    except ValueError:
+        return None
 
 
 def expand_env(value: str, env: dict[str, str]) -> str:

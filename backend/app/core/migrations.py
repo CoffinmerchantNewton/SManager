@@ -14,6 +14,7 @@ from ..models.models import SchemaMigration
 MIGRATIONS = [
     ("20260605_0001_create_metadata", "Create or verify core metadata tables"),
     ("20260605_0002_product_manifest_metadata", "Add product manifest metadata columns"),
+    ("20260605_0003_run_node_wrfout_progress", "Add WRF output progress metadata to run nodes"),
 ]
 
 PRODUCT_METADATA_COLUMNS = {
@@ -26,6 +27,10 @@ PRODUCT_METADATA_COLUMNS = {
     "capability_status": "VARCHAR",
 }
 
+RUN_NODE_WRFOUT_COLUMNS = {
+    "wrfout_progress_json": "TEXT",
+}
+
 
 def run_migrations(engine: Engine) -> None:
     with migration_lock(engine):
@@ -35,6 +40,8 @@ def run_migrations(engine: Engine) -> None:
                 continue
             if version == "20260605_0002_product_manifest_metadata":
                 add_missing_columns(engine, "forecast_products", PRODUCT_METADATA_COLUMNS)
+            elif version == "20260605_0003_run_node_wrfout_progress":
+                add_missing_columns(engine, "forecast_run_nodes", RUN_NODE_WRFOUT_COLUMNS)
             with Session(engine) as db:
                 db.add(SchemaMigration(version=version, description=description))
                 db.commit()

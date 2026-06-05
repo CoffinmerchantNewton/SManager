@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 import subprocess
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,6 +23,7 @@ from ..services.flow import ServerFlowService
 from ..services.products import ProductSyncService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def service() -> ServerFlowService:
@@ -136,10 +139,15 @@ def collect_run_context(
     event_limit: int = Query(default=100, ge=1, le=5000),
     max_logs: int = Query(default=12, ge=1, le=100),
     live: bool = Query(default=False),
+    sync_status: bool = Query(default=True),
     db: Session = Depends(get_db),
 ):
     if not live:
-        return FlowResponse(ok=True, data=collect_db_context(db, run_id, event_limit=event_limit))
+        warning = sync_status_snapshot(db, run_id) if sync_status else None
+        return FlowResponse(
+            ok=warning is None,
+            data=collect_db_context(db, run_id, event_limit=event_limit, warning=warning),
+        )
     try:
         result = service().collect_context(run_id, tail=tail, event_limit=event_limit, max_logs=max_logs)
     except subprocess.TimeoutExpired as exc:
@@ -166,6 +174,8 @@ def collect_run_context(
         return FlowResponse(ok=False, data=fallback)
     if isinstance(result.get("diagnose"), dict):
         result["diagnose"] = enrich_diagnosis(result["diagnose"], run_id=run_id)
+    if isinstance(result.get("status"), dict):
+        sync_run_status(db, run_id, result["status"])
     return FlowResponse(ok=bool(result.get("ok", result.get("_exit_code") == 0)), data=result)
 
 
@@ -222,7 +232,27 @@ def sync_run_status(db: Session, run_id: str, workflow: dict) -> None:
         item.slurm_job_id = node.get("slurm_job_id")
         item.error_code = node.get("error_code")
         item.message = node.get("message")
+        if "wrfout_progress" in node:
+            item.wrfout_progress_json = json.dumps(node.get("wrfout_progress"), ensure_ascii=False)
     db.commit()
+
+
+def sync_status_snapshot(db: Session, run_id: str) -> dict | None:
+    try:
+        sync_run_status(db, run_id, service().status(run_id))
+    except subprocess.TimeoutExpired as exc:
+        logger.warning("Server status sync timed out for run %s after %s seconds", run_id, exc.timeout)
+        return {
+            "code": "server_status_timeout",
+            "message": f"Server status timed out after {exc.timeout} seconds; showing database snapshot.",
+        }
+    except Exception as exc:
+        logger.warning("Server status sync failed for run %s: %s", run_id, exc)
+        return {
+            "code": exc.__class__.__name__,
+            "message": f"Server status sync failed; showing database snapshot: {exc}",
+        }
+    return None
 
 
 def sync_run_list(db: Session, runs: list[dict]) -> int:
@@ -320,6 +350,7 @@ def serialize_node(node: ForecastRunNode) -> dict:
         "slurm_job_id": node.slurm_job_id,
         "error_code": node.error_code,
         "message": node.message or "",
+        "wrfout_progress": parse_json_or_none(node.wrfout_progress_json),
         "updated_at": iso_or_none(node.updated_at),
         "log_files": [],
     }
@@ -369,3 +400,12 @@ def status_value(status) -> str:
 
 def iso_or_none(value) -> str | None:
     return value.isoformat() if value else None
+
+
+def parse_json_or_none(value: str | None):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return None
