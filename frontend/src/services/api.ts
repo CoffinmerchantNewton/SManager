@@ -9,10 +9,13 @@ const api = axios.create({
   },
 });
 
+type ApiPayload = Record<string, unknown>;
+type ApiParams = Record<string, string | number | boolean | null | undefined>;
+
 export const workflowsApi = {
   getAll: () => api.get('/workflows'),
   getById: (id: number) => api.get(`/workflows/${id}`),
-  create: (data: any) => api.post('/workflows', data),
+  create: (data: ApiPayload) => api.post('/workflows', data),
   getNodes: (id: number) => api.get(`/workflows/${id}/nodes`),
   updateStatus: (id: number, status: string) => api.patch(`/workflows/${id}/status`, { status }),
 };
@@ -20,16 +23,16 @@ export const workflowsApi = {
 export const tasksApi = {
   getAll: () => api.get('/tasks'),
   getById: (id: number) => api.get(`/tasks/${id}`),
-  create: (data: any) => api.post('/tasks', data),
+  create: (data: ApiPayload) => api.post('/tasks', data),
   updateStatus: (id: number, status: string) => api.patch(`/tasks/${id}/status`, { status }),
-  runNow: (id: number, data?: any) => api.post(`/tasks/${id}/run`, data ?? {}),
+  runNow: (id: number, data?: ApiPayload) => api.post(`/tasks/${id}/run`, data ?? {}),
   delete: (id: number) => api.delete(`/tasks/${id}`),
 };
 
 export const productsApi = {
-  getAll: (params?: any) => api.get('/products', { params }),
+  getAll: (params?: ApiParams) => api.get('/products', { params }),
   getById: (id: number) => api.get(`/products/${id}`),
-  create: (data: any) => api.post('/products', data),
+  create: (data: ApiPayload) => api.post('/products', data),
   togglePublish: (id: number, is_published: boolean) => api.patch(`/products/${id}/publish`, { is_published }),
   content: (id: number) => api.get(`/products/${id}/content`),
   downloadUrl: (id: number) => `${API_BASE_URL}/products/${id}/download`,
@@ -38,34 +41,34 @@ export const productsApi = {
 
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats'),
-  getOverview: (params?: any) => api.get('/dashboard/overview', { params }),
-  getLogs: (params?: any) => api.get('/dashboard/logs', { params }),
+  getOverview: (params?: ApiParams) => api.get('/dashboard/overview', { params }),
+  getLogs: (params?: ApiParams) => api.get('/dashboard/logs', { params }),
 };
 
 export const runsApi = {
   list: () => api.get('/runs'),
-  plan: (data: any) => api.post('/runs/', data),
+  plan: (data: ApiPayload) => api.post('/runs/', data),
   status: (runId: string) => api.get(`/runs/${runId}/status`),
   fnlVerify: (runId: string) => api.post(`/runs/${runId}/fnl-verify`, {}),
-  submit: (runId: string, data: any) => api.post(`/runs/${runId}/submit`, data),
-  logs: (runId: string, params?: any) => api.get(`/runs/${runId}/logs`, { params }),
+  submit: (runId: string, data: ApiPayload) => api.post(`/runs/${runId}/submit`, data),
+  logs: (runId: string, params?: ApiParams) => api.get(`/runs/${runId}/logs`, { params }),
   diagnose: (runId: string) => api.get(`/runs/${runId}/diagnose`),
-  context: (runId: string, params?: any) => api.get(`/runs/${runId}/context`, { params }),
-  retry: (runId: string, data: any) => api.post(`/runs/${runId}/retry`, data),
-  cancel: (runId: string, data: any) => api.post(`/runs/${runId}/cancel`, data),
+  context: (runId: string, params?: ApiParams) => api.get(`/runs/${runId}/context`, { params }),
+  retry: (runId: string, data: ApiPayload) => api.post(`/runs/${runId}/retry`, data),
+  cancel: (runId: string, data: ApiPayload) => api.post(`/runs/${runId}/cancel`, data),
   products: (runId: string) => api.get(`/runs/${runId}/products`),
   syncProducts: (runId: string) => api.post(`/runs/${runId}/sync-products`, {}),
 };
 
 export const fnlApi = {
-  verifyServer: (data: any) => api.post('/fnl/verify-server', data),
-  repair: (data: any) => api.post('/fnl/repair', data),
-  coverage: (params?: any) => api.get('/fnl/coverage', { params }),
+  verifyServer: (data: ApiPayload) => api.post('/fnl/verify-server', data),
+  repair: (data: ApiPayload) => api.post('/fnl/repair', data),
+  coverage: (params?: ApiParams) => api.get('/fnl/coverage', { params }),
 };
 
 export const agentApi = {
-  tick: (data: any) => api.post('/agent/tick', data),
-  actions: (params?: any) => api.get('/agent/actions', { params }),
+  tick: (data: ApiPayload) => api.post('/agent/tick', data),
+  actions: (params?: ApiParams) => api.get('/agent/actions', { params }),
 };
 
 export default api;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { agentApi, runsApi } from '../services/api';
 import type { AgentAction, ForecastRunWorkflowStatus } from '../types';
+import { errorMessage } from '../utils/errors';
 
 const NODE_ORDER = [
   'fnl_verify',
@@ -18,6 +19,10 @@ const NODE_ORDER = [
   'package_products',
 ];
 
+interface DiagnosisPayload {
+  findings?: Array<Record<string, unknown>>;
+}
+
 export default function RunOperations() {
   const [form, setForm] = useState({
     run_id: '',
@@ -33,7 +38,7 @@ export default function RunOperations() {
   const [logs, setLogs] = useState('');
   const [selectedNode, setSelectedNode] = useState('fnl_verify');
   const [actions, setActions] = useState<AgentAction[]>([]);
-  const [diagnosis, setDiagnosis] = useState<any | null>(null);
+  const [diagnosis, setDiagnosis] = useState<DiagnosisPayload | null>(null);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
 
@@ -42,12 +47,6 @@ export default function RunOperations() {
     const nodes = workflow?.nodes ?? [];
     return [...nodes].sort((a, b) => NODE_ORDER.indexOf(a.node) - NODE_ORDER.indexOf(b.node));
   }, [workflow]);
-
-  useEffect(() => {
-    if (activeRunId) {
-      loadActions(activeRunId);
-    }
-  }, [activeRunId]);
 
   const updateForm = (key: string, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -58,10 +57,10 @@ export default function RunOperations() {
     setMessage(null);
     try {
       await action();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setMessage({
         kind: 'error',
-        text: error?.response?.data?.detail?.message || error?.message || 'Operation failed',
+        text: errorMessage(error, 'Operation failed'),
       });
     } finally {
       setBusy('');
@@ -174,10 +173,16 @@ export default function RunOperations() {
       await refreshStatus(activeRunId);
     });
 
-  const loadActions = async (id: string) => {
+  async function loadActions(id: string) {
     const response = await agentApi.actions({ run_id: id, limit: 20 });
     setActions(response.data.data.actions ?? []);
-  };
+  }
+
+  useEffect(() => {
+    if (activeRunId) {
+      void loadActions(activeRunId);
+    }
+  }, [activeRunId]);
 
   return (
     <div className="p-lg technical-grid min-h-full flex flex-col gap-gutter">
@@ -313,14 +318,14 @@ export default function RunOperations() {
             <span className="font-label-caps text-label-caps text-on-surface-variant">Diagnostics</span>
           </div>
           <div className="p-md space-y-sm h-72 overflow-auto">
-            {diagnosis?.findings?.map((finding: any, index: number) => (
+            {diagnosis?.findings?.map((finding, index: number) => (
               <div key={`${finding.node || 'run'}-${finding.code || index}`} className="border border-white/10 rounded p-sm bg-surface-container-low">
                 <div className="flex items-center justify-between gap-sm">
-                  <span className="font-data-mono text-xs text-cyan-300">{finding.node || 'run'}</span>
-                  <StatusPill status={finding.code || 'finding'} />
+                  <span className="font-data-mono text-xs text-cyan-300">{String(finding.node || 'run')}</span>
+                  <StatusPill status={String(finding.code || 'finding')} />
                 </div>
-                <p className="text-xs text-on-surface-variant mt-xs">{finding.message || '-'}</p>
-                <p className="text-[10px] text-outline mt-xs">Action: {finding.suggested_action || 'inspect_logs'}</p>
+                <p className="text-xs text-on-surface-variant mt-xs">{String(finding.message || '-')}</p>
+                <p className="text-[10px] text-outline mt-xs">Action: {String(finding.suggested_action || 'inspect_logs')}</p>
               </div>
             ))}
             {diagnosis && (diagnosis.findings?.length ?? 0) === 0 && (

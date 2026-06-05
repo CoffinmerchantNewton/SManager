@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { tasksApi } from '../services/api';
 import type { ScheduledTask } from '../types/index';
+import { errorMessage } from '../utils/errors';
 
 export default function TaskScheduler() {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
@@ -8,11 +9,7 @@ export default function TaskScheduler() {
   const [runningTaskId, setRunningTaskId] = useState<number | null>(null);
   const [runResult, setRunResult] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadTasks();
-  }, []);
-
-  const loadTasks = async () => {
+  async function loadTasks() {
     try {
       const response = await tasksApi.getAll();
       setTasks(response.data);
@@ -21,13 +18,17 @@ export default function TaskScheduler() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    void loadTasks();
+  }, []);
 
   const toggleTaskStatus = async (taskId: number, currentStatus: string) => {
     try {
       const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
       await tasksApi.updateStatus(taskId, newStatus);
-      loadTasks();
+      void loadTasks();
     } catch (error) {
       console.error('Failed to update task status:', error);
     }
@@ -42,9 +43,8 @@ export default function TaskScheduler() {
       const runId = data.run_id || data.tick?.run_id || 'unknown';
       setRunResult(`${data.ok ? 'Dry-run tick accepted' : 'Tick failed'} · ${runId}`);
       await loadTasks();
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      setRunResult(typeof detail === 'string' ? detail : 'Failed to run scheduled task');
+    } catch (error: unknown) {
+      setRunResult(errorMessage(error, 'Failed to run scheduled task'));
       console.error('Failed to run scheduled task:', error);
     } finally {
       setRunningTaskId(null);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { agentApi, productsApi, runsApi } from '../services/api';
 import type { AgentAction, ForecastProduct, ForecastRunWorkflowStatus } from '../types';
+import { errorMessage } from '../utils/errors';
 
 interface RunContext {
   run_id: string;
@@ -9,9 +10,9 @@ interface RunContext {
   run_dir?: string;
   status?: ForecastRunWorkflowStatus;
   diagnose?: {
-    findings?: Array<Record<string, any>>;
+    findings?: JsonRecord[];
   };
-  events?: Array<Record<string, any>>;
+  events?: JsonRecord[];
   logs?: Array<{
     name: string;
     path: string;
@@ -19,9 +20,11 @@ interface RunContext {
     tail: string[];
   }>;
   product_manifest?: {
-    products?: Array<Record<string, any>>;
+    products?: JsonRecord[];
   };
 }
+
+type JsonRecord = Record<string, unknown>;
 
 export default function RunDetail() {
   const { runId = '' } = useParams();
@@ -32,18 +35,13 @@ export default function RunDetail() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
-  const logs = context?.logs ?? [];
+  const logs = useMemo(() => context?.logs ?? [], [context?.logs]);
   const activeLog = useMemo(() => {
     if (!logs.length) return null;
     return logs.find((item) => item.name === selectedLog) ?? logs[0];
   }, [logs, selectedLog]);
 
-  useEffect(() => {
-    if (!runId) return;
-    void loadDetail();
-  }, [runId]);
-
-  const loadDetail = async () => {
+  async function loadDetail() {
     setBusy('loading');
     setError('');
     try {
@@ -57,12 +55,12 @@ export default function RunDetail() {
       setActions(actionsResponse.data.data.actions ?? []);
       const nextLogs = contextResponse.data.data.logs ?? [];
       setSelectedLog((current) => current || nextLogs[0]?.name || '');
-    } catch (err: any) {
-      setError(err?.response?.data?.detail?.message || err?.message || 'Failed to load run detail');
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to load run detail'));
     } finally {
       setBusy('');
     }
-  };
+  }
 
   const syncProducts = async () => {
     setBusy('sync');
@@ -70,11 +68,16 @@ export default function RunDetail() {
     try {
       await runsApi.syncProducts(runId);
       await loadDetail();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail?.message || err?.message || 'Failed to sync products');
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to sync products'));
       setBusy('');
     }
   };
+
+  useEffect(() => {
+    if (!runId) return;
+    void loadDetail();
+  }, [runId]);
 
   const workflow = context?.status;
   const wrfProgress = workflow?.nodes?.find((node) => node.node === 'wrf_run')?.wrfout_progress;
@@ -186,11 +189,11 @@ export default function RunDetail() {
             {findings.map((finding, index) => (
               <div key={`${finding.node ?? 'run'}-${finding.code ?? index}`} className="rounded border border-white/10 bg-surface-container-low p-sm">
                 <div className="flex items-center justify-between gap-sm">
-                  <span className="font-data-mono text-xs text-cyan-300">{finding.node ?? 'run'}</span>
+                  <span className="font-data-mono text-xs text-cyan-300">{String(finding.node ?? 'run')}</span>
                   <StatusPill status={String(finding.code ?? finding.level ?? 'finding')} />
                 </div>
-                <p className="mt-xs text-xs text-on-surface-variant">{finding.message ?? '-'}</p>
-                <p className="mt-xs text-[10px] text-outline">Action: {finding.suggested_action ?? 'inspect_context'}</p>
+                <p className="mt-xs text-xs text-on-surface-variant">{String(finding.message ?? '-')}</p>
+                <p className="mt-xs text-[10px] text-outline">Action: {String(finding.suggested_action ?? 'inspect_context')}</p>
               </div>
             ))}
             {findings.length === 0 && <EmptyState text="No diagnostic findings." />}
@@ -225,11 +228,11 @@ export default function RunDetail() {
             {events.map((event, index) => (
               <div key={`${event.created_at ?? 'event'}-${event.event_type ?? 'event'}-${event.node ?? 'run'}-${index}`} className="py-sm">
                 <div className="flex flex-wrap items-center justify-between gap-sm">
-                  <span className="font-data-mono text-xs text-cyan-300">{event.event_type ?? 'event'}</span>
-                  <span className="text-[10px] text-outline">{event.created_at ?? '-'}</span>
+                  <span className="font-data-mono text-xs text-cyan-300">{String(event.event_type ?? 'event')}</span>
+                  <span className="text-[10px] text-outline">{String(event.created_at ?? '-')}</span>
                 </div>
-                <p className="mt-xs text-xs text-on-surface-variant">{event.message ?? '-'}</p>
-                <p className="mt-xs text-[10px] text-outline">{event.node ?? 'run'} / {event.level ?? 'info'}</p>
+                <p className="mt-xs text-xs text-on-surface-variant">{String(event.message ?? '-')}</p>
+                <p className="mt-xs text-[10px] text-outline">{String(event.node ?? 'run')} / {String(event.level ?? 'info')}</p>
               </div>
             ))}
             {events.length === 0 && <EmptyState text="No events collected." />}

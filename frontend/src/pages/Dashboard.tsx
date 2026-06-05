@@ -2,28 +2,29 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { dashboardApi, productsApi } from '../services/api';
 import type { AgentAction, DashboardOverview, SystemLog } from '../types/index';
+import { errorMessage } from '../utils/errors';
 
 export default function Dashboard() {
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    void loadOverview();
-  }, []);
-
-  const loadOverview = async () => {
+  async function loadOverview() {
     setLoading(true);
     setError('');
     try {
       const response = await dashboardApi.getOverview({ recent_limit: 8 });
       setOverview(response.data);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail?.message || err?.message || 'Failed to load dashboard overview');
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to load dashboard overview'));
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    void loadOverview();
+  }, []);
 
   if (loading) {
     return (

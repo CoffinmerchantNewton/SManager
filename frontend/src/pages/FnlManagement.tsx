@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { fnlApi } from '../services/api';
 import type { FnlFileStatus } from '../types';
+import { errorMessage } from '../utils/errors';
 
 export default function FnlManagement() {
   const [query, setQuery] = useState({ run_id: '', start: '2026060400', end: '2026060412', status: '' });
   const [files, setFiles] = useState<FnlFileStatus[]>([]);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    loadCoverage();
-  }, []);
 
   const updateQuery = (key: string, value: string) => {
     setQuery((current) => ({ ...current, [key]: value }));
@@ -21,8 +18,8 @@ export default function FnlManagement() {
     setMessage('');
     try {
       await action();
-    } catch (error: any) {
-      setMessage(error?.response?.data?.detail || error?.message || 'Operation failed');
+    } catch (error: unknown) {
+      setMessage(errorMessage(error, 'Operation failed'));
     } finally {
       setBusy('');
     }
@@ -49,14 +46,18 @@ export default function FnlManagement() {
       await loadCoverage();
     });
 
-  const loadCoverage = async () => {
-    const params: any = {};
+  async function loadCoverage() {
+    const params: Record<string, string> = {};
     if (query.start) params.start = query.start;
     if (query.end) params.end = query.end;
     if (query.status) params.status = query.status;
     const response = await fnlApi.coverage(params);
     setFiles(response.data.data.files ?? []);
-  };
+  }
+
+  useEffect(() => {
+    void loadCoverage();
+  }, []);
 
   const okCount = files.filter((file) => file.status === 'server_ok' || file.status === 'verified').length;
   const repairCount = files.filter((file) => file.needs_repair || ['missing', 'bad_magic', 'too_small', 'link_broken'].includes(file.status)).length;

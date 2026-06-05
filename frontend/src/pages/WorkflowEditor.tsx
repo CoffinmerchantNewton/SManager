@@ -8,17 +8,7 @@ export default function WorkflowEditor() {
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadWorkflows();
-  }, []);
-
-  useEffect(() => {
-    if (selectedWorkflow) {
-      loadNodes(selectedWorkflow.id);
-    }
-  }, [selectedWorkflow]);
-
-  const loadWorkflows = async () => {
+  async function loadWorkflows() {
     try {
       const response = await workflowsApi.getAll();
       setWorkflows(response.data);
@@ -30,16 +20,26 @@ export default function WorkflowEditor() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const loadNodes = async (workflowId: number) => {
+  async function loadNodes(workflowId: number) {
     try {
       const response = await workflowsApi.getNodes(workflowId);
       setNodes(response.data);
     } catch (error) {
       console.error('Failed to load nodes:', error);
     }
-  };
+  }
+
+  useEffect(() => {
+    void loadWorkflows();
+  }, []);
+
+  useEffect(() => {
+    if (selectedWorkflow) {
+      void loadNodes(selectedWorkflow.id);
+    }
+  }, [selectedWorkflow]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

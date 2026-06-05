@@ -5,7 +5,7 @@ export type MapProductLayer =
   | {
       kind: 'geojson';
       name: string;
-      geojson: any;
+      geojson: GeoJsonObject;
     }
   | {
       kind: 'image_overlay';
@@ -31,6 +31,8 @@ interface CesiumMapProps {
   productLayer?: MapProductLayer | null;
   selectedCityName?: string;
 }
+
+export type GeoJsonObject = Record<string, unknown>;
 
 export default function CesiumMap({ cities, productLayer, selectedCityName }: CesiumMapProps) {
   const cesiumContainer = useRef<HTMLDivElement>(null);

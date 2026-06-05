@@ -206,7 +206,7 @@ export interface AgentAction {
   finished_at?: string | null;
 }
 
-export interface FlowResponse<T = any> {
+export interface FlowResponse<T = unknown> {
   ok: boolean;
   data: T;
 }
