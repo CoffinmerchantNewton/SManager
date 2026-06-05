@@ -96,4 +96,4 @@ with SessionLocal() as db:
 
 ## Notes
 
-`SManagerMySQL` was registered as an automatic Windows service with `mysqld --install`, but this machine reported Windows service error 1053 during service start. The database runs correctly as a hidden `mysqld.exe` process with the same `my.ini`; service startup can be revisited separately if automatic boot startup is required.
+`SManagerMySQL` was registered with `mysqld --install`, but this machine reported Windows service error 1053 during service start. The service is therefore left as `Manual` to avoid boot-time errors. The database runs correctly as a hidden `mysqld.exe` process with the same `my.ini`; service startup can be revisited separately if automatic boot startup is required.
