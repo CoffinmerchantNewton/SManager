@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(), cesium()],
   server: {
     host: '0.0.0.0',
+    allowedHosts: ['smanager.i-am-ikun.online'],
     port: 3000,
     proxy: {
       '/api': {
