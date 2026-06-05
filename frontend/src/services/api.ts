@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const API_BASE_URL =
+  import.meta.env.PROD && configuredApiUrl?.includes('localhost') ? '/api/v1' : configuredApiUrl || '/api/v1';
 const AUTH_TOKEN_KEY = 'smanager.auth.token';
 
 const api = axios.create({

@@ -36,8 +36,15 @@ New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 if (-not $SkipBuild) {
   Push-Location $frontendDir
   try {
+    $previousViteApiUrl = $env:VITE_API_URL
+    $env:VITE_API_URL = "/api/v1"
     npm run build
   } finally {
+    if ($null -eq $previousViteApiUrl) {
+      Remove-Item Env:\VITE_API_URL -ErrorAction SilentlyContinue
+    } else {
+      $env:VITE_API_URL = $previousViteApiUrl
+    }
     Pop-Location
   }
 }
