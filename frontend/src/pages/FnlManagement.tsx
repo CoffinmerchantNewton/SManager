@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fnlApi } from '../services/api';
 import type { FnlFileStatus } from '../types';
 import { errorMessage } from '../utils/errors';
@@ -13,7 +13,7 @@ export default function FnlManagement() {
     setQuery((current) => ({ ...current, [key]: value }));
   };
 
-  const runAction = async (label: string, action: () => Promise<void>) => {
+  const runAction = useCallback(async (label: string, action: () => Promise<void>) => {
     setBusy(label);
     setMessage('');
     try {
@@ -23,41 +23,41 @@ export default function FnlManagement() {
     } finally {
       setBusy('');
     }
-  };
+  }, []);
 
-  const requestPayload = () => ({
+  const requestPayload = useCallback(() => ({
     run_id: query.run_id || undefined,
     start: query.run_id ? undefined : query.start,
     end: query.run_id ? undefined : query.end,
-  });
+  }), [query]);
 
-  const verifyServer = () =>
-    runAction('Verify server', async () => {
-      const response = await fnlApi.verifyServer(requestPayload());
-      setFiles(response.data.data.files ?? []);
-      setMessage(response.data.ok ? 'Server FNL coverage is complete.' : 'Server FNL has gaps or invalid files.');
-    });
-
-  const repairFnl = () =>
-    runAction('Repair FNL', async () => {
-      const response = await fnlApi.repair(requestPayload());
-      setFiles(response.data.data.final?.files ?? response.data.data.initial?.files ?? []);
-      setMessage(response.data.ok ? 'FNL repair completed.' : 'FNL repair still has unresolved files.');
-      await loadCoverage();
-    });
-
-  async function loadCoverage() {
+  const loadCoverage = useCallback(async () => {
     const params: Record<string, string> = {};
     if (query.start) params.start = query.start;
     if (query.end) params.end = query.end;
     if (query.status) params.status = query.status;
     const response = await fnlApi.coverage(params);
     setFiles(response.data.data.files ?? []);
-  }
+  }, [query.end, query.start, query.status]);
+
+  const verifyServer = useCallback(() =>
+    runAction('Verify server', async () => {
+      const response = await fnlApi.verifyServer(requestPayload());
+      setFiles(response.data.data.files ?? []);
+      setMessage(response.data.ok ? 'Server FNL coverage is complete.' : 'Server FNL has gaps or invalid files.');
+    }), [requestPayload, runAction]);
+
+  const repairFnl = useCallback(() =>
+    runAction('Repair FNL', async () => {
+      const response = await fnlApi.repair(requestPayload());
+      setFiles(response.data.data.final?.files ?? response.data.data.initial?.files ?? []);
+      setMessage(response.data.ok ? 'FNL repair completed.' : 'FNL repair still has unresolved files.');
+      await loadCoverage();
+    }), [loadCoverage, requestPayload, runAction]);
 
   useEffect(() => {
     void loadCoverage();
-  }, []);
+  }, [loadCoverage]);
 
   const okCount = files.filter((file) => file.status === 'server_ok' || file.status === 'verified').length;
   const repairCount = files.filter((file) => file.needs_repair || ['missing', 'bad_magic', 'too_small', 'link_broken'].includes(file.status)).length;

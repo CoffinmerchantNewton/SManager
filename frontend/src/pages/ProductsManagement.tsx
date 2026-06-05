@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { productsApi, runsApi } from '../services/api';
 import type { ForecastProduct } from '../types/index';
@@ -13,7 +13,7 @@ export default function ProductsManagement() {
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  async function loadProducts(targetRunId = runId) {
+  const loadProducts = useCallback(async (targetRunId: string) => {
     const normalizedRunId = targetRunId.trim();
     try {
       setLoading(true);
@@ -26,16 +26,16 @@ export default function ProductsManagement() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void loadProducts();
-  }, []);
+    void loadProducts(initialRunId);
+  }, [initialRunId, loadProducts]);
 
   const togglePublish = async (productId: number, currentStatus: boolean) => {
     try {
       await productsApi.togglePublish(productId, !currentStatus);
-      void loadProducts();
+      void loadProducts(runId);
     } catch (error) {
       console.error('Failed to toggle publish status:', error);
     }
@@ -45,7 +45,7 @@ export default function ProductsManagement() {
     if (confirm('Are you sure you want to delete this product?')) {
       try {
         await productsApi.delete(productId);
-        void loadProducts();
+        void loadProducts(runId);
       } catch (error) {
         console.error('Failed to delete product:', error);
       }
@@ -107,7 +107,7 @@ export default function ProductsManagement() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => void loadProducts()}
+              onClick={() => void loadProducts(runId)}
               className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
             >
               <span className="material-symbols-outlined scale-75">cloud_download</span>
@@ -134,7 +134,7 @@ export default function ProductsManagement() {
               onChange={(event) => setRunId(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
-                  void loadProducts();
+                  void loadProducts(runId);
                 }
               }}
               className="w-full bg-surface-container-high border border-outline-variant rounded-lg px-3 py-2 font-data-mono text-data-mono text-on-surface focus:outline-none focus:border-cyan-500/60"
@@ -142,7 +142,7 @@ export default function ProductsManagement() {
             />
           </label>
           <button
-            onClick={() => void loadProducts()}
+            onClick={() => void loadProducts(runId)}
             className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
           >
             <span className="material-symbols-outlined scale-75">filter_alt</span>

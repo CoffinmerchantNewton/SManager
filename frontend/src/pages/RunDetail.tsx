@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { agentApi, productsApi, runsApi } from '../services/api';
 import type { AgentAction, ForecastProduct, ForecastRunWorkflowStatus } from '../types';
@@ -41,7 +41,7 @@ export default function RunDetail() {
     return logs.find((item) => item.name === selectedLog) ?? logs[0];
   }, [logs, selectedLog]);
 
-  async function loadDetail() {
+  const loadDetail = useCallback(async () => {
     setBusy('loading');
     setError('');
     try {
@@ -60,9 +60,9 @@ export default function RunDetail() {
     } finally {
       setBusy('');
     }
-  }
+  }, [runId]);
 
-  const syncProducts = async () => {
+  const syncProducts = useCallback(async () => {
     setBusy('sync');
     setError('');
     try {
@@ -72,12 +72,12 @@ export default function RunDetail() {
       setError(errorMessage(err, 'Failed to sync products'));
       setBusy('');
     }
-  };
+  }, [loadDetail, runId]);
 
   useEffect(() => {
     if (!runId) return;
     void loadDetail();
-  }, [runId]);
+  }, [loadDetail, runId]);
 
   const workflow = context?.status;
   const wrfProgress = workflow?.nodes?.find((node) => node.node === 'wrf_run')?.wrfout_progress;
