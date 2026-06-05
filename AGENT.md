@@ -19,7 +19,7 @@
 - `batch_eval_pollen.sh`：批量评估已有 WRF 输出。
 - `restart_all_runs.sh`：按 restart 文件续跑历史任务。
 
-当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件、本地 storage 快照、只读诊断上下文和规则化恢复建议；`server/auto-pollen-flow` 节点脚本已可通过 commands-file 注入真实 WPS/WRF/后处理命令；`frontend/` 已有运行控制、FNL 管理、产物列表下载、PNG overlay/GeoJSON 产品图层加载和主题切换。仍未完成的是把服务器真实路径与业务参数填入生产 commands-file、面向业务变量的高级后处理、等值线/GeoTIFF/切片产品和完整真实花粉分布地图渲染串起来。
+当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件、本地 storage 快照、只读诊断上下文、规则化恢复建议、单账号鉴权、password SSH、轻量迁移和 storage lifecycle；`server/auto-pollen-flow` 节点脚本已可通过 commands-file 注入真实 WPS/WRF/后处理命令，并提供生产 commands 模板、preflight、Slurm mock 测试和增强 product manifest；`frontend/` 已有运行控制、FNL 管理、产物列表下载、PNG overlay/GeoJSON/等值线/GeoTIFF capability 产品识别、Portal 图层/播放/点选和真实登录。现场仍需在私有 `.env` 与生产 commands-file 中填入最终凭据、FNL 下载命令和业务阈值，并在 CentOS 服务器窗口执行 preflight、submit dry-run 和小窗口实跑验收。
 
 ## 总体原则
 
