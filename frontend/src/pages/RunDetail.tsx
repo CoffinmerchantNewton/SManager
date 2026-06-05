@@ -48,7 +48,7 @@ export default function RunDetail() {
     setError('');
     try {
       const [contextResponse, productsResponse, actionsResponse] = await Promise.all([
-        runsApi.context(runId, { tail: 160, event_limit: 120, max_logs: 12 }),
+        runsApi.context(runId, { tail: 160, event_limit: 120, max_logs: 12, live: true }),
         productsApi.getAll({ run_id: runId, status: 'ready', limit: 100 }),
         agentApi.actions({ run_id: runId, limit: 50 }),
       ]);
