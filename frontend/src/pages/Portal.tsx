@@ -47,6 +47,7 @@ export default function Portal() {
   const [query, setQuery] = useState('');
   const [selectedCityName, setSelectedCityName] = useState('北京');
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -218,6 +219,16 @@ export default function Portal() {
   const dominantSpecies = formatSpecies(activeStep);
   const readinessLabel = isLoading ? '加载中' : productBundles.length > 0 ? '产品就绪' : '示例模式';
 
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setSelectedDayIndex((current) => (current + 1) % Math.max(1, timeline.slice(0, 7).length));
+    }, 1200);
+    return () => window.clearInterval(timer);
+  }, [isPlaying, timeline]);
+
   return (
     <div data-theme={theme} className="min-h-screen bg-background text-on-background font-body-md">
       <header className="fixed top-0 z-50 flex h-14 w-full items-center justify-between border-b border-outline-variant bg-surface-container-lowest/95 px-5 backdrop-blur-md">
@@ -243,7 +254,15 @@ export default function Portal() {
       </header>
 
       <main className="relative mt-14 h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
-        <CesiumMap cities={mapCities} productLayer={productLayer} selectedCityName={selectedCityName} />
+        <CesiumMap
+          cities={mapCities}
+          productLayer={productLayer}
+          selectedCityName={selectedCityName}
+          onCitySelect={(cityName) => {
+            setSelectedCityName(cityName);
+            setQuery('');
+          }}
+        />
         <div className="pointer-events-none absolute inset-0 border border-white/5" />
 
         <section className="absolute left-4 top-4 z-20 hidden w-72 flex-col gap-3 lg:flex">
@@ -268,6 +287,7 @@ export default function Portal() {
               <StatusLine icon="layers" label="底图" value={productStatus} />
               <StatusLine icon="location_city" label="城市预报" value={cityStatus} />
               <StatusLine icon="schedule" label="预报步长" value={`${timeline.length} 天`} />
+              <StatusLine icon="touch_app" label="点选" value="点击地图城市点查看局地预报" />
             </div>
           </Panel>
           <Panel title="色带">
@@ -359,6 +379,14 @@ export default function Portal() {
                   {risk.label}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsPlaying((current) => !current)}
+                className="mt-3 inline-flex items-center gap-2 rounded border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:border-white/25"
+              >
+                <span className="material-symbols-outlined text-sm">{isPlaying ? 'pause' : 'play_arrow'}</span>
+                {isPlaying ? '暂停播放' : '播放时间轴'}
+              </button>
               <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                 <CompactStat label="花粉" value={formatNumber(activeStep.pollen_total)} />
                 <CompactStat label="气温" value={formatNumber(activeStep.t2_c)} />

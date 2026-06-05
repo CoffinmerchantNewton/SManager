@@ -30,16 +30,22 @@ interface CesiumMapProps {
   }>;
   productLayer?: MapProductLayer | null;
   selectedCityName?: string;
+  onCitySelect?: (cityName: string) => void;
 }
 
 export type GeoJsonObject = Record<string, unknown>;
 
-export default function CesiumMap({ cities, productLayer, selectedCityName }: CesiumMapProps) {
+export default function CesiumMap({ cities, productLayer, selectedCityName, onCitySelect }: CesiumMapProps) {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const citySourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const productSourceRef = useRef<Cesium.GeoJsonDataSource | null>(null);
   const productImageLayerRef = useRef<Cesium.ImageryLayer | null>(null);
+  const onCitySelectRef = useRef(onCitySelect);
+
+  useEffect(() => {
+    onCitySelectRef.current = onCitySelect;
+  }, [onCitySelect]);
 
   useEffect(() => {
     if (!cesiumContainer.current) return;
@@ -64,6 +70,14 @@ export default function CesiumMap({ cities, productLayer, selectedCityName }: Ce
       viewer.scene.skyAtmosphere.show = false;
     }
     viewer.scene.fog.enabled = false;
+    const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    clickHandler.setInputAction((movement: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
+      const picked = viewer.scene.pick(movement.position);
+      const cityName = picked?.id?.properties?.cityName?.getValue?.();
+      if (typeof cityName === 'string') {
+        onCitySelectRef.current?.(cityName);
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
     viewerRef.current = viewer;
 
@@ -122,6 +136,7 @@ export default function CesiumMap({ cities, productLayer, selectedCityName }: Ce
 
     return () => {
       isDisposed = true;
+      clickHandler.destroy();
       if (viewerRef.current) {
         viewerRef.current.destroy();
         viewerRef.current = null;
@@ -144,6 +159,7 @@ export default function CesiumMap({ cities, productLayer, selectedCityName }: Ce
       const markerRadius = markerRadiusMeters(city.concentration, isSelected);
 
       citySource.entities.add({
+        properties: { cityName: city.name },
         position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 10000),
         ellipse: {
           semiMinorAxis: markerRadius,
@@ -157,6 +173,7 @@ export default function CesiumMap({ cities, productLayer, selectedCityName }: Ce
       });
 
       citySource.entities.add({
+        properties: { cityName: city.name },
         position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 50000),
         label: {
           text: `${city.name}\n${formatConcentration(city.concentration)}`,

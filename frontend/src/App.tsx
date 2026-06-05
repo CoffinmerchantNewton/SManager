@@ -10,14 +10,12 @@ import RunDetail from './pages/RunDetail';
 import FnlManagement from './pages/FnlManagement';
 import Portal from './pages/Portal';
 import Login from './pages/Login';
-
-const AUTH_STORAGE_KEY = 'smanager.admin.authenticated';
+import { getAuthToken } from './services/api';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => window.sessionStorage.getItem(AUTH_STORAGE_KEY) === 'true');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getAuthToken()));
 
   const handleLogin = () => {
-    window.sessionStorage.setItem(AUTH_STORAGE_KEY, 'true');
     setIsAuthenticated(true);
   };
 

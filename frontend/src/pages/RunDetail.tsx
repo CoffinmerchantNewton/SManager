@@ -115,6 +115,13 @@ export default function RunDetail() {
             <span className="material-symbols-outlined align-middle mr-2 text-sm">download</span>
             {busy === 'sync' ? 'Syncing...' : 'Sync Products'}
           </button>
+          <Link
+            to={`/admin/products?run_id=${encodeURIComponent(runId)}`}
+            className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10"
+          >
+            <span className="material-symbols-outlined align-middle mr-2 text-sm">history</span>
+            Product History
+          </Link>
         </div>
       </header>
 
@@ -241,6 +248,27 @@ export default function RunDetail() {
       </section>
 
       <section className="grid grid-cols-1 2xl:grid-cols-2 gap-gutter">
+        <Panel title="Manifest Products">
+          <div className="space-y-sm max-h-96 overflow-auto">
+            {manifestProducts.map((product, index) => (
+              <div key={`${String(product.name ?? 'product')}-${index}`} className="rounded border border-white/10 bg-surface-container-low p-sm">
+                <div className="flex flex-wrap items-center justify-between gap-sm">
+                  <span className="font-data-mono text-xs text-cyan-300">{String(product.name ?? '-')}</span>
+                  <StatusPill status={String(product.type ?? 'product')} />
+                </div>
+                <p className="mt-xs break-all text-[10px] text-outline">{String(product.path ?? product.server_path ?? '-')}</p>
+                <div className="mt-xs flex flex-wrap gap-2 text-[10px] text-on-surface-variant">
+                  <span>subtype: {String(product.subtype ?? '-')}</span>
+                  <span>variable: {String(product.variable ?? '-')}</span>
+                  <span>unit: {String(product.unit ?? '-')}</span>
+                  <span>capability: {String(product.capability_status ?? 'generated')}</span>
+                </div>
+              </div>
+            ))}
+            {manifestProducts.length === 0 && <EmptyState text="No product manifest entries collected." />}
+          </div>
+        </Panel>
+
         <Panel title="Synced Products">
           <div className="space-y-sm max-h-96 overflow-auto">
             {products.map((product) => (

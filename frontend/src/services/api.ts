@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const AUTH_TOKEN_KEY = 'smanager.auth.token';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,8 +10,46 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearAuthToken();
+      if (window.location.pathname.startsWith('/admin')) {
+        window.location.assign(`/login?from=${encodeURIComponent(window.location.pathname)}`);
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
 type ApiPayload = Record<string, unknown>;
 type ApiParams = Record<string, string | number | boolean | null | undefined>;
+
+export function getAuthToken() {
+  return window.localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function setAuthToken(token: string) {
+  window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+export function clearAuthToken() {
+  window.localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+export const authApi = {
+  login: (username: string, password: string) => api.post('/auth/login', { username, password }),
+  me: () => api.get('/auth/me'),
+};
 
 export const workflowsApi = {
   getAll: () => api.get('/workflows'),

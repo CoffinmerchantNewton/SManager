@@ -1,24 +1,36 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { authApi, setAuthToken } from '../services/api';
+import { errorMessage } from '../utils/errors';
 
 interface LoginProps {
-  onLogin: () => void;
+  onLogin: (token: string) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
+  const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo = (location.state as { from?: string } | null)?.from || '/admin/dashboard';
+  const params = new URLSearchParams(location.search);
+  const redirectTo = params.get('from') || (location.state as { from?: string } | null)?.from || '/admin/dashboard';
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'admin123') {
-      onLogin();
+    setBusy(true);
+    setError('');
+    try {
+      const response = await authApi.login(username, password);
+      const token = response.data.access_token;
+      setAuthToken(token);
+      onLogin(token);
       navigate(redirectTo, { replace: true });
-    } else {
-      setError('Invalid password');
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Invalid username or password'));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -50,12 +62,19 @@ export default function Login({ onLogin }: LoginProps) {
         <form className="flex flex-col gap-lg" onSubmit={handleSubmit}>
           <div className="space-y-sm">
             <label className="font-label-caps text-label-caps text-on-surface-variant flex justify-between items-center">
-              <span>请输入控制台访问密码</span>
+              <span>请输入控制台账号</span>
               <span className="text-[10px] text-primary">ENCRYPTED PORTAL</span>
             </label>
+            <input
+              autoFocus
+              className="mb-3 w-full bg-surface-container-low border border-outline-variant px-md py-sm font-data-mono text-data-mono text-white focus:outline-none focus:border-secondary-container focus:ring-1 focus:ring-secondary-container/30 transition-all placeholder:text-outline-variant"
+              placeholder="admin"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
             <div className="relative">
               <input
-                autoFocus
                 className="w-full bg-surface-container-low border border-outline-variant px-md py-sm font-data-mono text-data-mono text-white focus:outline-none focus:border-secondary-container focus:ring-1 focus:ring-secondary-container/30 transition-all placeholder:text-outline-variant"
                 placeholder="••••••••"
                 type="password"
@@ -71,9 +90,10 @@ export default function Login({ onLogin }: LoginProps) {
           <div className="flex flex-col gap-md pt-md">
             <button
               type="submit"
-              className="w-full bg-primary-container py-md text-white font-label-caps text-label-caps tracking-[0.2em] hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-md"
+              disabled={busy}
+              className="w-full bg-primary-container py-md text-white font-label-caps text-label-caps tracking-[0.2em] hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-md disabled:opacity-50"
             >
-              AUTHENTICATE
+              {busy ? 'AUTHENTICATING' : 'AUTHENTICATE'}
               <span className="material-symbols-outlined text-sm">login</span>
             </button>
             <div className="flex items-center justify-between">

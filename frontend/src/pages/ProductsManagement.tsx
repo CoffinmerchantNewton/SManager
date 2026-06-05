@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { productsApi, runsApi } from '../services/api';
 import type { ForecastProduct } from '../types/index';
 
 export default function ProductsManagement() {
+  const location = useLocation();
+  const initialRunId = new URLSearchParams(location.search).get('run_id') ?? '';
   const [products, setProducts] = useState<ForecastProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [runId, setRunId] = useState('');
+  const [runId, setRunId] = useState(initialRunId);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -200,6 +203,21 @@ export default function ProductsManagement() {
                   <span className="px-2 py-0.5 rounded text-[10px] bg-white/5 text-slate-400 border border-white/10 uppercase">
                     {product.resolution}
                   </span>
+                  {product.variable && (
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 uppercase">
+                      {product.variable}{product.unit ? ` · ${product.unit}` : ''}
+                    </span>
+                  )}
+                  {product.subtype && (
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-violet-500/10 text-violet-200 border border-violet-500/20 uppercase">
+                      {product.subtype}
+                    </span>
+                  )}
+                  {product.capability_status && (
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-200 border border-amber-500/20 uppercase">
+                      {product.capability_status}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

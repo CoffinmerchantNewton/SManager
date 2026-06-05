@@ -54,6 +54,17 @@ export interface ForecastProduct {
   workflow_node: string;
   workflow_version: string;
   file_path: string;
+  subtype?: string | null;
+  variable?: string | null;
+  unit?: string | null;
+  bounds?: {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  } | null;
+  source_run_id?: string | null;
+  capability_status?: string | null;
   thumbnail_path?: string;
   is_published: boolean;
   release_time: string;
