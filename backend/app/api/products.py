@@ -74,7 +74,7 @@ def get_product_content(product_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=ForecastProductResponse)
 def create_product(product: ForecastProductCreate, db: Session = Depends(get_db), _: dict = Depends(require_admin)):
-    db_product = ForecastProduct(**product.model_dump())
+    db_product = ForecastProduct(**product.model_dump(exclude={"bounds"}))
     db.add(db_product)
     db.commit()
     db.refresh(db_product)

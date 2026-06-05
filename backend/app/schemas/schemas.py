@@ -93,6 +93,14 @@ class ForecastProductBase(BaseModel):
     workflow_node: str
     workflow_version: str
     file_path: str
+    subtype: Optional[str] = None
+    variable: Optional[str] = None
+    unit: Optional[str] = None
+    bounds: Optional[dict[str, float]] = None
+    bounds_json: Optional[str] = None
+    lead_time: Optional[str] = None
+    source_run_id: Optional[str] = None
+    capability_status: Optional[str] = None
 
 class ForecastProductCreate(ForecastProductBase):
     pass

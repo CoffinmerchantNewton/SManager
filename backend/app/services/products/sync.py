@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -152,7 +153,26 @@ class ProductSyncService:
         product.workflow_node = item.get("workflow_node") or "package_products"
         product.workflow_version = item.get("workflow_version") or run_id
         product.file_path = str(local_path)
+        product.subtype = optional_string(item.get("subtype"))
+        product.variable = optional_string(item.get("variable"))
+        product.unit = optional_string(item.get("unit"))
+        product.bounds_json = encode_json_or_none(item.get("bounds"))
+        product.lead_time = optional_string(item.get("lead_time"))
+        product.source_run_id = optional_string(item.get("source_run_id") or run_id)
+        product.capability_status = optional_string(item.get("capability_status"))
         product.thumbnail_path = item.get("thumbnail_path")
         self.db.commit()
         self.db.refresh(product)
         return product
+
+
+def optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def encode_json_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)

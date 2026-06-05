@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Float, Text, Enum
 from sqlalchemy.sql import func
 from ..core.database import Base
@@ -90,10 +92,26 @@ class ForecastProduct(Base):
     workflow_node = Column(String)
     workflow_version = Column(String)
     file_path = Column(String)
+    subtype = Column(String, nullable=True)
+    variable = Column(String, nullable=True)
+    unit = Column(String, nullable=True)
+    bounds_json = Column(Text, nullable=True)
+    lead_time = Column(String, nullable=True)
+    source_run_id = Column(String, nullable=True)
+    capability_status = Column(String, nullable=True)
     thumbnail_path = Column(String, nullable=True)
     is_published = Column(Boolean, default=False)
     release_time = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def bounds(self):
+        if not self.bounds_json:
+            return None
+        try:
+            return json.loads(self.bounds_json)
+        except json.JSONDecodeError:
+            return None
 
 class SystemLog(Base):
     __tablename__ = "system_logs"
