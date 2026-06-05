@@ -1,5 +1,18 @@
 # China Pollen Forecast System
 
+## 2026-06-05 Implementation Status
+
+本轮已按 README 未完成项完成仓库内实现，并按模块提交推送到 `origin/dev`。下方历史盘点中仍出现的“未完成”描述，以本状态块和新增运维文档为准：
+
+- `feat(server)`: 生产 commands-file 模板、服务器 preflight、Slurm mock 和 flow 测试夹具已接入。
+- `feat(backend)`: `.env` 单账号鉴权、bearer token、密码式 SSH、幂等 schema migration、storage cleanup、FNL repair 校验/审计已接入。
+- `feat(cli)`: `login`、token 读取、`preflight`、`config-template`、`storage-cleanup`、批量 runs/products 和值守参数已接入。
+- `feat(products)`: 正式城市/站点配置、风险阈值配置、等值线 GeoJSON、GeoTIFF capability fallback、增强 product manifest 已接入。
+- `feat(frontend)`: 真实登录、axios bearer token、401 回登录、Portal 时间播放/图层/点选、Products/Run Detail manifest 展示已接入。
+- `docs(ops)`: 生产拓扑、数据契约、安全、重试、日志轮转、磁盘清理、备份恢复和真实服务器验证 runbook 已补齐。
+
+仍需现场确认的事项只剩两类：真实业务风险阈值需要业务侧校准；完整小窗口预报实跑需要在私有凭据、生产 commands-file 和服务器 preflight 通过后执行并记录结果。
+
 基于 WRF-Pollen / WRF-Chem 的花粉扩散业务预报控制系统。当前 `dev` 分支的重点是把内网 CentOS 服务器上的离线 WPS/WRF/WRF-Pollen 运行流程，接入跳板机后端、CLI、前端和 Hermes/AI 辅助诊断控制面。
 
 ## 当前结论
@@ -12,7 +25,7 @@
 - 通知 webhook 默认关闭；配置 `NOTIFICATION_WEBHOOK_URL` 后，agent tick 失败或诊断要求人工时会发送 JSON 通知并写入 `agent_actions`。
 - 前端已有管理控制台、Run/FNL/Products 页面和主题切换；花粉分布页会优先加载最新 PNG overlay 产品层和 `city_forecast_json` 城市预报，支持城市查询、未来 7 天时间轴、风险等级、主导物种、气温、降水和风速展示；缺产品时回退示例城市点位。
 - 2026-06-05 本地跳板机验证已通过：`smanager` conda 环境和 Node/npm 可运行后端与 Vite 前端，Dashboard/Run Detail 能显示服务器真实 run `2026052100_spring_neimeng_official` 的进度、DAG 节点、日志尾部和诊断信息。
-- `product_extract` 已支持按 `wrfout.txt` 对应的 WRF-Pollen 变量结构预提取 7 天小汇总 NetCDF，包含 `POLLEN_1..9`、气温、风、降水和派生的 `pollen_total`/主导物种/逐步降水；可继续生成城市 7 天预报 JSON、抽样点 GeoJSON 与 PNG overlay；启用 summary 后默认不再同步原始大 `wrfout`；等值线、GeoTIFF/切片仍待实现。
+- `product_extract` 已支持按 `wrfout.txt` 对应的 WRF-Pollen 变量结构预提取 7 天小汇总 NetCDF，包含 `POLLEN_1..9`、气温、风、降水和派生的 `pollen_total`/主导物种/逐步降水；可继续生成城市 7 天预报 JSON、抽样点 GeoJSON、PNG overlay、等值线 GeoJSON，并在依赖可用时生成 GeoTIFF；缺少本地科学/GDAL 依赖时会写入明确 capability fallback 状态。启用 summary 后默认不再同步原始大 `wrfout`；XYZ/WMTS 切片留作后续性能增强。
 
 ## 各端进度盘点
 
