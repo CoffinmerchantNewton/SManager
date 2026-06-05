@@ -6,6 +6,7 @@ from typing import Any
 from .jsonio import append_jsonl, read_json, write_json_atomic
 from .paths import FlowPaths
 from .timeutils import now_iso
+from .wrf_progress import enrich_wrf_run_node
 
 
 TERMINAL_STATUSES = {"success", "error", "skipped", "cancelled"}
@@ -133,7 +134,7 @@ def update_node_status(
 
 def workflow_summary(paths: FlowPaths, run_id: str) -> dict[str, Any]:
     spec = load_spec(paths, run_id)
-    nodes = [load_node_status(paths, run_id, node) for node in node_names(spec)]
+    nodes = [enrich_wrf_run_node(paths, spec, load_node_status(paths, run_id, node)) for node in node_names(spec)]
     total = len(nodes) or 1
     terminal = sum(1 for node in nodes if node["status"] in TERMINAL_STATUSES)
     errors = [node for node in nodes if node["status"] == "error"]

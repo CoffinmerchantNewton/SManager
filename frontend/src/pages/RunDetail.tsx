@@ -77,6 +77,7 @@ export default function RunDetail() {
   };
 
   const workflow = context?.status;
+  const wrfProgress = workflow?.nodes?.find((node) => node.node === 'wrf_run')?.wrfout_progress;
   const findings = context?.diagnose?.findings ?? [];
   const events = context?.events ?? [];
   const manifestProducts = context?.product_manifest?.products ?? [];
@@ -124,6 +125,30 @@ export default function RunDetail() {
         <Metric label="Events" value={`${events.length}`} />
         <Metric label="Products" value={`${products.length} synced / ${manifestProducts.length} manifest`} />
       </section>
+
+      <Panel title="WRF Output Progress">
+        {wrfProgress?.available ? (
+          <div className="grid grid-cols-1 gap-gutter xl:grid-cols-[0.8fr_1.2fr]">
+            <div className="grid grid-cols-2 gap-sm">
+              <Metric label="WRF Progress" value={`${wrfProgress.progress ?? 0}%`} />
+              <Metric label="ETA" value={wrfProgress.eta_human || '-'} />
+              <Metric label="Latest Forecast Time" value={formatUtc(wrfProgress.latest_forecast_time)} />
+              <Metric label="WRFOUT Count" value={`${wrfProgress.wrfout_count ?? 0}`} />
+            </div>
+            <div className="min-w-0 rounded border border-white/10 bg-surface-container-low p-sm">
+              <p className="font-label-caps text-[10px] uppercase text-outline">Latest WRFOUT</p>
+              <p className="mt-xs break-all font-data-mono text-xs text-cyan-300">{wrfProgress.latest_output_path || '-'}</p>
+              <p className="mt-sm text-xs text-on-surface-variant">
+                File time: {formatUtc(wrfProgress.latest_output_mtime)} / Method: {wrfProgress.method || '-'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded border border-white/10 bg-surface-container-low p-sm text-sm text-outline">
+            No wrfout progress available yet{wrfProgress?.reason ? `: ${wrfProgress.reason}` : '.'}
+          </div>
+        )}
+      </Panel>
 
       <section className="grid grid-cols-1 2xl:grid-cols-[1.35fr_0.65fr] gap-gutter">
         <Panel title="Workflow Nodes">
@@ -290,4 +315,11 @@ function StatusPill({ status }: { status: string }) {
 
 function EmptyState({ text }: { text: string }) {
   return <p className="text-sm text-outline">{text}</p>;
+}
+
+function formatUtc(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toISOString().replace('T', ' ').replace('.000Z', 'Z');
 }

@@ -133,6 +133,26 @@ export type ForecastRunStatus =
   | 'retrying'
   | 'cancelled';
 
+export interface WrfoutProgress {
+  available: boolean;
+  reason?: string;
+  output_dirs?: string[];
+  wrfout_count?: number;
+  first_output_path?: string;
+  first_forecast_time?: string;
+  first_output_mtime?: string;
+  latest_output_path?: string;
+  latest_forecast_time?: string;
+  latest_output_mtime?: string;
+  completed_forecast_seconds?: number;
+  total_forecast_seconds?: number;
+  remaining_forecast_seconds?: number;
+  progress?: number;
+  eta_seconds?: number | null;
+  eta_human?: string | null;
+  method?: string;
+}
+
 export interface ForecastRunNodeStatus {
   run_id: string;
   node: string;
@@ -146,6 +166,7 @@ export interface ForecastRunNodeStatus {
   error_code?: string | null;
   message: string;
   log_files: string[];
+  wrfout_progress?: WrfoutProgress;
 }
 
 export interface ForecastRunWorkflowStatus {

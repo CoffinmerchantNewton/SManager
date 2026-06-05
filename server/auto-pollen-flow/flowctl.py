@@ -24,6 +24,7 @@ from lib.state import (
     load_spec,
     load_workflow,
     node_names,
+    refresh_workflow,
     update_node_status,
     write_event,
 )
@@ -122,7 +123,7 @@ def cmd_list(args) -> int:
 
 def cmd_status(args) -> int:
     flow_paths = paths()
-    data = load_workflow(flow_paths, args.run_id)
+    data = refresh_workflow(flow_paths, args.run_id)
     if args.json:
         print_json(data)
     else:
@@ -453,7 +454,7 @@ def cmd_collect_context(args) -> int:
         "flow_root": str(flow_paths.root),
         "run_dir": str(flow_paths.run_dir(run_id)),
         "spec": read_json(flow_paths.run_spec(run_id), default={}),
-        "status": load_workflow(flow_paths, run_id),
+        "status": refresh_workflow(flow_paths, run_id),
         "diagnose": diagnose_run(flow_paths, run_id),
         "fnl_manifest": read_json(flow_paths.fnl_manifest(run_id), default={}),
         "product_manifest": read_json(
