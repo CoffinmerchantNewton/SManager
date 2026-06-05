@@ -83,7 +83,14 @@ export default function RunDetail() {
   const wrfProgress = workflow?.nodes?.find((node) => node.node === 'wrf_run')?.wrfout_progress;
   const findings = context?.diagnose?.findings ?? [];
   const events = context?.events ?? [];
-  const manifestProducts = context?.product_manifest?.products ?? [];
+  const manifestProducts = useMemo(() => context?.product_manifest?.products ?? [], [context?.product_manifest?.products]);
+  const stationProducts = useMemo(() => manifestProducts.filter((product) => productMatchesIntent(product, 'station')), [manifestProducts]);
+  const evaluationProducts = useMemo(() => manifestProducts.filter((product) => productMatchesIntent(product, 'evaluation')), [manifestProducts]);
+  const historyProducts = useMemo(() => {
+    const byManifest = manifestProducts.filter((product) => productMatchesIntent(product, 'history'));
+    const syncedHistory = products.filter((product) => productMatchesSyncedProductIntent(product, 'history'));
+    return [...byManifest, ...syncedHistory.map(productToRecord)];
+  }, [manifestProducts, products]);
 
   return (
     <div className="p-lg technical-grid min-h-full flex flex-col gap-gutter">
@@ -248,6 +255,14 @@ export default function RunDetail() {
       </section>
 
       <section className="grid grid-cols-1 2xl:grid-cols-2 gap-gutter">
+        <Panel title="Station Curves And Evaluation">
+          <div className="grid grid-cols-1 gap-sm xl:grid-cols-3">
+            <ProductInsightList title="Station Curves" icon="show_chart" products={stationProducts} empty="No station curve or city time-series products in this run." />
+            <ProductInsightList title="Error Evaluation" icon="analytics" products={evaluationProducts} empty="No evaluation, error metric, or score products in this run." />
+            <ProductInsightList title="History Compare" icon="compare_arrows" products={historyProducts} empty="No historical comparison or archived comparison products in this run." />
+          </div>
+        </Panel>
+
         <Panel title="Manifest Products">
           <div className="space-y-sm max-h-96 overflow-auto">
             {manifestProducts.map((product, index) => (
@@ -346,6 +361,80 @@ function StatusPill({ status }: { status: string }) {
 
 function EmptyState({ text }: { text: string }) {
   return <p className="text-sm text-outline">{text}</p>;
+}
+
+function ProductInsightList({ title, icon, products, empty }: { title: string; icon: string; products: JsonRecord[]; empty: string }) {
+  return (
+    <div className="rounded border border-white/10 bg-surface-container-low p-sm">
+      <div className="mb-sm flex items-center justify-between gap-sm">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-base text-cyan-300">{icon}</span>
+          <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">{title}</span>
+        </div>
+        <span className="font-data-mono text-[10px] text-outline">{products.length}</span>
+      </div>
+      <div className="space-y-xs">
+        {products.slice(0, 5).map((product, index) => (
+          <div key={`${String(product.name ?? product.product_name ?? title)}-${index}`} className="rounded bg-black/10 p-xs">
+            <p className="truncate font-data-mono text-[11px] text-cyan-200">{String(product.name ?? product.product_name ?? '-')}</p>
+            <p className="mt-1 truncate text-[10px] text-outline">
+              {String(product.type ?? product.product_type ?? 'product')} / {String(product.subtype ?? '-')} / {String(product.variable ?? '-')}
+            </p>
+          </div>
+        ))}
+        {products.length === 0 && <p className="text-xs text-outline">{empty}</p>}
+      </div>
+    </div>
+  );
+}
+
+function productMatchesIntent(product: JsonRecord, intent: string) {
+  return matchProductText(
+    intent,
+    product.name,
+    product.product_name,
+    product.type,
+    product.product_type,
+    product.subtype,
+    product.variable,
+    product.path,
+    product.server_path,
+    product.capability_status,
+    product.source_run_id,
+  );
+}
+
+function productMatchesSyncedProductIntent(product: ForecastProduct, intent: string) {
+  return matchProductText(
+    intent,
+    product.product_name,
+    product.product_type,
+    product.subtype,
+    product.variable,
+    product.file_path,
+    product.capability_status,
+    product.source_run_id,
+  );
+}
+
+function matchProductText(intent: string, ...parts: unknown[]) {
+  const haystack = parts.filter(Boolean).join(' ').toLowerCase();
+  if (intent === 'station') return /station|site|city|curve|timeseries|time_series|forecast_json/.test(haystack);
+  if (intent === 'evaluation') return /eval|error|rmse|mae|bias|score/.test(haystack);
+  if (intent === 'history') return /history|archive|compare|previous/.test(haystack) || haystack.includes('_official');
+  return false;
+}
+
+function productToRecord(product: ForecastProduct): JsonRecord {
+  return {
+    name: product.product_name,
+    type: product.product_type,
+    subtype: product.subtype,
+    variable: product.variable,
+    path: product.file_path,
+    source_run_id: product.source_run_id,
+    capability_status: product.capability_status,
+  };
 }
 
 function formatUtc(value?: string | null) {

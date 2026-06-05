@@ -63,6 +63,8 @@ export interface ForecastProduct {
     east: number;
     north: number;
   } | null;
+  bounds_json?: string | null;
+  lead_time?: string | null;
   source_run_id?: string | null;
   capability_status?: string | null;
   thumbnail_path?: string;

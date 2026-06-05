@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { productsApi, runsApi } from '../services/api';
 import type { ForecastProduct } from '../types/index';
@@ -12,6 +12,7 @@ export default function ProductsManagement() {
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [category, setCategory] = useState('all');
 
   const loadProducts = useCallback(async (targetRunId: string) => {
     const normalizedRunId = targetRunId.trim();
@@ -85,6 +86,22 @@ export default function ProductsManagement() {
         return 'text-secondary-container';
     }
   };
+
+  const categories = useMemo(
+    () => [
+      { key: 'all', label: 'All', count: products.length },
+      { key: 'map', label: 'Map Layers', count: products.filter((product) => productMatchesCategory(product, 'map')).length },
+      { key: 'station', label: 'Station Curves', count: products.filter((product) => productMatchesCategory(product, 'station')).length },
+      { key: 'evaluation', label: 'Evaluation', count: products.filter((product) => productMatchesCategory(product, 'evaluation')).length },
+      { key: 'history', label: 'History', count: products.filter((product) => productMatchesCategory(product, 'history')).length },
+      { key: 'capability', label: 'Capability', count: products.filter((product) => productMatchesCategory(product, 'capability')).length },
+    ],
+    [products],
+  );
+  const visibleProducts = useMemo(
+    () => (category === 'all' ? products : products.filter((product) => productMatchesCategory(product, category))),
+    [category, products],
+  );
 
   if (loading) {
     return (
@@ -171,6 +188,24 @@ export default function ProductsManagement() {
             {errorMessage || message}
           </div>
         )}
+
+        <div className="flex flex-wrap gap-2">
+          {categories.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setCategory(item.key)}
+              className={`inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs transition-colors ${
+                category === item.key
+                  ? 'border-cyan-300/60 bg-cyan-300/15 text-cyan-200'
+                  : 'border-white/10 bg-surface-container-low text-on-surface-variant hover:border-white/25'
+              }`}
+            >
+              <span>{item.label}</span>
+              <span className="font-data-mono text-[10px]">{item.count}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Hybrid List/Card View */}
@@ -185,7 +220,7 @@ export default function ProductsManagement() {
         </div>
 
         {/* List Items */}
-        {products.map((product) => (
+        {visibleProducts.map((product) => (
           <div
             key={product.id}
             className="grid grid-cols-12 gap-gutter bg-surface-container-low border border-white/5 p-3 rounded-xl items-center hover:bg-surface-container transition-all group"
@@ -196,7 +231,7 @@ export default function ProductsManagement() {
               </div>
               <div>
                 <h3 className="font-data-mono text-data-mono text-white">{product.product_name}</h3>
-                <div className="flex gap-2 mt-1">
+                <div className="flex flex-wrap gap-2 mt-1">
                   <span className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase">
                     {product.product_type}
                   </span>
@@ -216,6 +251,11 @@ export default function ProductsManagement() {
                   {product.capability_status && (
                     <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-200 border border-amber-500/20 uppercase">
                       {product.capability_status}
+                    </span>
+                  )}
+                  {product.lead_time && (
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-sky-500/10 text-sky-200 border border-sky-500/20 uppercase">
+                      {product.lead_time}
                     </span>
                   )}
                 </div>
@@ -291,18 +331,43 @@ export default function ProductsManagement() {
             </div>
           </div>
         ))}
+        {visibleProducts.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-surface-container-low p-8 text-center text-on-surface-variant">
+            No products match this category.
+          </div>
+        )}
       </div>
 
       {/* Pagination / Status Footer */}
       <div className="mt-8 flex justify-between items-center text-[11px] font-label-caps text-on-surface-variant border-t border-white/5 pt-4">
         <div className="flex gap-4">
           <span>Total Items: {products.length}</span>
-          <span className="text-tertiary">
-            Operational: {products.filter((p) => p.status === 'ready').length}
-          </span>
+          <span>Visible: {visibleProducts.length}</span>
+          <span className="text-tertiary">Operational: {products.filter((p) => p.status === 'ready').length}</span>
           <span className="text-error">Errors: {products.filter((p) => p.status === 'error').length}</span>
         </div>
       </div>
     </div>
   );
+}
+
+function productMatchesCategory(product: ForecastProduct, category: string) {
+  const haystack = [
+    product.product_name,
+    product.product_type,
+    product.subtype,
+    product.variable,
+    product.workflow_node,
+    product.file_path,
+    product.capability_status,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (category === 'map') return /map|geojson|geotiff|overlay|contour|raster|png/.test(haystack);
+  if (category === 'station') return /station|site|city|curve|timeseries|time_series|forecast_json/.test(haystack);
+  if (category === 'evaluation') return /eval|error|rmse|mae|bias|score/.test(haystack);
+  if (category === 'history') return /history|archive|compare|previous/.test(haystack) || Boolean(product.source_run_id);
+  if (category === 'capability') return /capability|skipped|fallback/.test(haystack);
+  return true;
 }
