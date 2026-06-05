@@ -19,6 +19,7 @@ python3 flowctl.py plan \
   --variant official
 
 python3 flowctl.py fnl-verify --run-id 2026060400_spring_neimeng_official
+python3 flowctl.py preflight --commands-file templates/run_spec/commands.auto_pollen.production.json
 python3 flowctl.py status --run-id 2026060400_spring_neimeng_official --json
 python3 flowctl.py collect-context --run-id 2026060400_spring_neimeng_official
 python3 flowctl.py submit --run-id 2026060400_spring_neimeng_official
@@ -60,6 +61,15 @@ export FNL_ROOTS=/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl
 ```
 
 未配置命令的节点不会被提交；除非显式 `--allow-noop`，否则 `submit` 会拒绝执行。
+
+生产提交前建议先运行：
+
+```bash
+python3 flowctl.py preflight \
+  --commands-file templates/run_spec/commands.auto_pollen.production.json
+```
+
+`preflight` 只做只读/轻量写入检查，不提交 Slurm 作业；它会检查 Python、bash、Slurm 命令、flow root 可写性、FNL roots、`AUTO_POLLEN_ROOT`、`NODE_COMMAND_DIR`、关键 WPS/WRF 节点命令变量和 Slurm 默认资源参数，并返回结构化 JSON。`ok=false` 时不要执行真实 `submit`。
 
 仓库自带的 `templates/node_commands/*.sh` 是通用节点入口，不再默认 `echo TODO` 成功退出。除 `product_extract`、`package_products` 外，节点必须配置对应命令变量，否则会以退出码 `2` 失败：
 

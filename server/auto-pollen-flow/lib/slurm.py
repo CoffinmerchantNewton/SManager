@@ -18,8 +18,9 @@ def scancel_available() -> bool:
 
 
 def cancel_job(job_id: str) -> None:
+    scancel = shutil.which("scancel") or "scancel"
     result = subprocess.run(
-        ["scancel", str(job_id)],
+        [scancel, str(job_id)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -31,7 +32,8 @@ def cancel_job(job_id: str) -> None:
 
 
 def submit_sbatch(script_path: Path, dependency: str | None = None) -> str:
-    cmd = ["sbatch", "--parsable"]
+    sbatch = shutil.which("sbatch") or "sbatch"
+    cmd = [sbatch, "--parsable"]
     if dependency:
         cmd.append(f"--dependency=afterok:{dependency}")
     cmd.append(str(script_path))

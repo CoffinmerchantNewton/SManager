@@ -16,6 +16,7 @@ from lib.diagnostics import diagnose as diagnose_run
 from lib.fnl import scan_fnl
 from lib.jsonio import read_json, read_jsonl, write_json_atomic
 from lib.paths import FlowPaths
+from lib.preflight import run_preflight
 from lib.slurm import cancel_job, node_script, sbatch_available, scancel_available, submit_sbatch
 from lib.state import (
     initialize_run,
@@ -468,6 +469,13 @@ def cmd_collect_context(args) -> int:
     return 0
 
 
+def cmd_preflight(args) -> int:
+    command_config = load_command_config(args.commands_file)
+    result = run_preflight(paths().root, command_config)
+    print_json(result)
+    return 0 if result["ok"] else 2
+
+
 def collect_log_tails(log_dir: Path, tail: int, max_logs: int) -> list[dict[str, Any]]:
     if not log_dir.exists():
         return []
@@ -507,6 +515,10 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--met-provider", default="FNL")
     plan.add_argument("--commands-file")
     plan.set_defaults(func=cmd_plan)
+
+    preflight = sub.add_parser("preflight")
+    preflight.add_argument("--commands-file")
+    preflight.set_defaults(func=cmd_preflight)
 
     sub.add_parser("list").set_defaults(func=cmd_list)
 
