@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -12,6 +14,9 @@ from typing import Any
 
 
 DEFAULT_API = "http://localhost:8000/api/v1"
+TOKEN_ENV = "SMANAGER_TOKEN"
+TOKEN_FILE = Path.home() / ".smanager" / "token.json"
+AUTH_TOKEN: str | None = None
 
 
 def request_json(method: str, url: str, payload: dict[str, Any] | None = None) -> Any:
@@ -20,6 +25,8 @@ def request_json(method: str, url: str, payload: dict[str, Any] | None = None) -
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
+    if AUTH_TOKEN:
+        headers["Authorization"] = f"Bearer {AUTH_TOKEN}"
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
@@ -31,7 +38,8 @@ def request_json(method: str, url: str, payload: dict[str, Any] | None = None) -
 
 
 def download_file(url: str, output: Path) -> None:
-    request = urllib.request.Request(url, method="GET")
+    headers = {"Authorization": f"Bearer {AUTH_TOKEN}"} if AUTH_TOKEN else {}
+    request = urllib.request.Request(url, headers=headers, method="GET")
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
             data = response.read()
@@ -56,6 +64,38 @@ def print_result(data: Any) -> int:
 
 def api_url(args, path: str) -> str:
     return args.api.rstrip("/") + path
+
+
+def load_token(args) -> str | None:
+    if getattr(args, "token", None):
+        return args.token
+    if os.environ.get(TOKEN_ENV):
+        return os.environ[TOKEN_ENV]
+    try:
+        data = json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if data.get("api") and str(data["api"]).rstrip("/") != args.api.rstrip("/"):
+        return None
+    token = data.get("access_token")
+    return str(token) if token else None
+
+
+def save_token(api: str, payload: dict[str, Any]) -> None:
+    TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    TOKEN_FILE.write_text(
+        json.dumps({"api": api.rstrip("/"), **payload}, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def cmd_login(args) -> int:
+    password = args.password or getpass.getpass("Password: ")
+    payload = {"username": args.username, "password": password}
+    data = request_json("POST", api_url(args, "/auth/login"), payload)
+    if not args.no_save:
+        save_token(args.api, data)
+    return print_result({key: value for key, value in data.items() if key != "access_token"} | {"saved": not args.no_save})
 
 
 def cmd_plan(args) -> int:
@@ -260,14 +300,107 @@ def cmd_doctor(args) -> int:
     return print_result(request_json("GET", api_url(args, "/system/doctor")))
 
 
+def cmd_preflight(args) -> int:
+    query = {}
+    if args.commands_file:
+        query["commands_file"] = args.commands_file
+    url = api_url(args, "/system/preflight")
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    return print_result(request_json("GET", url))
+
+
 def cmd_storage(args) -> int:
     return print_result(request_json("GET", api_url(args, "/system/storage")))
+
+
+def cmd_storage_cleanup(args) -> int:
+    payload = {
+        "dry_run": args.dry_run,
+        "retention_days": args.retention_days,
+        "max_gb": args.max_gb,
+    }
+    payload = {key: value for key, value in payload.items() if value is not None}
+    return print_result(request_json("POST", api_url(args, "/system/storage/cleanup"), payload))
+
+
+def cmd_config_template(args) -> int:
+    data = {
+        "env": {
+            "ADMIN_USERNAME": "admin",
+            "ADMIN_PASSWORD": "change-me",
+            "SECRET_KEY": "change-me-to-a-long-random-secret",
+            "SERVER_SSH_HOST": "10.40.140.17",
+            "SERVER_SSH_USER": "anxq",
+            "SERVER_SSH_PASSWORD": "<set locally; do not commit>",
+            "SERVER_FLOWCTL_PATH": "/g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/flowctl.py",
+            "SERVER_FLOW_WORKDIR": "/g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow",
+            "SERVER_FLOW_ROOT": "/g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow",
+            "SERVER_FNL_ROOTS": "/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl",
+            "SERVER_FNL_UPLOAD_DIR": "/g7/anxq/Zhangjt/static/fnl",
+            "FNL_DOWNLOAD_COMMAND": "<set local download command>",
+            "STORAGE_RETENTION_DAYS": "30",
+            "STORAGE_MAX_GB": "50",
+        },
+        "commands_file": "/g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.production.json",
+        "token_env": TOKEN_ENV,
+        "token_file": str(TOKEN_FILE),
+    }
+    return print_result(data)
+
+
+def cmd_runs_batch(args) -> int:
+    specs = read_json_file(Path(args.file))
+    if not isinstance(specs, list):
+        raise SystemExit("runs-batch file must contain a JSON array")
+    results = []
+    for spec in specs:
+        if not isinstance(spec, dict):
+            results.append({"ok": False, "error": "invalid_spec", "spec": spec})
+            continue
+        plan_result = request_json("POST", api_url(args, "/runs/"), spec)
+        item = {"plan": plan_result}
+        run_id = plan_result.get("data", {}).get("run_id") if isinstance(plan_result, dict) else None
+        if args.submit_dry_run and run_id:
+            item["submit"] = request_json(
+                "POST",
+                api_url(args, f"/runs/{run_id}/submit"),
+                {"dry_run": True, "allow_noop": args.allow_noop},
+            )
+        results.append(item)
+    return print_result({"ok": all(result.get("plan", {}).get("ok", True) for result in results), "results": results})
+
+
+def cmd_products_batch(args) -> int:
+    run_ids = list(args.run_id or [])
+    if args.file:
+        payload = read_json_file(Path(args.file))
+        if isinstance(payload, list):
+            run_ids.extend(str(item) for item in payload)
+        else:
+            raise SystemExit("products-batch file must contain a JSON array of run ids")
+    results = []
+    for run_id in run_ids:
+        result = request_json("POST", api_url(args, f"/runs/{run_id}/sync-products"), {})
+        results.append({"run_id": run_id, "result": result})
+    return print_result({"ok": all(item["result"].get("ok", True) for item in results), "results": results})
+
+
+def read_json_file(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Jumpbox CLI for SManager")
     parser.add_argument("--api", default=DEFAULT_API)
+    parser.add_argument("--token", help=f"Bearer token. Defaults to ${TOKEN_ENV} or {TOKEN_FILE}")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    login = sub.add_parser("login")
+    login.add_argument("--username", default="admin")
+    login.add_argument("--password")
+    login.add_argument("--no-save", action="store_true")
+    login.set_defaults(func=cmd_login)
 
     plan = sub.add_parser("plan")
     plan.add_argument("--run-id")
@@ -423,14 +556,41 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor")
     doctor.set_defaults(func=cmd_doctor)
 
+    preflight = sub.add_parser("preflight")
+    preflight.add_argument("--commands-file")
+    preflight.set_defaults(func=cmd_preflight)
+
     storage = sub.add_parser("storage")
     storage.set_defaults(func=cmd_storage)
+
+    storage_cleanup = sub.add_parser("storage-cleanup")
+    storage_cleanup.add_argument("--dry-run", action="store_true", default=True)
+    storage_cleanup.add_argument("--real", dest="dry_run", action="store_false")
+    storage_cleanup.add_argument("--retention-days", type=int)
+    storage_cleanup.add_argument("--max-gb", type=float)
+    storage_cleanup.set_defaults(func=cmd_storage_cleanup)
+
+    config_template = sub.add_parser("config-template")
+    config_template.set_defaults(func=cmd_config_template)
+
+    runs_batch = sub.add_parser("runs-batch")
+    runs_batch.add_argument("--file", required=True)
+    runs_batch.add_argument("--submit-dry-run", action="store_true")
+    runs_batch.add_argument("--allow-noop", action="store_true")
+    runs_batch.set_defaults(func=cmd_runs_batch)
+
+    products_batch = sub.add_parser("products-batch")
+    products_batch.add_argument("--run-id", action="append")
+    products_batch.add_argument("--file")
+    products_batch.set_defaults(func=cmd_products_batch)
     return parser
 
 
 def main() -> int:
+    global AUTH_TOKEN
     parser = build_parser()
     args = parser.parse_args()
+    AUTH_TOKEN = None if args.command == "login" else load_token(args)
     return args.func(args)
 
 

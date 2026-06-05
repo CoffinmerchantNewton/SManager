@@ -13,17 +13,27 @@ description: 当 Hermes 或 AI 助手需要通过跳板机 CLI 操作 SManager �
 python3 packages/cli/smanager.py --api "${SMANAGER_API:-http://localhost:8000/api/v1}" <command>
 ```
 
+管理接口需要 bearer token。交互式登录：
+
+```bash
+python3 packages/cli/smanager.py login --username admin
+```
+
+`login` 会保存 token 到 `~/.smanager/token.json`；自动化环境也可以设置 `SMANAGER_TOKEN`。不要保存、打印或提交 `.env` 中的服务器密码。
+
 ## 核心流程
 
 1. 先做跳板机控制面自检：
 
 ```bash
+python3 packages/cli/smanager.py login --username admin
 python3 packages/cli/smanager.py doctor
+python3 packages/cli/smanager.py preflight --commands-file /g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.production.json
 python3 packages/cli/smanager.py storage
 python3 packages/cli/smanager.py runs --limit 20
 ```
 
-如果 `doctor` 输出 `ok: false`，先根据 `data.checks` 中 `status=error` 的项目修复配置或依赖。如果 `storage` 输出 `ok: false`，先处理 `data.roots[].errors` 中的本地文件访问问题。
+如果 `doctor` 或 `preflight` 输出 `ok: false`，先根据 `data.checks`、`data.doctor.checks` 或 `data.flow.checks` 中的错误项修复配置或依赖。如果 `storage` 输出 `ok: false`，先处理 `data.roots[].errors` 中的本地文件访问问题。需要释放本地 runtime 空间时先运行 `storage-cleanup --dry-run`。
 
 2. 创建或刷新一次运行：
 
@@ -108,7 +118,9 @@ python3 packages/cli/smanager.py task-run --task-id <task_id> --real-submit
 
 ```bash
 python3 packages/cli/smanager.py doctor
+python3 packages/cli/smanager.py preflight --commands-file /g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.production.json
 python3 packages/cli/smanager.py storage
+python3 packages/cli/smanager.py storage-cleanup --dry-run
 python3 packages/cli/smanager.py runs --status error --limit 20
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py diagnose --run-id <run_id> --summary
