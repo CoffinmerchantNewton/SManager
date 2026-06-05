@@ -102,12 +102,24 @@ python3 packages/cli/smanager.py agent-tick \
   --dry-run-submit
 ```
 
+跳过 FNL 自动修复（仅当 FNL 已确认就绪时使用）：
+
+```bash
+python3 packages/cli/smanager.py agent-tick \
+  --start 2026060400 \
+  --end 2026060412 \
+  --period spring \
+  --dry-run-submit \
+  --no-repair-fnl
+```
+
 已有调度任务可以通过统一 CLI 查看和触发。默认 `task-run` 使用 dry-run submit，只有 dry-run 结果可接受后才加 `--real-submit`：
 
 ```bash
 python3 packages/cli/smanager.py tasks --limit 20
 python3 packages/cli/smanager.py task-run --task-id <task_id>
 python3 packages/cli/smanager.py task-run --task-id <task_id> --real-submit
+python3 packages/cli/smanager.py task-run --task-id <task_id> --no-repair-fnl
 ```
 
 只有 dry-run 输出可接受后，才使用 `--real-submit`。
@@ -121,6 +133,7 @@ python3 packages/cli/smanager.py doctor
 python3 packages/cli/smanager.py preflight --commands-file /g7/anxq/Zhangjt/workspace/Smanager/server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.production.json
 python3 packages/cli/smanager.py storage
 python3 packages/cli/smanager.py storage-cleanup --dry-run
+python3 packages/cli/smanager.py storage-cleanup --dry-run --retention-days 14 --max-gb 30
 python3 packages/cli/smanager.py runs --status error --limit 20
 python3 packages/cli/smanager.py diagnose --run-id <run_id>
 python3 packages/cli/smanager.py diagnose --run-id <run_id> --summary
@@ -131,6 +144,13 @@ python3 packages/cli/smanager.py events --run-id <run_id> --level error --limit 
 优先用 `diagnose --summary` 读取 `analysis.summary` 和 `analysis.recommendations`，再用 `collect-context` 获取一次排障上下文包；它只读返回 run spec、状态、诊断、FNL manifest、产品 manifest、近期事件和日志尾部，适合交给 AI 总结问题。`auto_retry_allowed=true` 才能考虑自动动作；`requires_operator=true` 时不要直接真实重试，应先收集上下文或通知人工。
 
 如果后端配置了 `NOTIFICATION_WEBHOOK_URL`，`agent-tick` 失败或诊断要求人工介入时会自动发送 webhook，并写入 `agent_actions` 中的 `notification` 记录；未配置时输出会显示 `webhook_not_configured`，这不是错误。
+
+- 事件过滤（按节点和事件类型）：
+
+```bash
+python3 packages/cli/smanager.py events --run-id <run_id> --node geogrid --event-type fnl_check
+python3 packages/cli/smanager.py events --run-id <run_id> --no-sync --limit 200
+```
 
 - 查看 FNL 数据库覆盖情况：
 
@@ -151,9 +171,29 @@ python3 packages/cli/smanager.py agent-actions --action-type fnl_repair --status
 
 ```bash
 python3 packages/cli/smanager.py products --run-id <run_id> --status ready
+python3 packages/cli/smanager.py products --region north_china --pollen-type artemisia
 python3 packages/cli/smanager.py product-download --product-id <product_id>
 python3 packages/cli/smanager.py product-content --product-id <geojson_or_overlay_metadata_product_id>
 ```
+
+- 查看配置模板（环境变量和默认路径参考）：
+
+```bash
+python3 packages/cli/smanager.py config-template
+```
+
+- 批量操作：
+
+```bash
+# 批量创建运行（JSON 文件包含 plan spec 数组）
+python3 packages/cli/smanager.py runs-batch --file batch_plan.json --submit-dry-run
+
+# 批量同步产物（多个 run-id）
+python3 packages/cli/smanager.py products-batch --run-id <id1> --run-id <id2>
+python3 packages/cli/smanager.py products-batch --file run_ids.json
+```
+
+`runs-batch` 的 `--file` 参数接受一个 JSON 数组，每个元素是一个 plan spec（等同于 `plan` 命令的参数）。`--submit-dry-run` 会在每个 run 创建后自动执行 dry-run submit。
 
 PNG overlay 会以两条产品记录出现：`png_overlay_metadata` 是可用 `product-content` 读取的 `*.overlay.json`，里面包含 bounds、变量名、色带和 PNG 文件名；`png_overlay` 是 PNG 本体，只能用 `product-download` 或前端 `/download` URL 读取。
 
@@ -226,6 +266,7 @@ python3 packages/cli/smanager.py cancel-run --run-id <run_id> --real
 - `backend/app/api/runs.py`: run lifecycle endpoints.
 - `backend/app/api/fnl.py`: FNL verify/repair/coverage endpoints.
 - `backend/app/api/agent.py`: tick and action audit endpoints.
+- `backend/app/api/workflows.py`: workflow CRUD and node management.
 - `backend/app/services/flow/server_flow.py`: bridge to server `flowctl`.
 - `server/auto-pollen-flow/flowctl.py`: server-side scheduling/status/FNL commands.
 
