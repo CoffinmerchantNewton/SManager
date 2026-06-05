@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useI18n } from '../i18n';
 import { agentApi, productsApi, runsApi } from '../services/api';
 import type { AgentAction, ForecastProduct, ForecastRunWorkflowStatus } from '../types';
 import { errorMessage } from '../utils/errors';
@@ -27,6 +28,7 @@ interface RunContext {
 type JsonRecord = Record<string, unknown>;
 
 export default function RunDetail() {
+  const { t } = useI18n();
   const { runId = '' } = useParams();
   const [context, setContext] = useState<RunContext | null>(null);
   const [products, setProducts] = useState<ForecastProduct[]>([]);
@@ -98,11 +100,11 @@ export default function RunDetail() {
         <div>
           <Link to="/admin/runs" className="inline-flex items-center gap-1 text-xs text-outline hover:text-on-surface">
             <span className="material-symbols-outlined text-sm">arrow_back</span>
-            Run Operations
+            {t('runDetailBack')}
           </Link>
           <h1 className="font-headline-xl text-headline-xl text-on-surface mt-2 break-all">{runId}</h1>
           <p className="text-outline font-body-md">
-            Consolidated status, diagnostics, logs, events, products, and Hermes audit trail.
+            {t('runDetailSubtitle')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-sm">
@@ -112,7 +114,7 @@ export default function RunDetail() {
             className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10 disabled:opacity-40"
           >
             <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
-            {busy === 'loading' ? 'Loading...' : 'Refresh'}
+            {busy === 'loading' ? `${t('loading')}...` : t('refresh')}
           </button>
           <button
             onClick={syncProducts}
@@ -120,14 +122,14 @@ export default function RunDetail() {
             className="px-md py-sm bg-primary-container text-on-primary-container rounded-lg text-sm font-semibold disabled:opacity-40"
           >
             <span className="material-symbols-outlined align-middle mr-2 text-sm">download</span>
-            {busy === 'sync' ? 'Syncing...' : 'Sync Products'}
+            {busy === 'sync' ? `${t('syncing')}...` : t('syncProducts')}
           </button>
           <Link
             to={`/admin/products?run_id=${encodeURIComponent(runId)}`}
             className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10"
           >
             <span className="material-symbols-outlined align-middle mr-2 text-sm">history</span>
-            Product History
+            {t('productHistory')}
           </Link>
         </div>
       </header>
@@ -137,48 +139,48 @@ export default function RunDetail() {
       )}
 
       <section className="grid grid-cols-1 xl:grid-cols-4 gap-gutter">
-        <Metric label="Status" value={workflow?.status ?? '-'} accent={<StatusPill status={workflow?.status ?? 'pending'} />} />
-        <Metric label="Progress" value={`${workflow?.progress ?? 0}%`} />
-        <Metric label="Events" value={`${events.length}`} />
-        <Metric label="Products" value={`${products.length} synced / ${manifestProducts.length} manifest`} />
+        <Metric label={t('status')} value={workflow?.status ?? '-'} accent={<StatusPill status={workflow?.status ?? 'pending'} />} />
+        <Metric label={t('progress')} value={`${workflow?.progress ?? 0}%`} />
+        <Metric label={t('events')} value={`${events.length}`} />
+        <Metric label={t('productsTitle')} value={`${products.length} ${t('synced')} / ${manifestProducts.length} ${t('manifest')}`} />
       </section>
 
-      <Panel title="WRF Output Progress">
+      <Panel title={t('wrfOutputProgress')}>
         {wrfProgress?.available ? (
           <div className="grid grid-cols-1 gap-gutter xl:grid-cols-[0.8fr_1.2fr]">
             <div className="grid grid-cols-2 gap-sm">
-              <Metric label="WRF Progress" value={`${wrfProgress.progress ?? 0}%`} />
-              <Metric label="ETA" value={wrfProgress.eta_human || '-'} />
-              <Metric label="Latest Forecast Time" value={formatUtc(wrfProgress.latest_forecast_time)} />
-              <Metric label="WRFOUT Count" value={`${wrfProgress.wrfout_count ?? 0}`} />
+              <Metric label={t('wrfProgress')} value={`${wrfProgress.progress ?? 0}%`} />
+              <Metric label={t('eta')} value={wrfProgress.eta_human || '-'} />
+              <Metric label={t('latestForecastTime')} value={formatUtc(wrfProgress.latest_forecast_time)} />
+              <Metric label={t('wrfoutCount')} value={`${wrfProgress.wrfout_count ?? 0}`} />
             </div>
             <div className="min-w-0 rounded border border-white/10 bg-surface-container-low p-sm">
-              <p className="font-label-caps text-[10px] uppercase text-outline">Latest WRFOUT</p>
+              <p className="font-label-caps text-[10px] uppercase text-outline">{t('latestWrfout')}</p>
               <p className="mt-xs break-all font-data-mono text-xs text-cyan-300">{wrfProgress.latest_output_path || '-'}</p>
               <p className="mt-sm text-xs text-on-surface-variant">
-                File time: {formatUtc(wrfProgress.latest_output_mtime)} / Method: {wrfProgress.method || '-'}
+                {t('fileTime')}: {formatUtc(wrfProgress.latest_output_mtime)} / {t('method')}: {wrfProgress.method || '-'}
               </p>
             </div>
           </div>
         ) : (
           <div className="rounded border border-white/10 bg-surface-container-low p-sm text-sm text-outline">
-            No wrfout progress available yet{wrfProgress?.reason ? `: ${wrfProgress.reason}` : '.'}
+            {t('noWrfProgress')}{wrfProgress?.reason ? `: ${wrfProgress.reason}` : '.'}
           </div>
         )}
       </Panel>
 
       <section className="grid grid-cols-1 2xl:grid-cols-[1.35fr_0.65fr] gap-gutter">
-        <Panel title="Workflow Nodes">
+        <Panel title={t('workflowNodes')}>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="text-outline border-b border-white/10">
                 <tr>
-                  <th className="px-sm py-sm text-[10px]">NODE</th>
-                  <th className="px-sm py-sm text-[10px]">STATUS</th>
-                  <th className="px-sm py-sm text-[10px]">PROGRESS</th>
-                  <th className="px-sm py-sm text-[10px]">ATTEMPT</th>
-                  <th className="px-sm py-sm text-[10px]">JOB</th>
-                  <th className="px-sm py-sm text-[10px]">MESSAGE</th>
+                  <th className="px-sm py-sm text-[10px]">{t('node')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('status')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('attempt')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('job')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('message')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -194,11 +196,11 @@ export default function RunDetail() {
                 ))}
               </tbody>
             </table>
-            {(workflow?.nodes?.length ?? 0) === 0 && <EmptyState text="No workflow nodes loaded." />}
+            {(workflow?.nodes?.length ?? 0) === 0 && <EmptyState text={t('noWorkflowNodes')} />}
           </div>
         </Panel>
 
-        <Panel title="Diagnostics">
+        <Panel title={t('diagnostics')}>
           <div className="space-y-sm max-h-[420px] overflow-auto">
             {findings.map((finding, index) => (
               <div key={`${finding.node ?? 'run'}-${finding.code ?? index}`} className="rounded border border-white/10 bg-surface-container-low p-sm">
@@ -207,16 +209,16 @@ export default function RunDetail() {
                   <StatusPill status={String(finding.code ?? finding.level ?? 'finding')} />
                 </div>
                 <p className="mt-xs text-xs text-on-surface-variant">{String(finding.message ?? '-')}</p>
-                <p className="mt-xs text-[10px] text-outline">Action: {String(finding.suggested_action ?? 'inspect_context')}</p>
+                <p className="mt-xs text-[10px] text-outline">{t('action')}: {String(finding.suggested_action ?? 'inspect_context')}</p>
               </div>
             ))}
-            {findings.length === 0 && <EmptyState text="No diagnostic findings." />}
+            {findings.length === 0 && <EmptyState text={t('noDiagnosticFindings')} />}
           </div>
         </Panel>
       </section>
 
       <section className="grid grid-cols-1 2xl:grid-cols-[0.7fr_1.3fr] gap-gutter">
-        <Panel title="Log Tails">
+        <Panel title={t('logTails')}>
           <div className="flex flex-wrap gap-xs mb-sm">
             {logs.map((log) => (
               <button
@@ -233,11 +235,11 @@ export default function RunDetail() {
             ))}
           </div>
           <pre className="h-80 overflow-auto whitespace-pre-wrap rounded border border-white/10 bg-black/20 p-sm text-xs text-on-surface-variant">
-            {activeLog?.tail?.join('\n') || 'No log tail collected.'}
+            {activeLog?.tail?.join('\n') || t('noLogTail')}
           </pre>
         </Panel>
 
-        <Panel title="Recent Events">
+        <Panel title={t('recentEvents')}>
           <div className="max-h-[380px] overflow-auto divide-y divide-white/5">
             {events.map((event, index) => (
               <div key={`${event.created_at ?? 'event'}-${event.event_type ?? 'event'}-${event.node ?? 'run'}-${index}`} className="py-sm">
@@ -249,21 +251,21 @@ export default function RunDetail() {
                 <p className="mt-xs text-[10px] text-outline">{String(event.node ?? 'run')} / {String(event.level ?? 'info')}</p>
               </div>
             ))}
-            {events.length === 0 && <EmptyState text="No events collected." />}
+            {events.length === 0 && <EmptyState text={t('noEvents')} />}
           </div>
         </Panel>
       </section>
 
       <section className="grid grid-cols-1 2xl:grid-cols-2 gap-gutter">
-        <Panel title="Station Curves And Evaluation">
+        <Panel title={t('stationCurvesAndEvaluation')}>
           <div className="grid grid-cols-1 gap-sm xl:grid-cols-3">
-            <ProductInsightList title="Station Curves" icon="show_chart" products={stationProducts} empty="No station curve or city time-series products in this run." />
-            <ProductInsightList title="Error Evaluation" icon="analytics" products={evaluationProducts} empty="No evaluation, error metric, or score products in this run." />
-            <ProductInsightList title="History Compare" icon="compare_arrows" products={historyProducts} empty="No historical comparison or archived comparison products in this run." />
+            <ProductInsightList title={t('stationCurves')} icon="show_chart" products={stationProducts} empty={t('noStationProducts')} />
+            <ProductInsightList title={t('errorEvaluation')} icon="analytics" products={evaluationProducts} empty={t('noEvaluationProducts')} />
+            <ProductInsightList title={t('historyCompare')} icon="compare_arrows" products={historyProducts} empty={t('noHistoryProducts')} />
           </div>
         </Panel>
 
-        <Panel title="Manifest Products">
+        <Panel title={t('manifestProducts')}>
           <div className="space-y-sm max-h-96 overflow-auto">
             {manifestProducts.map((product, index) => (
               <div key={`${String(product.name ?? 'product')}-${index}`} className="rounded border border-white/10 bg-surface-container-low p-sm">
@@ -280,11 +282,11 @@ export default function RunDetail() {
                 </div>
               </div>
             ))}
-            {manifestProducts.length === 0 && <EmptyState text="No product manifest entries collected." />}
+            {manifestProducts.length === 0 && <EmptyState text={t('noManifestProducts')} />}
           </div>
         </Panel>
 
-        <Panel title="Synced Products">
+        <Panel title={t('syncedProducts')}>
           <div className="space-y-sm max-h-96 overflow-auto">
             {products.map((product) => (
               <div key={product.id} className="flex items-center justify-between gap-sm rounded border border-white/10 bg-surface-container-low p-sm">
@@ -297,15 +299,15 @@ export default function RunDetail() {
                   className="inline-flex items-center gap-1 rounded bg-primary-container px-2 py-1 text-[10px] font-semibold text-on-primary-container"
                 >
                   <span className="material-symbols-outlined text-sm">download</span>
-                  Download
+                  {t('download')}
                 </a>
               </div>
             ))}
-            {products.length === 0 && <EmptyState text="No products synced into the jumpbox database." />}
+            {products.length === 0 && <EmptyState text={t('noSyncedDbProducts')} />}
           </div>
         </Panel>
 
-        <Panel title="Hermes Actions">
+        <Panel title={t('hermesActions')}>
           <div className="space-y-sm max-h-96 overflow-auto">
             {actions.map((action) => (
               <div key={action.id} className="rounded border border-white/10 bg-surface-container-low p-sm">
@@ -317,7 +319,7 @@ export default function RunDetail() {
                 <p className="mt-xs text-[10px] text-outline">{action.created_at || '-'}</p>
               </div>
             ))}
-            {actions.length === 0 && <EmptyState text="No agent actions recorded." />}
+            {actions.length === 0 && <EmptyState text={t('noAgentActions')} />}
           </div>
         </Panel>
       </section>

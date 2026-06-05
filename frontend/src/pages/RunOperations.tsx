@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useI18n } from '../i18n';
 import { agentApi, runsApi } from '../services/api';
 import type { AgentAction, ForecastRunWorkflowStatus } from '../types';
 import { errorMessage } from '../utils/errors';
@@ -24,6 +25,7 @@ interface DiagnosisPayload {
 }
 
 export default function RunOperations() {
+  const { t } = useI18n();
   const [form, setForm] = useState({
     run_id: '',
     start: '2026060400',
@@ -68,7 +70,7 @@ export default function RunOperations() {
   };
 
   const planRun = () =>
-    runAction('Planning run', async () => {
+    runAction(t('plan'), async () => {
       const payload = {
         ...form,
         run_id: form.run_id || undefined,
@@ -88,7 +90,7 @@ export default function RunOperations() {
   };
 
   const verifyFnl = () =>
-    runAction('Verifying FNL', async () => {
+    runAction(t('fnlVerify'), async () => {
       if (!activeRunId) return;
       await runsApi.fnlVerify(activeRunId);
       await refreshStatus(activeRunId);
@@ -96,7 +98,7 @@ export default function RunOperations() {
     });
 
   const repairFnl = () =>
-    runAction('Repairing FNL', async () => {
+    runAction(t('hermesRepair'), async () => {
       if (!activeRunId) return;
       await agentApi.tick({
         ...form,
@@ -111,35 +113,35 @@ export default function RunOperations() {
     });
 
   const submitDryRun = () =>
-    runAction('Submitting dry-run', async () => {
+    runAction(t('submitDryRun'), async () => {
       if (!activeRunId) return;
       await runsApi.submit(activeRunId, { dry_run: true, allow_noop: true });
       await refreshStatus(activeRunId);
     });
 
   const syncProducts = () =>
-    runAction('Syncing products', async () => {
+    runAction(t('syncProducts'), async () => {
       if (!activeRunId) return;
       await runsApi.syncProducts(activeRunId);
       await loadActions(activeRunId);
     });
 
   const loadLogs = () =>
-    runAction('Loading logs', async () => {
+    runAction(t('loadLogs'), async () => {
       if (!activeRunId) return;
       const response = await runsApi.logs(activeRunId, { node: selectedNode, tail: 200 });
       setLogs(response.data.logs);
     });
 
   const diagnoseRun = () =>
-    runAction('Diagnosing run', async () => {
+    runAction(t('diagnose'), async () => {
       if (!activeRunId) return;
       const response = await runsApi.diagnose(activeRunId);
       setDiagnosis(response.data.data);
     });
 
   const retrySelectedNode = (dryRun: boolean) =>
-    runAction(dryRun ? 'Retry Dry-run' : 'Retry Real', async () => {
+    runAction(dryRun ? t('retryDryRun') : t('retryReal'), async () => {
       if (!activeRunId || !selectedNode) return;
       if (!dryRun && !confirm(`Retry node ${selectedNode} for ${activeRunId}?`)) {
         return;
@@ -155,7 +157,7 @@ export default function RunOperations() {
     });
 
   const cancelRun = (dryRun: boolean) =>
-    runAction(dryRun ? 'Cancel Dry-run' : 'Cancel Real', async () => {
+    runAction(dryRun ? t('cancelDryRun') : t('cancelReal'), async () => {
       if (!activeRunId) return;
       if (!dryRun && !confirm(`Cancel run ${activeRunId}?`)) {
         return;
@@ -188,9 +190,9 @@ export default function RunOperations() {
     <div className="p-lg technical-grid min-h-full flex flex-col gap-gutter">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface">Run Operations</h1>
+          <h1 className="font-headline-xl text-headline-xl text-on-surface">{t('runOperationsTitle')}</h1>
           <p className="text-outline font-body-md">
-            Control server-side WRF-Pollen flow, FNL repair, Slurm dry-runs, and Hermes audit state.
+            {t('runOperationsSubtitle')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-sm">
@@ -200,7 +202,7 @@ export default function RunOperations() {
               className="px-md py-sm bg-primary-container text-on-primary-container rounded-lg text-sm font-semibold"
             >
               <span className="material-symbols-outlined align-middle mr-2 text-sm">open_in_new</span>
-              Open Detail
+              {t('openDetail')}
             </Link>
           )}
           <button
@@ -209,15 +211,15 @@ export default function RunOperations() {
             className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10 disabled:opacity-40"
           >
             <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
-            Refresh
+            {t('refresh')}
           </button>
         </div>
       </header>
 
       <section className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-gutter">
         <div className="bg-surface-container border border-white/10 rounded-lg p-md flex flex-col gap-sm">
-          <span className="font-label-caps text-label-caps text-outline uppercase">Run Spec</span>
-          <input className="ops-input" placeholder="run_id optional" value={form.run_id} onChange={(e) => updateForm('run_id', e.target.value)} />
+          <span className="font-label-caps text-label-caps text-outline uppercase">{t('runSpec')}</span>
+          <input className="ops-input" placeholder={t('runIdOptional')} value={form.run_id} onChange={(e) => updateForm('run_id', e.target.value)} />
           <div className="grid grid-cols-2 gap-sm">
             <input className="ops-input" value={form.start} onChange={(e) => updateForm('start', e.target.value)} />
             <input className="ops-input" value={form.end} onChange={(e) => updateForm('end', e.target.value)} />
@@ -233,22 +235,22 @@ export default function RunOperations() {
           </div>
           <input
             className="ops-input"
-            placeholder="server commands-file path"
+            placeholder={t('commandsFilePath')}
             value={form.commands_file}
             onChange={(e) => updateForm('commands_file', e.target.value)}
           />
           <div className="grid grid-cols-2 gap-sm pt-sm">
-            <OpsButton label="Plan" icon="add_task" busy={busy} onClick={planRun} />
-            <OpsButton label="FNL Verify" icon="fact_check" busy={busy} disabled={!activeRunId} onClick={verifyFnl} />
-            <OpsButton label="Hermes Repair" icon="build" busy={busy} disabled={!activeRunId} onClick={repairFnl} />
-            <OpsButton label="Submit Dry-run" icon="send" busy={busy} disabled={!activeRunId} onClick={submitDryRun} />
-            <OpsButton label="Sync Products" icon="download" busy={busy} disabled={!activeRunId} onClick={syncProducts} />
-            <OpsButton label="Load Logs" icon="article" busy={busy} disabled={!activeRunId} onClick={loadLogs} />
-            <OpsButton label="Diagnose" icon="troubleshoot" busy={busy} disabled={!activeRunId} onClick={diagnoseRun} />
-            <OpsButton label="Retry Dry-run" icon="restart_alt" busy={busy} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(true)} />
-            <OpsButton label="Retry Real" icon="published_with_changes" busy={busy} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(false)} tone="danger" />
-            <OpsButton label="Cancel Dry-run" icon="block" busy={busy} disabled={!activeRunId} onClick={() => cancelRun(true)} />
-            <OpsButton label="Cancel Real" icon="dangerous" busy={busy} disabled={!activeRunId} onClick={() => cancelRun(false)} tone="danger" />
+            <OpsButton label={t('plan')} icon="add_task" busy={busy} workingLabel={t('working')} onClick={planRun} />
+            <OpsButton label={t('fnlVerify')} icon="fact_check" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={verifyFnl} />
+            <OpsButton label={t('hermesRepair')} icon="build" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={repairFnl} />
+            <OpsButton label={t('submitDryRun')} icon="send" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={submitDryRun} />
+            <OpsButton label={t('syncProducts')} icon="download" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={syncProducts} />
+            <OpsButton label={t('loadLogs')} icon="article" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={loadLogs} />
+            <OpsButton label={t('diagnose')} icon="troubleshoot" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={diagnoseRun} />
+            <OpsButton label={t('retryDryRun')} icon="restart_alt" busy={busy} workingLabel={t('working')} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(true)} />
+            <OpsButton label={t('retryReal')} icon="published_with_changes" busy={busy} workingLabel={t('working')} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(false)} tone="danger" />
+            <OpsButton label={t('cancelDryRun')} icon="block" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={() => cancelRun(true)} />
+            <OpsButton label={t('cancelReal')} icon="dangerous" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={() => cancelRun(false)} tone="danger" />
           </div>
           {message && (
             <div
@@ -265,24 +267,24 @@ export default function RunOperations() {
 
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
           <div className="px-md py-sm bg-surface-container-high border-b border-white/10 flex items-center justify-between">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">Workflow Status</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('workflowStatus')}</span>
             <StatusPill status={workflow?.status ?? 'pending'} />
           </div>
           <div className="p-md">
             <div className="grid grid-cols-3 gap-gutter mb-md">
-              <Metric label="RUN ID" value={workflow?.run_id || activeRunId || '-'} />
-              <Metric label="PROGRESS" value={`${workflow?.progress ?? 0}%`} />
-              <Metric label="UPDATED" value={workflow?.updated_at ? new Date(workflow.updated_at).toLocaleString() : '-'} />
+              <Metric label={t('runId')} value={workflow?.run_id || activeRunId || '-'} />
+              <Metric label={t('progress')} value={`${workflow?.progress ?? 0}%`} />
+              <Metric label={t('updated')} value={workflow?.updated_at ? new Date(workflow.updated_at).toLocaleString() : '-'} />
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="text-outline border-b border-white/10">
                   <tr>
-                    <th className="px-sm py-sm text-[10px]">NODE</th>
-                    <th className="px-sm py-sm text-[10px]">STATUS</th>
-                    <th className="px-sm py-sm text-[10px]">PROGRESS</th>
-                    <th className="px-sm py-sm text-[10px]">JOB</th>
-                    <th className="px-sm py-sm text-[10px]">MESSAGE</th>
+                    <th className="px-sm py-sm text-[10px]">{t('node')}</th>
+                    <th className="px-sm py-sm text-[10px]">{t('status')}</th>
+                    <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
+                    <th className="px-sm py-sm text-[10px]">{t('job')}</th>
+                    <th className="px-sm py-sm text-[10px]">{t('message')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -309,13 +311,13 @@ export default function RunOperations() {
       <section className="grid grid-cols-1 gap-gutter">
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
           <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">Node Logs: {selectedNode}</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('nodeLogs')}: {selectedNode}</span>
           </div>
-          <pre className="p-md h-72 overflow-auto text-xs font-data-mono text-on-surface-variant whitespace-pre-wrap">{logs || 'No logs loaded.'}</pre>
+          <pre className="p-md h-72 overflow-auto text-xs font-data-mono text-on-surface-variant whitespace-pre-wrap">{logs || t('noLogsLoaded')}</pre>
         </div>
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
           <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">Diagnostics</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('diagnostics')}</span>
           </div>
           <div className="p-md space-y-sm h-72 overflow-auto">
             {diagnosis?.findings?.map((finding, index: number) => (
@@ -325,13 +327,13 @@ export default function RunOperations() {
                   <StatusPill status={String(finding.code || 'finding')} />
                 </div>
                 <p className="text-xs text-on-surface-variant mt-xs">{String(finding.message || '-')}</p>
-                <p className="text-[10px] text-outline mt-xs">Action: {String(finding.suggested_action || 'inspect_logs')}</p>
+                <p className="text-[10px] text-outline mt-xs">{t('action')}: {String(finding.suggested_action || 'inspect_logs')}</p>
               </div>
             ))}
             {diagnosis && (diagnosis.findings?.length ?? 0) === 0 && (
-              <p className="text-sm text-outline">No findings reported for this run.</p>
+              <p className="text-sm text-outline">{t('noFindings')}</p>
             )}
-            {!diagnosis && <p className="text-sm text-outline">No diagnostics loaded.</p>}
+            {!diagnosis && <p className="text-sm text-outline">{t('noDiagnosticsLoaded')}</p>}
           </div>
         </div>
       </section>
@@ -339,7 +341,7 @@ export default function RunOperations() {
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-gutter">
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
           <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">Hermes Actions</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('hermesActions')}</span>
           </div>
           <div className="p-md space-y-sm h-72 overflow-auto">
             {actions.map((action) => (
@@ -351,7 +353,7 @@ export default function RunOperations() {
                 <p className="text-xs text-outline mt-xs">{action.reason || '-'}</p>
               </div>
             ))}
-            {actions.length === 0 && <p className="text-sm text-outline">No actions recorded.</p>}
+            {actions.length === 0 && <p className="text-sm text-outline">{t('noActions')}</p>}
           </div>
         </div>
       </section>
@@ -363,6 +365,7 @@ function OpsButton({
   label,
   icon,
   busy,
+  workingLabel,
   disabled,
   onClick,
   tone = 'primary',
@@ -370,6 +373,7 @@ function OpsButton({
   label: string;
   icon: string;
   busy: string;
+  workingLabel: string;
   disabled?: boolean;
   onClick: () => void;
   tone?: 'primary' | 'danger';
@@ -385,7 +389,7 @@ function OpsButton({
       }`}
     >
       <span className="material-symbols-outlined text-sm">{icon}</span>
-      {busy === label ? 'Working...' : label}
+      {busy === label ? workingLabel : label}
     </button>
   );
 }

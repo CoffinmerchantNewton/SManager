@@ -1,116 +1,91 @@
 import { type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useThemeMode, type ThemeMode } from '../hooks/useThemeMode';
+import { LanguageSelector, useI18n } from '../i18n';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 const navItems = [
-  { path: '/admin/dashboard', match: 'dashboard', label: 'Dashboard', sideLabel: 'Dashboard', icon: 'dashboard' },
-  { path: '/admin/runs', match: 'runs', label: 'Runs', sideLabel: 'Run Control', icon: 'rocket_launch' },
-  { path: '/admin/fnl', match: 'fnl', label: 'FNL', sideLabel: 'FNL Manager', icon: 'cloud_sync' },
-  { path: '/admin/workflow', match: 'workflow', label: 'Workflow', sideLabel: 'Workflow DAG', icon: 'account_tree' },
-  { path: '/admin/scheduler', match: 'scheduler', label: 'Scheduler', sideLabel: 'Task Scheduler', icon: 'schedule' },
-  { path: '/admin/products', match: 'products', label: 'Products', sideLabel: 'Forecast Models', icon: 'analytics' },
+  { path: '/admin/dashboard', match: 'dashboard', labelKey: 'navDashboard', icon: 'dashboard' },
+  { path: '/admin/runs', match: 'runs', labelKey: 'navRuns', icon: 'rocket_launch' },
+  { path: '/admin/fnl', match: 'fnl', labelKey: 'navFnl', icon: 'cloud_sync' },
+  { path: '/admin/workflow', match: 'workflow', labelKey: 'navWorkflow', icon: 'account_tree' },
+  { path: '/admin/scheduler', match: 'scheduler', labelKey: 'navScheduler', icon: 'schedule' },
+  { path: '/admin/products', match: 'products', labelKey: 'navProducts', icon: 'analytics' },
 ];
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { theme, switchTheme } = useThemeMode();
+  const { t } = useI18n();
 
   const isActive = (path: string) => location.pathname.includes(path);
 
   return (
     <div data-theme={theme} className="min-h-screen bg-background text-on-background transition-colors duration-300">
-      {/* TopNavBar */}
-      <header className="fixed top-0 w-full h-14 flex justify-between items-center px-6 z-50 bg-surface-container-lowest/95 backdrop-blur-md border-b border-outline-variant font-inter tracking-tight antialiased text-sm">
-        <div className="flex items-center gap-8">
-          <span className="text-lg font-black tracking-tighter text-on-surface uppercase">
-            China Pollen Forecast System
-          </span>
-          <nav className="hidden md:flex gap-6">
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`${
-                  isActive(item.match)
-                    ? 'text-secondary-container border-b-2 border-secondary-container pb-1'
-                    : 'text-on-surface-variant hover:text-secondary hover:bg-white/5 transition-colors'
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex h-9 items-center rounded-lg border border-outline-variant bg-surface-container-high p-1">
-            {(['research', 'pig'] as ThemeMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => switchTheme(mode)}
-                aria-pressed={theme === mode}
-                className={`min-w-[56px] rounded px-2.5 py-1 text-[11px] font-label-caps transition-colors ${
-                  theme === mode
-                    ? 'bg-primary-container text-on-primary-container'
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                {mode === 'research' ? '科研' : '小猪'}
-              </button>
-            ))}
-          </div>
-          <button className="p-2 text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
-          <button className="p-2 text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined">account_circle</span>
-          </button>
-        </div>
-      </header>
-
-      {/* SideNavBar */}
-      <aside className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] flex flex-col py-4 z-40 bg-surface-container-lowest w-64 border-r border-outline-variant font-inter text-xs uppercase tracking-widest font-semibold">
-        <div className="px-6 mb-8">
+      <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-outline-variant bg-surface-container-lowest py-4 font-inter text-xs font-semibold uppercase tracking-widest">
+        <div className="mb-8 px-6">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary-container/20 flex items-center justify-center border border-primary-container/30">
-              <span className="material-symbols-outlined text-primary scale-75">terminal</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary-container/30 bg-primary-container/20">
+              <span className="material-symbols-outlined scale-75 text-primary">terminal</span>
             </div>
-            <div>
-              <p className="text-on-surface font-bold tracking-normal text-sm">Telemetry Admin</p>
-              <p className="text-outline lowercase tracking-normal text-[10px]">Node: Beijing-01</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold tracking-normal text-on-surface">{t('telemetryAdmin')}</p>
+              <p className="truncate text-[10px] normal-case tracking-normal text-outline">{t('nodeLabel')}</p>
             </div>
           </div>
+          <p className="mt-4 text-[10px] font-black leading-tight tracking-wide text-on-surface">{t('appName')}</p>
         </div>
-        <nav className="flex-1 px-3 space-y-1">
+
+        <nav className="flex-1 space-y-1 px-3">
           {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-4 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+              className={`flex items-center gap-4 rounded-lg px-3 py-2.5 transition-all duration-200 ${
                 isActive(item.match)
-                  ? 'bg-primary-container/10 text-secondary-container border-r-2 border-secondary-container'
-                  : 'text-outline hover:text-on-surface-variant hover:bg-white/5'
+                  ? 'border-r-2 border-secondary-container bg-primary-container/10 text-secondary-container'
+                  : 'text-outline hover:bg-white/5 hover:text-on-surface-variant'
               }`}
             >
               <span className="material-symbols-outlined scale-90">{item.icon}</span>
-              <span>{item.sideLabel}</span>
+              <span>{t(item.labelKey)}</span>
             </Link>
           ))}
         </nav>
-        <div className="px-4 mt-auto">
-          <button className="w-full py-3 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg hover:bg-surface-variant transition-colors flex items-center justify-center gap-2">
+
+        <div className="mt-auto space-y-3 px-4">
+          <LanguageSelector compact />
+          <div>
+            <span className="mb-1 block font-label-caps text-[10px] uppercase text-outline">{t('theme')}</span>
+            <div className="flex h-9 items-center rounded-lg border border-outline-variant bg-surface-container-high p-1">
+              {(['research', 'pig'] as ThemeMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => switchTheme(mode)}
+                  aria-pressed={theme === mode}
+                  className={`min-w-0 flex-1 rounded px-2 py-1 text-[11px] font-label-caps transition-colors ${
+                    theme === mode
+                      ? 'bg-primary-container text-on-primary-container'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {mode === 'research' ? t('themeResearch') : t('themePig')}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-high py-3 text-on-surface transition-colors hover:bg-surface-variant">
             <span className="material-symbols-outlined text-[18px]">add_box</span>
-            New Simulation
+            {t('newSimulation')}
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="ml-64 mt-14 min-h-[calc(100vh-3.5rem)]">{children}</main>
+      <main className="ml-64 min-h-screen">{children}</main>
     </div>
   );
 }

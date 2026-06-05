@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../i18n';
 import { workflowsApi } from '../services/api';
 import type { Workflow, WorkflowNode } from '../types/index';
 
 export default function WorkflowEditor() {
+  const { t } = useI18n();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -70,19 +72,19 @@ export default function WorkflowEditor() {
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
-        <div className="text-cyan-400">Loading...</div>
+        <div className="text-cyan-400">{t('loading')}...</div>
       </div>
     );
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex flex-col">
+    <div className="flex h-screen flex-col">
       {/* Top Content Row: 3-column Layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Column: Templates */}
         <section className="w-72 border-r border-white/10 bg-surface-container-low flex flex-col">
           <div className="p-4 border-b border-white/10 bg-surface-container flex items-center justify-between">
-            <span className="font-label-caps text-on-surface-variant uppercase">Workflows</span>
+            <span className="font-label-caps text-on-surface-variant uppercase">{t('workflows')}</span>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {workflows.map((workflow) => (
@@ -116,7 +118,7 @@ export default function WorkflowEditor() {
           <div className="p-4 border-b border-white/5 flex items-center justify-between bg-surface-dim/80 backdrop-blur">
             <div className="flex items-center gap-4">
               <h2 className="font-headline-md text-on-surface">
-                Workflow DAG{' '}
+                {t('workflowTitle')}{' '}
                 <span className="text-on-surface-variant font-normal text-sm ml-2">
                   / {selectedWorkflow?.name}
                 </span>
@@ -124,10 +126,10 @@ export default function WorkflowEditor() {
             </div>
             <div className="flex items-center gap-2">
               <button className="bg-surface-container-high px-3 py-1.5 rounded text-xs flex items-center gap-2 border border-white/10 hover:bg-white/10 transition-colors">
-                <span className="material-symbols-outlined text-sm">play_arrow</span> Resume
+                <span className="material-symbols-outlined text-sm">play_arrow</span> {t('resume')}
               </button>
               <button className="bg-surface-container-high px-3 py-1.5 rounded text-xs flex items-center gap-2 border border-white/10 hover:bg-white/10 transition-colors">
-                <span className="material-symbols-outlined text-sm">settings_backup_restore</span> Re-run
+                <span className="material-symbols-outlined text-sm">settings_backup_restore</span> {t('rerun')}
               </button>
             </div>
           </div>
@@ -193,19 +195,19 @@ export default function WorkflowEditor() {
         {/* Right Column: Parameter Panel */}
         <section className="w-80 border-l border-white/10 bg-surface-container-low flex flex-col">
           <div className="p-4 border-b border-white/10 bg-surface-container">
-            <span className="font-label-caps text-on-surface-variant uppercase">Node Parameters</span>
+            <span className="font-label-caps text-on-surface-variant uppercase">{t('nodeParameters')}</span>
           </div>
           <div className="p-4 overflow-y-auto space-y-6">
             {nodes.length > 0 && (
               <>
                 <div>
                   <label className="block text-[10px] text-on-surface-variant uppercase font-bold mb-2">
-                    Selected Node
+                    {t('selectedNode')}
                   </label>
                   <div className="bg-surface-container-high p-3 rounded border border-white/5">
                     <div className="text-white font-bold text-sm">{nodes[0].node_name}</div>
                     <div className="text-[10px] text-cyan-400 font-data-mono">
-                      Status: {nodes[0].status}
+                      {t('status')}: {nodes[0].status}
                     </div>
                   </div>
                 </div>
@@ -213,7 +215,7 @@ export default function WorkflowEditor() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] text-on-surface-variant uppercase font-bold mb-1">
-                        CPU Cores
+                        {t('cpuCores')}
                       </label>
                       <input
                         className="w-full bg-surface-container-highest border-white/10 text-white text-xs rounded p-2 focus:ring-1 focus:ring-cyan-500 outline-none"
@@ -224,7 +226,7 @@ export default function WorkflowEditor() {
                     </div>
                     <div>
                       <label className="block text-[10px] text-on-surface-variant uppercase font-bold mb-1">
-                        Memory (GB)
+                        {t('memoryGb')}
                       </label>
                       <input
                         className="w-full bg-surface-container-highest border-white/10 text-white text-xs rounded p-2 focus:ring-1 focus:ring-cyan-500 outline-none"

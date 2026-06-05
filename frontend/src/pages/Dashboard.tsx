@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { useI18n } from '../i18n';
 import { dashboardApi, productsApi } from '../services/api';
 import type { AgentAction, DashboardOverview, SystemLog } from '../types/index';
 import { errorMessage } from '../utils/errors';
 
 export default function Dashboard() {
+  const { t } = useI18n();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,7 +31,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <div className="font-data-mono text-cyan-400">Loading dashboard...</div>
+        <div className="font-data-mono text-cyan-400">{t('loadingDashboard')}</div>
       </div>
     );
   }
@@ -41,40 +43,38 @@ export default function Dashboard() {
     <div className="min-h-full p-6 technical-grid">
       <header className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="font-headline-xl text-headline-xl text-on-background mb-1">预报管理中心</h1>
-          <p className="text-on-surface-variant font-body-md">
-            Daily operations view for WRF-Pollen runs, FNL coverage, products, and AI actions.
-          </p>
+          <h1 className="mb-1 font-headline-xl text-headline-xl text-on-background">{t('dashboardTitle')}</h1>
+          <p className="font-body-md text-on-surface-variant">{t('dashboardSubtitle')}</p>
         </div>
         <button
           onClick={loadOverview}
           className="w-fit rounded-lg border border-white/10 bg-surface-container-high px-md py-sm text-sm text-on-surface hover:bg-white/10"
         >
-          <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
-          Refresh
+          <span className="material-symbols-outlined mr-2 align-middle text-sm">refresh</span>
+          {t('refresh')}
         </button>
       </header>
 
       {error && <div className="mb-6 rounded-lg border border-error/30 bg-error-container/20 p-md text-sm text-error">{error}</div>}
 
       <section className="mb-8 grid grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="System Health" value={`${stats?.system_health ?? 100}%`} icon="health_and_safety" tone="ok" />
-        <MetricCard label="Running Runs" value={`${stats?.running_workflows ?? 0}/${stats?.total_workflows ?? 0}`} icon="play_circle" tone="info" />
-        <MetricCard label="FNL Needs Repair" value={`${fnl?.needs_repair ?? 0}`} icon="cloud_sync" tone={(fnl?.needs_repair ?? 0) > 0 ? 'danger' : 'ok'} />
-        <MetricCard label="Ready Products" value={`${overview?.products.ready ?? 0}/${overview?.products.total ?? 0}`} icon="analytics" tone="info" />
+        <MetricCard label={t('systemHealth')} value={`${stats?.system_health ?? 100}%`} icon="health_and_safety" tone="ok" />
+        <MetricCard label={t('runningRuns')} value={`${stats?.running_workflows ?? 0}/${stats?.total_workflows ?? 0}`} icon="play_circle" tone="info" />
+        <MetricCard label={t('fnlNeedsRepair')} value={`${fnl?.needs_repair ?? 0}`} icon="cloud_sync" tone={(fnl?.needs_repair ?? 0) > 0 ? 'danger' : 'ok'} />
+        <MetricCard label={t('readyProducts')} value={`${overview?.products.ready ?? 0}/${overview?.products.total ?? 0}`} icon="analytics" tone="info" />
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-gutter xl:grid-cols-[1.4fr_0.6fr]">
-        <Panel title="Recent Runs">
+        <Panel title={t('recentRuns')}>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="border-b border-white/10 text-outline">
                 <tr>
-                  <th className="px-sm py-sm text-[10px]">RUN</th>
-                  <th className="px-sm py-sm text-[10px]">STATUS</th>
-                  <th className="px-sm py-sm text-[10px]">PROGRESS</th>
-                  <th className="px-sm py-sm text-[10px]">WINDOW</th>
-                  <th className="px-sm py-sm text-[10px]">DOMAIN</th>
+                  <th className="px-sm py-sm text-[10px]">{t('run')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('status')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('window')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('domain')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -93,27 +93,27 @@ export default function Dashboard() {
                 ))}
               </tbody>
             </table>
-            {(overview?.runs.length ?? 0) === 0 && <EmptyState text="No forecast runs synced yet." />}
+            {(overview?.runs.length ?? 0) === 0 && <EmptyState text={t('noRuns')} />}
           </div>
         </Panel>
 
-        <Panel title="FNL Coverage">
+        <Panel title={t('fnlCoverage')}>
           <div className="space-y-sm">
-            <SummaryRow label="Server OK" value={fnl?.server_ok ?? 0} />
-            <SummaryRow label="Uploaded" value={fnl?.uploaded ?? 0} />
-            <SummaryRow label="Needs Repair" value={fnl?.needs_repair ?? 0} danger={(fnl?.needs_repair ?? 0) > 0} />
-            <SummaryRow label="Total Records" value={fnl?.total ?? 0} />
+            <SummaryRow label={t('serverOk')} value={fnl?.server_ok ?? 0} />
+            <SummaryRow label={t('uploaded')} value={fnl?.uploaded ?? 0} />
+            <SummaryRow label={t('needsRepair')} value={fnl?.needs_repair ?? 0} danger={(fnl?.needs_repair ?? 0) > 0} />
+            <SummaryRow label={t('totalRecords')} value={fnl?.total ?? 0} />
           </div>
           <Link to="/admin/fnl" className="mt-md inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200">
-            Open FNL Manager
+            {t('openFnlManager')}
             <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </Link>
         </Panel>
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-gutter xl:grid-cols-2">
-        <Panel title="Latest Products">
-          <div className="space-y-sm max-h-80 overflow-auto">
+        <Panel title={t('latestProducts')}>
+          <div className="max-h-80 space-y-sm overflow-auto">
             {(overview?.products.latest ?? []).map((product) => (
               <div key={product.id} className="flex items-center justify-between gap-sm rounded border border-white/10 bg-surface-container-low p-sm">
                 <div className="min-w-0">
@@ -124,30 +124,30 @@ export default function Dashboard() {
                   href={productsApi.downloadUrl(product.id)}
                   className="rounded bg-primary-container px-2 py-1 text-[10px] font-semibold text-on-primary-container"
                 >
-                  Download
+                  {t('download')}
                 </a>
               </div>
             ))}
-            {(overview?.products.latest.length ?? 0) === 0 && <EmptyState text="No synced products yet." />}
+            {(overview?.products.latest.length ?? 0) === 0 && <EmptyState text={t('noProducts')} />}
           </div>
         </Panel>
 
-        <Panel title="Hermes / AI Actions">
-          <div className="space-y-sm max-h-80 overflow-auto">
+        <Panel title={t('hermesActions')}>
+          <div className="max-h-80 space-y-sm overflow-auto">
             {(overview?.actions ?? []).map((action) => (
               <ActionItem key={action.id} action={action} />
             ))}
-            {(overview?.actions.length ?? 0) === 0 && <EmptyState text="No AI actions recorded." />}
+            {(overview?.actions.length ?? 0) === 0 && <EmptyState text={t('noActions')} />}
           </div>
         </Panel>
       </section>
 
-      <Panel title="System Logs">
-        <div className="space-y-2 font-data-mono text-xs max-h-80 overflow-y-auto">
+      <Panel title={t('systemLogs')}>
+        <div className="max-h-80 space-y-2 overflow-y-auto font-data-mono text-xs">
           {(overview?.logs ?? []).map((log) => (
             <LogRow key={log.id} log={log} />
           ))}
-          {(overview?.logs.length ?? 0) === 0 && <EmptyState text="No system logs recorded." />}
+          {(overview?.logs.length ?? 0) === 0 && <EmptyState text={t('noLogs')} />}
         </div>
       </Panel>
     </div>

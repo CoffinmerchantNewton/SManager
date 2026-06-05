@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../i18n';
 import { tasksApi } from '../services/api';
 import type { ScheduledTask } from '../types/index';
 import { errorMessage } from '../utils/errors';
 
 export default function TaskScheduler() {
+  const { t } = useI18n();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningTaskId, setRunningTaskId] = useState<number | null>(null);
@@ -65,7 +67,7 @@ export default function TaskScheduler() {
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
-        <div className="text-cyan-400">Loading...</div>
+        <div className="text-cyan-400">{t('loading')}...</div>
       </div>
     );
   }
@@ -75,14 +77,14 @@ export default function TaskScheduler() {
       {/* Header Section */}
       <header className="flex justify-between items-end">
         <div>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface">Task Scheduler</h1>
+          <h1 className="font-headline-xl text-headline-xl text-on-surface">{t('schedulerTitle')}</h1>
           <p className="text-outline font-body-md">
-            Manage automated forecast workflows and periodic data aggregation cycles.
+            {t('schedulerSubtitle')}
           </p>
         </div>
         <button className="bg-primary-container text-on-primary-container px-lg py-sm rounded-lg flex items-center gap-2 font-semibold hover:shadow-[0_0_15px_rgba(0,102,255,0.4)] transition-all">
           <span className="material-symbols-outlined">schedule_send</span>
-          <span>Create New Schedule</span>
+          <span>{t('createSchedule')}</span>
         </button>
       </header>
 
@@ -95,24 +97,24 @@ export default function TaskScheduler() {
       {/* Stats Bento Grid */}
       <div className="grid grid-cols-4 gap-gutter">
         <div className="bg-surface-container border border-white/10 p-md rounded flex flex-col gap-xs">
-          <span className="font-label-caps text-label-caps text-outline uppercase">Active Tasks</span>
+          <span className="font-label-caps text-label-caps text-outline uppercase">{t('activeTasks')}</span>
           <span className="font-data-mono text-3xl font-bold text-tertiary">
             {tasks.filter((t) => t.status === 'active').length}{' '}
             <span className="text-xs font-normal text-slate-500">/ {tasks.length}</span>
           </span>
         </div>
         <div className="bg-surface-container border border-white/10 p-md rounded flex flex-col gap-xs">
-          <span className="font-label-caps text-label-caps text-outline uppercase">Next Run</span>
+          <span className="font-label-caps text-label-caps text-outline uppercase">{t('nextRun')}</span>
           <span className="font-data-mono text-xl font-bold text-secondary-fixed-dim">
             04:00:00 <span className="text-[10px] text-slate-500 ml-1">UTC</span>
           </span>
         </div>
         <div className="bg-surface-container border border-white/10 p-md rounded flex flex-col gap-xs">
-          <span className="font-label-caps text-label-caps text-outline uppercase">Success Rate (24h)</span>
+          <span className="font-label-caps text-label-caps text-outline uppercase">{t('successRate24h')}</span>
           <span className="font-data-mono text-3xl font-bold text-on-tertiary-container">99.2%</span>
         </div>
         <div className="bg-surface-container border border-white/10 p-md rounded flex flex-col gap-xs">
-          <span className="font-label-caps text-label-caps text-outline uppercase">Avg Processing</span>
+          <span className="font-label-caps text-label-caps text-outline uppercase">{t('avgProcessing')}</span>
           <span className="font-data-mono text-3xl font-bold text-primary">14.2s</span>
         </div>
       </div>
@@ -120,13 +122,13 @@ export default function TaskScheduler() {
       {/* Task Table */}
       <section className="bg-surface-container border border-white/10 rounded flex-1 overflow-hidden flex flex-col">
         <div className="px-md py-sm bg-surface-container-high border-b border-white/10 flex items-center justify-between">
-          <span className="font-label-caps text-label-caps text-on-surface-variant">SCHEDULED PIPELINES</span>
+          <span className="font-label-caps text-label-caps text-on-surface-variant">{t('scheduledPipelines')}</span>
           <div className="flex gap-4">
             <button className="text-[10px] text-outline hover:text-white uppercase flex items-center gap-1">
-              <span className="material-symbols-outlined text-sm">filter_list</span> Filter
+              <span className="material-symbols-outlined text-sm">filter_list</span> {t('filter')}
             </button>
             <button className="text-[10px] text-outline hover:text-white uppercase flex items-center gap-1">
-              <span className="material-symbols-outlined text-sm">download</span> Export
+              <span className="material-symbols-outlined text-sm">download</span> {t('export')}
             </button>
           </div>
         </div>
@@ -134,13 +136,13 @@ export default function TaskScheduler() {
           <table className="w-full text-left border-collapse">
             <thead className="bg-surface-container-low/50 sticky top-0">
               <tr className="text-outline border-b border-white/5">
-                <th className="px-md py-sm font-label-caps text-[10px]">TASK NAME</th>
-                <th className="px-md py-sm font-label-caps text-[10px]">STATUS</th>
-                <th className="px-md py-sm font-label-caps text-[10px]">EXECUTION TIME</th>
-                <th className="px-md py-sm font-label-caps text-[10px]">REGION</th>
-                <th className="px-md py-sm font-label-caps text-[10px]">TEMPLATE</th>
-                <th className="px-md py-sm font-label-caps text-[10px]">LAST RESULT</th>
-                <th className="px-md py-sm font-label-caps text-[10px] text-right">ACTIONS</th>
+                <th className="px-md py-sm font-label-caps text-[10px]">{t('taskName')}</th>
+                <th className="px-md py-sm font-label-caps text-[10px]">{t('status')}</th>
+                <th className="px-md py-sm font-label-caps text-[10px]">{t('executionTime')}</th>
+                <th className="px-md py-sm font-label-caps text-[10px]">{t('region')}</th>
+                <th className="px-md py-sm font-label-caps text-[10px]">{t('template')}</th>
+                <th className="px-md py-sm font-label-caps text-[10px]">{t('lastResult')}</th>
+                <th className="px-md py-sm font-label-caps text-[10px] text-right">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">

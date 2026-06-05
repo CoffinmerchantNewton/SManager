@@ -2,27 +2,52 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import CesiumMap, { type MapProductLayer } from '../components/CesiumMap';
 import { cities as fallbackCities } from '../data/chinaMap';
 import { useThemeMode, type ThemeMode } from '../hooks/useThemeMode';
+import { LanguageSelector, type Locale, useI18n } from '../i18n';
 import { productsApi } from '../services/api';
 import type { ForecastProduct } from '../types';
 
-const SPECIES_LABELS: Record<number, string> = {
-  1: '常绿针叶',
-  2: '杨柳',
-  3: '栎树',
-  4: '榆树',
-  5: '白桦',
-  6: '落叶松',
-  7: '禾本科',
-  8: '蒿属',
-  9: '藜科',
+const SPECIES_LABELS: Record<Locale, Record<number, string>> = {
+  en: {
+    1: 'Evergreen conifer',
+    2: 'Poplar / willow',
+    3: 'Oak',
+    4: 'Elm',
+    5: 'Birch',
+    6: 'Larch',
+    7: 'Grass',
+    8: 'Artemisia',
+    9: 'Chenopodiaceae',
+  },
+  'zh-CN': {
+    1: '常绿针叶',
+    2: '杨柳',
+    3: '栎树',
+    4: '榆树',
+    5: '白桦',
+    6: '落叶松',
+    7: '禾本科',
+    8: '蒿属',
+    9: '藜科',
+  },
+  'zh-TW': {
+    1: '常綠針葉',
+    2: '楊柳',
+    3: '櫟樹',
+    4: '榆樹',
+    5: '白樺',
+    6: '落葉松',
+    7: '禾本科',
+    8: '蒿屬',
+    9: '藜科',
+  },
 };
 
-const RISK_META: Record<string, { label: string; color: string; bg: string; rank: number }> = {
-  low: { label: '低', color: '#50e167', bg: 'rgba(80,225,103,0.16)', rank: 1 },
-  medium: { label: '中', color: '#00f1fe', bg: 'rgba(0,241,254,0.16)', rank: 2 },
-  high: { label: '高', color: '#ff8a80', bg: 'rgba(255,138,128,0.18)', rank: 3 },
-  critical: { label: '极高', color: '#ffb4ab', bg: 'rgba(255,180,171,0.22)', rank: 4 },
-  unknown: { label: '未知', color: '#8c90a1', bg: 'rgba(140,144,161,0.14)', rank: 0 },
+const RISK_STYLE: Record<string, { color: string; bg: string; rank: number }> = {
+  low: { color: '#50e167', bg: 'rgba(80,225,103,0.16)', rank: 1 },
+  medium: { color: '#00f1fe', bg: 'rgba(0,241,254,0.16)', rank: 2 },
+  high: { color: '#ff8a80', bg: 'rgba(255,138,128,0.18)', rank: 3 },
+  critical: { color: '#ffb4ab', bg: 'rgba(255,180,171,0.22)', rank: 4 },
+  unknown: { color: '#8c90a1', bg: 'rgba(140,144,161,0.14)', rank: 0 },
 };
 
 interface ProductBundle {
@@ -38,14 +63,15 @@ interface ProductBundle {
 
 export default function Portal() {
   const { theme, switchTheme } = useThemeMode();
+  const { locale, t } = useI18n();
   const [productLayer, setProductLayer] = useState<MapProductLayer | null>(null);
   const [cityForecast, setCityForecast] = useState<CityForecastPayload | null>(null);
   const [productBundles, setProductBundles] = useState<ProductBundle[]>([]);
   const [activeBundleKey, setActiveBundleKey] = useState('');
-  const [productStatus, setProductStatus] = useState('等待地图产品');
-  const [cityStatus, setCityStatus] = useState('等待城市预报产品');
+  const [productStatus, setProductStatus] = useState(t('waitingMapProducts'));
+  const [cityStatus, setCityStatus] = useState(t('waitingCityProducts'));
   const [query, setQuery] = useState('');
-  const [selectedCityName, setSelectedCityName] = useState('北京');
+  const [selectedCityName, setSelectedCityName] = useState(fallbackCities[0]?.name ?? '');
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,34 +84,27 @@ export default function Portal() {
       try {
         const response = await productsApi.getAll({ status: 'ready', limit: 80 });
         const products = response.data as ForecastProduct[];
-        const bundles = buildProductBundles(products);
-        if (cancelled) {
-          return;
-        }
+        const bundles = buildProductBundles(products, locale);
+        if (cancelled) return;
         setProductBundles(bundles);
         setActiveBundleKey((current) => {
-          if (bundles.some((bundle) => bundle.key === current)) {
-            return current;
-          }
+          if (bundles.some((bundle) => bundle.key === current)) return current;
           return bundles[0]?.key ?? '';
         });
         if (bundles.length === 0) {
           setProductLayer(null);
           setCityForecast(null);
-          setProductStatus('未索引可渲染地图产品');
-          setCityStatus('未索引 city_forecast_json，使用示例城市点');
-          return;
+          setProductStatus(t('noRenderableMapProducts'));
+          setCityStatus(t('noCityForecastJson'));
         }
       } catch (error) {
         console.warn('Latest pollen products are unavailable:', error);
         if (!cancelled) {
-          setProductStatus('地图产品暂不可用');
-          setCityStatus('城市预报暂不可用');
+          setProductStatus(t('mapProductsUnavailable'));
+          setCityStatus(t('cityForecastUnavailable'));
         }
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     };
 
@@ -93,7 +112,7 @@ export default function Portal() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale, t]);
 
   const activeBundle = useMemo(
     () => productBundles.find((bundle) => bundle.key === activeBundleKey) ?? productBundles[0],
@@ -101,9 +120,7 @@ export default function Portal() {
   );
 
   useEffect(() => {
-    if (!activeBundle) {
-      return;
-    }
+    if (!activeBundle) return;
     let cancelled = false;
 
     const loadBundleProducts = async () => {
@@ -117,7 +134,7 @@ export default function Portal() {
           if (!cancelled && isCityForecastPayload(content.data)) {
             const payload = content.data;
             setCityForecast(payload);
-            setCityStatus(`城市预报: ${activeBundle.label}`);
+            setCityStatus(`${t('cityForecast')}: ${activeBundle.label}`);
             const firstCity = payload.cities[0];
             if (firstCity) {
               setSelectedCityName((current) =>
@@ -126,45 +143,39 @@ export default function Portal() {
             }
           }
         } else if (!cancelled) {
-          setCityStatus('当前产品包无 city_forecast_json，使用示例城市点');
+          setCityStatus(t('currentBundleNoCity'));
         }
 
         if (activeBundle.overlayMetadataProduct) {
           const content = await productsApi.content(activeBundle.overlayMetadataProduct.id);
           const overlayLayer = buildOverlayLayer(activeBundle.overlayMetadataProduct, content.data, activeBundle.products);
-          if (cancelled) {
-            return;
-          }
+          if (cancelled) return;
           if (overlayLayer) {
             setProductLayer(overlayLayer);
-            setProductStatus(`浓度底图: ${activeBundle.label}`);
+            setProductStatus(`${t('concentrationBaseMap')}: ${activeBundle.label}`);
             return;
           }
         }
 
         if (activeBundle.inlineMapProduct) {
           const content = await productsApi.content(activeBundle.inlineMapProduct.id);
-          if (cancelled) {
-            return;
-          }
+          if (cancelled) return;
           setProductLayer({ kind: 'geojson', name: activeBundle.inlineMapProduct.product_name, geojson: content.data });
-          setProductStatus(`采样图层: ${activeBundle.label}`);
+          setProductStatus(`${t('sampleLayer')}: ${activeBundle.label}`);
           return;
         }
 
         if (!cancelled) {
-          setProductStatus('当前产品包无 PNG overlay 或 GeoJSON 图层');
+          setProductStatus(t('noMapLayerInBundle'));
         }
       } catch (error) {
         console.warn('Selected pollen products are unavailable:', error);
         if (!cancelled) {
-          setProductStatus('所选地图产品暂不可用');
-          setCityStatus('所选城市预报暂不可用');
+          setProductStatus(t('selectedMapUnavailable'));
+          setCityStatus(t('selectedCityUnavailable'));
         }
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     };
 
@@ -172,7 +183,7 @@ export default function Portal() {
     return () => {
       cancelled = true;
     };
-  }, [activeBundle]);
+  }, [activeBundle, t]);
 
   const forecastCities = useMemo(() => cityForecast?.cities ?? [], [cityForecast]);
   const hasForecast = forecastCities.length > 0;
@@ -193,9 +204,7 @@ export default function Portal() {
       ? forecastCities.map((city) => ({ name: city.name, longitude: city.longitude, latitude: city.latitude }))
       : fallbackCities.map((city) => ({ name: city.name, longitude: city.longitude, latitude: city.latitude }));
     const normalized = query.trim().toLowerCase();
-    if (!normalized) {
-      return source.slice(0, 12);
-    }
+    if (!normalized) return source.slice(0, 12);
     return source.filter((city) => city.name.toLowerCase().includes(normalized)).slice(0, 12);
   }, [forecastCities, hasForecast, query]);
   const mapCities = useMemo(
@@ -214,15 +223,13 @@ export default function Portal() {
         : fallbackCities,
     [activeDayIndex, forecastCities, hasForecast],
   );
-  const risk = riskMeta(activeStep.risk);
+  const risk = riskMeta(activeStep.risk, t);
   const peak = maxForecastValue(timeline);
-  const dominantSpecies = formatSpecies(activeStep);
-  const readinessLabel = isLoading ? '加载中' : productBundles.length > 0 ? '产品就绪' : '示例模式';
+  const dominantSpecies = formatSpecies(activeStep, locale);
+  const readinessLabel = isLoading ? t('loading') : productBundles.length > 0 ? t('productReady') : t('sampleMode');
 
   useEffect(() => {
-    if (!isPlaying) {
-      return;
-    }
+    if (!isPlaying) return;
     const timer = window.setInterval(() => {
       setSelectedDayIndex((current) => (current + 1) % Math.max(1, timeline.slice(0, 7).length));
     }, 1200);
@@ -233,12 +240,15 @@ export default function Portal() {
     <div data-theme={theme} className="min-h-screen bg-background text-on-background font-body-md">
       <header className="fixed top-0 z-50 flex h-14 w-full items-center justify-between border-b border-outline-variant bg-surface-container-lowest/95 px-5 backdrop-blur-md">
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-base font-black uppercase tracking-wide text-on-surface">中国花粉传播预报系统</span>
+          <span className="truncate text-base font-black uppercase tracking-wide text-on-surface">{t('appName')}</span>
           <span className="hidden text-[10px] font-medium uppercase tracking-[0.18em] text-on-surface-variant sm:block">
-            WRF-Pollen operational forecast
+            {t('portalSubtitle')}
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <div className="hidden w-40 sm:block">
+            <LanguageSelector compact />
+          </div>
           <ThemeSwitch theme={theme} onChange={switchTheme} />
           <div className="hidden items-center gap-2 rounded border border-outline-variant bg-surface-container-high px-3 py-1.5 text-[11px] text-on-surface-variant md:flex">
             <span className={`h-2 w-2 rounded-full ${isLoading ? 'bg-amber-300' : 'bg-tertiary'}`} />
@@ -248,7 +258,7 @@ export default function Portal() {
             href="/login"
             className="rounded bg-primary-container px-3 py-1.5 text-sm font-semibold text-on-primary-container shadow-lg shadow-black/20 transition-colors hover:bg-primary-container/80"
           >
-            控制台
+            {t('portalAdmin')}
           </a>
         </div>
       </header>
@@ -266,11 +276,11 @@ export default function Portal() {
         <div className="pointer-events-none absolute inset-0 border border-white/5" />
 
         <section className="absolute left-4 top-4 z-20 hidden w-72 flex-col gap-3 lg:flex">
-          <Panel title="图层">
+          <Panel title={t('layers')}>
             <div className="space-y-3">
               {productBundles.length > 0 ? (
                 <label className="block">
-                  <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-slate-500">预报产品</span>
+                  <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-slate-500">{t('forecastProduct')}</span>
                   <select
                     value={activeBundle?.key ?? ''}
                     onChange={(event) => setActiveBundleKey(event.target.value)}
@@ -284,13 +294,13 @@ export default function Portal() {
                   </select>
                 </label>
               ) : null}
-              <StatusLine icon="layers" label="底图" value={productStatus} />
-              <StatusLine icon="location_city" label="城市预报" value={cityStatus} />
-              <StatusLine icon="schedule" label="预报步长" value={`${timeline.length} 天`} />
-              <StatusLine icon="touch_app" label="点选" value="点击地图城市点查看局地预报" />
+              <StatusLine icon="layers" label={t('baseMap')} value={productStatus} />
+              <StatusLine icon="location_city" label={t('cityForecast')} value={cityStatus} />
+              <StatusLine icon="schedule" label={t('forecastLength')} value={`${timeline.length} ${t('dayUnit')}`} />
+              <StatusLine icon="touch_app" label={t('mapPick')} value={t('mapPickHint')} />
             </div>
           </Panel>
-          <Panel title="色带">
+          <Panel title={t('colorRamp')}>
             <div
               className="h-3 rounded"
               style={{
@@ -299,16 +309,16 @@ export default function Portal() {
               }}
             />
             <div className="mt-2 flex justify-between text-[10px] text-slate-400">
-              <span>低</span>
-              <span>中</span>
-              <span>高</span>
-              <span>极高</span>
+              <span>{t('low')}</span>
+              <span>{t('medium')}</span>
+              <span>{t('high')}</span>
+              <span>{t('critical')}</span>
             </div>
           </Panel>
         </section>
 
-        <section className="absolute right-4 top-4 bottom-32 z-20 hidden w-[360px] flex-col gap-3 overflow-y-auto xl:flex">
-          <Panel title="城市查询">
+        <section className="absolute bottom-32 right-4 top-4 z-20 hidden w-[360px] flex-col gap-3 overflow-y-auto xl:flex">
+          <Panel title={t('citySearch')}>
             <div className="relative">
               <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-slate-500">
                 search
@@ -317,7 +327,7 @@ export default function Portal() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 className="w-full rounded border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-cyan-300/60"
-                placeholder="搜索城市"
+                placeholder={t('searchCity')}
               />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -343,26 +353,26 @@ export default function Portal() {
           <Panel title={selectedCity?.name ?? selectedFallbackCity.name}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Risk</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{t('risk')}</p>
                 <div className="mt-1 flex items-center gap-2">
                   <span className="rounded px-2 py-1 text-sm font-bold" style={{ color: risk.color, background: risk.bg }}>
                     {risk.label}
                   </span>
-                  <span className="text-xs text-slate-400">第 {activeStep.forecast_day} 天</span>
+                  <span className="text-xs text-slate-400">{t('day', { day: activeStep.forecast_day })}</span>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Pollen</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{t('pollen')}</p>
                 <p className="font-data-mono text-2xl text-white">{formatNumber(activeStep.pollen_total)}</p>
                 <p className="text-[10px] text-slate-500">grains/kg-dryair</p>
               </div>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <Metric icon="thermostat" label="气温" value={formatUnit(activeStep.t2_c, '°C')} />
-              <Metric icon="air" label="风速" value={formatUnit(activeStep.wind10_ms, 'm/s')} />
-              <Metric icon="water_drop" label="降水" value={formatUnit(activeStep.precip_step_mm, 'mm')} />
-              <Metric icon="eco" label="主导物种" value={dominantSpecies} />
+              <Metric icon="thermostat" label={t('temperature')} value={formatUnit(activeStep.t2_c, '°C')} />
+              <Metric icon="air" label={t('windSpeed')} value={formatUnit(activeStep.wind10_ms, 'm/s')} />
+              <Metric icon="water_drop" label={t('precipitation')} value={formatUnit(activeStep.precip_step_mm, 'mm')} />
+              <Metric icon="eco" label={t('dominantSpecies')} value={dominantSpecies} />
             </div>
           </Panel>
         </section>
@@ -373,7 +383,7 @@ export default function Portal() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-white">{selectedCity?.name ?? selectedFallbackCity.name}</p>
-                  <p className="truncate text-[11px] text-slate-400">{hasForecast ? '城市预报产品' : '示例城市点'}</p>
+                  <p className="truncate text-[11px] text-slate-400">{hasForecast ? t('cityForecastProduct') : t('sampleCityPoint')}</p>
                 </div>
                 <span className="rounded px-2 py-1 text-xs font-bold" style={{ color: risk.color, background: risk.bg }}>
                   {risk.label}
@@ -385,19 +395,19 @@ export default function Portal() {
                 className="mt-3 inline-flex items-center gap-2 rounded border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:border-white/25"
               >
                 <span className="material-symbols-outlined text-sm">{isPlaying ? 'pause' : 'play_arrow'}</span>
-                {isPlaying ? '暂停播放' : '播放时间轴'}
+                {isPlaying ? t('pauseTimeline') : t('playTimeline')}
               </button>
               <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-                <CompactStat label="花粉" value={formatNumber(activeStep.pollen_total)} />
-                <CompactStat label="气温" value={formatNumber(activeStep.t2_c)} />
-                <CompactStat label="风速" value={formatNumber(activeStep.wind10_ms)} />
-                <CompactStat label="降水" value={formatNumber(activeStep.precip_step_mm)} />
+                <CompactStat label={t('pollen')} value={formatNumber(activeStep.pollen_total)} />
+                <CompactStat label={t('temperature')} value={formatNumber(activeStep.t2_c)} />
+                <CompactStat label={t('windSpeed')} value={formatNumber(activeStep.wind10_ms)} />
+                <CompactStat label={t('precipitation')} value={formatNumber(activeStep.precip_step_mm)} />
               </div>
             </div>
 
             <div className="grid grid-cols-7 gap-2">
               {timeline.slice(0, 7).map((step, index) => {
-                const meta = riskMeta(step.risk);
+                const meta = riskMeta(step.risk, t);
                 const height = peak > 0 ? Math.max(8, Math.round((safeNumber(step.pollen_total) / peak) * 46)) : 8;
                 return (
                   <button
@@ -466,13 +476,14 @@ function Metric({ icon, label, value }: { icon: string; label: string; value: st
 function CompactStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-white/10 bg-white/5 px-2 py-1.5">
-      <p className="text-[10px] text-slate-500">{label}</p>
+      <p className="truncate text-[10px] text-slate-500">{label}</p>
       <p className="font-data-mono text-xs text-white">{value}</p>
     </div>
   );
 }
 
 function ThemeSwitch({ theme, onChange }: { theme: ThemeMode; onChange: (theme: ThemeMode) => void }) {
+  const { t } = useI18n();
   return (
     <div className="flex h-8 items-center rounded border border-outline-variant bg-surface-container-high p-1">
       {(['research', 'pig'] as ThemeMode[]).map((mode) => (
@@ -481,18 +492,18 @@ function ThemeSwitch({ theme, onChange }: { theme: ThemeMode; onChange: (theme: 
           type="button"
           onClick={() => onChange(mode)}
           aria-pressed={theme === mode}
-          className={`min-w-[44px] rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+          className={`min-w-[48px] rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
             theme === mode ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'
           }`}
         >
-          {mode === 'research' ? '科研' : '小猪'}
+          {mode === 'research' ? t('themeResearch') : t('themePig')}
         </button>
       ))}
     </div>
   );
 }
 
-function buildProductBundles(products: ForecastProduct[]): ProductBundle[] {
+function buildProductBundles(products: ForecastProduct[], locale: Locale): ProductBundle[] {
   const groups = new Map<string, ForecastProduct[]>();
   products
     .filter((product) => isCityForecastProduct(product) || isOverlayMetadataProduct(product) || isOverlayImageProduct(product) || isInlineMapProduct(product))
@@ -507,7 +518,7 @@ function buildProductBundles(products: ForecastProduct[]): ProductBundle[] {
       return {
         key,
         runId: key,
-        label: formatBundleLabel(key, sorted),
+        label: formatBundleLabel(key, sorted, locale),
         releaseTime: sorted[0]?.release_time ?? '',
         products: sorted,
         cityProduct: sorted.find(isCityForecastProduct),
@@ -521,22 +532,16 @@ function buildProductBundles(products: ForecastProduct[]): ProductBundle[] {
 
 function productRunKey(product: ForecastProduct) {
   const separator = product.product_name.indexOf(':');
-  if (separator > 0) {
-    return product.product_name.slice(0, separator);
-  }
+  if (separator > 0) return product.product_name.slice(0, separator);
   return product.workflow_version || `product-${product.id}`;
 }
 
-function formatBundleLabel(runId: string, products: ForecastProduct[]) {
+function formatBundleLabel(runId: string, products: ForecastProduct[], locale: Locale) {
   const releaseTime = products[0]?.release_time;
-  if (!releaseTime) {
-    return runId;
-  }
+  if (!releaseTime) return runId;
   const date = new Date(releaseTime);
-  if (Number.isNaN(date.getTime())) {
-    return runId;
-  }
-  return `${runId} / ${date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+  if (Number.isNaN(date.getTime())) return runId;
+  return `${runId} / ${date.toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function compareProductTimeDesc(a: ForecastProduct, b: ForecastProduct) {
@@ -576,13 +581,9 @@ function buildOverlayLayer(
   metadata: unknown,
   products: ForecastProduct[],
 ): MapProductLayer | null {
-  if (!isOverlayMetadata(metadata)) {
-    return null;
-  }
+  if (!isOverlayMetadata(metadata)) return null;
   const imageProduct = findOverlayImageProduct(metadataProduct, metadata, products);
-  if (!imageProduct) {
-    return null;
-  }
+  if (!imageProduct) return null;
   return {
     kind: 'image_overlay',
     name: metadataProduct.product_name,
@@ -608,28 +609,24 @@ function findOverlayImageProduct(
   });
 }
 
-function riskMeta(risk: string | undefined) {
-  return RISK_META[risk ?? 'unknown'] ?? RISK_META.unknown;
+function riskMeta(risk: string | undefined, t: (key: string) => string) {
+  const key = risk ?? 'unknown';
+  const style = RISK_STYLE[key] ?? RISK_STYLE.unknown;
+  return { ...style, label: t(key) };
 }
 
-function formatSpecies(step: CityForecastStep) {
+function formatSpecies(step: CityForecastStep, locale: Locale) {
   const index = step.dominant_species_index;
-  if (typeof index === 'number' && SPECIES_LABELS[Math.round(index)]) {
-    return SPECIES_LABELS[Math.round(index)];
+  if (typeof index === 'number' && SPECIES_LABELS[locale][Math.round(index)]) {
+    return SPECIES_LABELS[locale][Math.round(index)];
   }
   return step.dominant_species ?? '--';
 }
 
 function formatNumber(value: number | null | undefined) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return '--';
-  }
-  if (Math.abs(value) >= 1000) {
-    return Math.round(value).toLocaleString();
-  }
-  if (Math.abs(value) >= 100) {
-    return value.toFixed(0);
-  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '--';
+  if (Math.abs(value) >= 1000) return Math.round(value).toLocaleString();
+  if (Math.abs(value) >= 100) return value.toFixed(0);
   return value.toFixed(1);
 }
 

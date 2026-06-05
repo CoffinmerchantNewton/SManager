@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useI18n } from '../i18n';
 import { productsApi, runsApi } from '../services/api';
 import type { ForecastProduct } from '../types/index';
 
 export default function ProductsManagement() {
+  const { t } = useI18n();
   const location = useLocation();
   const initialRunId = new URLSearchParams(location.search).get('run_id') ?? '';
   const [products, setProducts] = useState<ForecastProduct[]>([]);
@@ -23,11 +25,11 @@ export default function ProductsManagement() {
       setProducts(response.data);
     } catch (error) {
       console.error('Failed to load products:', error);
-      setErrorMessage('Failed to load products.');
+      setErrorMessage(t('productsLoadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadProducts(initialRunId);
@@ -43,7 +45,7 @@ export default function ProductsManagement() {
   };
 
   const deleteProduct = async (productId: number) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+    if (confirm(t('deleteProductConfirm'))) {
       try {
         await productsApi.delete(productId);
         void loadProducts(runId);
@@ -56,7 +58,7 @@ export default function ProductsManagement() {
   const syncRunProducts = async () => {
     const normalizedRunId = runId.trim();
     if (!normalizedRunId) {
-      setErrorMessage('Enter a run ID before syncing products.');
+      setErrorMessage(t('enterRunId'));
       return;
     }
 
@@ -66,11 +68,11 @@ export default function ProductsManagement() {
       setErrorMessage(null);
       const response = await runsApi.syncProducts(normalizedRunId);
       const indexedCount = response.data?.data?.indexed_count ?? 0;
-      setMessage(`Indexed ${indexedCount} products for ${normalizedRunId}.`);
+      setMessage(t('indexedProducts', { count: indexedCount, runId: normalizedRunId }));
       await loadProducts(normalizedRunId);
     } catch (error) {
       console.error('Failed to sync products:', error);
-      setErrorMessage('Failed to sync products for this run.');
+      setErrorMessage(t('productsSyncFailed'));
     } finally {
       setSyncing(false);
     }
@@ -89,14 +91,14 @@ export default function ProductsManagement() {
 
   const categories = useMemo(
     () => [
-      { key: 'all', label: 'All', count: products.length },
-      { key: 'map', label: 'Map Layers', count: products.filter((product) => productMatchesCategory(product, 'map')).length },
-      { key: 'station', label: 'Station Curves', count: products.filter((product) => productMatchesCategory(product, 'station')).length },
-      { key: 'evaluation', label: 'Evaluation', count: products.filter((product) => productMatchesCategory(product, 'evaluation')).length },
-      { key: 'history', label: 'History', count: products.filter((product) => productMatchesCategory(product, 'history')).length },
-      { key: 'capability', label: 'Capability', count: products.filter((product) => productMatchesCategory(product, 'capability')).length },
+      { key: 'all', label: t('all'), count: products.length },
+      { key: 'map', label: t('mapLayers'), count: products.filter((product) => productMatchesCategory(product, 'map')).length },
+      { key: 'station', label: t('stationCurves'), count: products.filter((product) => productMatchesCategory(product, 'station')).length },
+      { key: 'evaluation', label: t('evaluation'), count: products.filter((product) => productMatchesCategory(product, 'evaluation')).length },
+      { key: 'history', label: t('history'), count: products.filter((product) => productMatchesCategory(product, 'history')).length },
+      { key: 'capability', label: t('capability'), count: products.filter((product) => productMatchesCategory(product, 'capability')).length },
     ],
-    [products],
+    [products, t],
   );
   const visibleProducts = useMemo(
     () => (category === 'all' ? products : products.filter((product) => productMatchesCategory(product, category))),
@@ -106,7 +108,7 @@ export default function ProductsManagement() {
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
-        <div className="text-cyan-400">Loading...</div>
+        <div className="text-cyan-400">{t('loading')}...</div>
       </div>
     );
   }
@@ -117,9 +119,9 @@ export default function ProductsManagement() {
       <div className="flex flex-col gap-6 mb-8">
         <div className="flex justify-between items-end">
           <div>
-            <h1 className="font-headline-xl text-headline-xl text-on-background mb-1">Forecast Products</h1>
+            <h1 className="font-headline-xl text-headline-xl text-on-background mb-1">{t('productsTitle')}</h1>
             <p className="text-on-surface-variant font-body-md">
-              Scientific archive of generated pollen dispersal simulations and regional plots.
+              {t('productsSubtitle')}
             </p>
           </div>
           <div className="flex gap-2">
@@ -128,7 +130,7 @@ export default function ProductsManagement() {
               className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
             >
               <span className="material-symbols-outlined scale-75">cloud_download</span>
-              <span className="font-label-caps text-label-caps">Refresh Index</span>
+              <span className="font-label-caps text-label-caps">{t('refreshIndex')}</span>
             </button>
             <button
               onClick={syncRunProducts}
@@ -136,7 +138,7 @@ export default function ProductsManagement() {
               className="flex items-center gap-2 bg-primary-container px-4 py-2 hover:bg-primary-container/80 transition-colors rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined scale-75">refresh</span>
-              <span className="font-label-caps text-label-caps">{syncing ? 'Syncing' : 'Sync Run Products'}</span>
+              <span className="font-label-caps text-label-caps">{syncing ? t('syncing') : t('syncRunProducts')}</span>
             </button>
           </div>
         </div>
@@ -144,7 +146,7 @@ export default function ProductsManagement() {
         <div className="flex flex-wrap items-end gap-3 bg-surface-container-low border border-white/5 rounded-xl p-4">
           <label className="flex-1 min-w-[260px]">
             <span className="block font-label-caps text-label-caps text-on-surface-variant mb-2 uppercase">
-              Run ID
+              {t('runId')}
             </span>
             <input
               value={runId}
@@ -163,7 +165,7 @@ export default function ProductsManagement() {
             className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
           >
             <span className="material-symbols-outlined scale-75">filter_alt</span>
-            <span className="font-label-caps text-label-caps">Apply Filter</span>
+            <span className="font-label-caps text-label-caps">{t('applyFilter')}</span>
           </button>
           <button
             onClick={() => {
@@ -173,7 +175,7 @@ export default function ProductsManagement() {
             className="flex items-center gap-2 bg-surface-container-high px-4 py-2 border border-outline-variant hover:bg-surface-variant transition-colors rounded-lg"
           >
             <span className="material-symbols-outlined scale-75">filter_alt_off</span>
-            <span className="font-label-caps text-label-caps">Clear</span>
+            <span className="font-label-caps text-label-caps">{t('clear')}</span>
           </button>
         </div>
 
@@ -212,11 +214,11 @@ export default function ProductsManagement() {
       <div className="space-y-4">
         {/* Table Header */}
         <div className="grid grid-cols-12 gap-gutter px-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-2">
-          <div className="col-span-5">Product Identity & Preview</div>
-          <div className="col-span-2">Release Time</div>
-          <div className="col-span-2">Workflow & Node</div>
-          <div className="col-span-1 text-center">Status</div>
-          <div className="col-span-2 text-right">Operational Actions</div>
+          <div className="col-span-5">{t('productIdentity')}</div>
+          <div className="col-span-2">{t('releaseTime')}</div>
+          <div className="col-span-2">{t('workflowAndNode')}</div>
+          <div className="col-span-1 text-center">{t('status')}</div>
+          <div className="col-span-2 text-right">{t('operationalActions')}</div>
         </div>
 
         {/* List Items */}
@@ -296,7 +298,7 @@ export default function ProductsManagement() {
             </div>
             <div className="col-span-2 flex justify-end items-center gap-3">
               <div className="flex items-center gap-2 mr-4">
-                <span className="text-[10px] text-on-surface-variant font-label-caps">Live</span>
+                <span className="text-[10px] text-on-surface-variant font-label-caps">{t('live')}</span>
                 <button
                   onClick={() => togglePublish(product.id, product.is_published)}
                   className={`w-8 h-4 rounded-full relative ${
@@ -333,7 +335,7 @@ export default function ProductsManagement() {
         ))}
         {visibleProducts.length === 0 && (
           <div className="rounded-xl border border-white/10 bg-surface-container-low p-8 text-center text-on-surface-variant">
-            No products match this category.
+            {t('noProductsCategory')}
           </div>
         )}
       </div>
@@ -341,10 +343,10 @@ export default function ProductsManagement() {
       {/* Pagination / Status Footer */}
       <div className="mt-8 flex justify-between items-center text-[11px] font-label-caps text-on-surface-variant border-t border-white/5 pt-4">
         <div className="flex gap-4">
-          <span>Total Items: {products.length}</span>
-          <span>Visible: {visibleProducts.length}</span>
-          <span className="text-tertiary">Operational: {products.filter((p) => p.status === 'ready').length}</span>
-          <span className="text-error">Errors: {products.filter((p) => p.status === 'error').length}</span>
+          <span>{t('totalItems')}: {products.length}</span>
+          <span>{t('visible')}: {visibleProducts.length}</span>
+          <span className="text-tertiary">{t('operational')}: {products.filter((p) => p.status === 'ready').length}</span>
+          <span className="text-error">{t('errors')}: {products.filter((p) => p.status === 'error').length}</span>
         </div>
       </div>
     </div>

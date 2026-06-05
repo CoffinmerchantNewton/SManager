@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '../i18n';
 import { fnlApi } from '../services/api';
 import type { FnlFileStatus } from '../types';
 import { errorMessage } from '../utils/errors';
 
 export default function FnlManagement() {
+  const { t } = useI18n();
   const [query, setQuery] = useState({ run_id: '', start: '2026060400', end: '2026060412', status: '' });
   const [files, setFiles] = useState<FnlFileStatus[]>([]);
   const [busy, setBusy] = useState('');
@@ -41,19 +43,19 @@ export default function FnlManagement() {
   }, [query.end, query.start, query.status]);
 
   const verifyServer = useCallback(() =>
-    runAction('Verify server', async () => {
+    runAction(t('verifyServer'), async () => {
       const response = await fnlApi.verifyServer(requestPayload());
       setFiles(response.data.data.files ?? []);
       setMessage(response.data.ok ? 'Server FNL coverage is complete.' : 'Server FNL has gaps or invalid files.');
-    }), [requestPayload, runAction]);
+    }), [requestPayload, runAction, t]);
 
   const repairFnl = useCallback(() =>
-    runAction('Repair FNL', async () => {
+    runAction(t('repairFnl'), async () => {
       const response = await fnlApi.repair(requestPayload());
       setFiles(response.data.data.final?.files ?? response.data.data.initial?.files ?? []);
       setMessage(response.data.ok ? 'FNL repair completed.' : 'FNL repair still has unresolved files.');
       await loadCoverage();
-    }), [loadCoverage, requestPayload, runAction]);
+    }), [loadCoverage, requestPayload, runAction, t]);
 
   useEffect(() => {
     void loadCoverage();
@@ -66,9 +68,9 @@ export default function FnlManagement() {
     <div className="p-lg technical-grid min-h-full flex flex-col gap-gutter">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface">FNL Management</h1>
+          <h1 className="font-headline-xl text-headline-xl text-on-surface">{t('fnlTitle')}</h1>
           <p className="text-outline font-body-md">
-            Server-first FNL verification, targeted repair, upload tracking, and local coverage review.
+            {t('fnlSubtitle')}
           </p>
         </div>
         <button
@@ -77,20 +79,20 @@ export default function FnlManagement() {
           className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10 disabled:opacity-40"
         >
           <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
-          Refresh
+          {t('refresh')}
         </button>
       </header>
 
       <section className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-gutter">
         <div className="bg-surface-container border border-white/10 rounded-lg p-md flex flex-col gap-sm">
-          <span className="font-label-caps text-label-caps text-outline uppercase">Scan Target</span>
-          <input className="ops-input" placeholder="run_id optional" value={query.run_id} onChange={(e) => updateQuery('run_id', e.target.value)} />
+          <span className="font-label-caps text-label-caps text-outline uppercase">{t('scanTarget')}</span>
+          <input className="ops-input" placeholder={t('runIdOptional')} value={query.run_id} onChange={(e) => updateQuery('run_id', e.target.value)} />
           <div className="grid grid-cols-2 gap-sm">
             <input className="ops-input" value={query.start} onChange={(e) => updateQuery('start', e.target.value)} disabled={!!query.run_id} />
             <input className="ops-input" value={query.end} onChange={(e) => updateQuery('end', e.target.value)} disabled={!!query.run_id} />
           </div>
           <select className="ops-input" value={query.status} onChange={(e) => updateQuery('status', e.target.value)}>
-            <option value="">all statuses</option>
+            <option value="">{t('allStatuses')}</option>
             <option value="server_ok">server_ok</option>
             <option value="missing">missing</option>
             <option value="bad_magic">bad_magic</option>
@@ -99,33 +101,33 @@ export default function FnlManagement() {
             <option value="verified">verified</option>
           </select>
           <div className="grid grid-cols-3 gap-sm py-sm">
-            <Metric label="FILES" value={`${files.length}`} />
-            <Metric label="READY" value={`${okCount}`} />
-            <Metric label="REPAIR" value={`${repairCount}`} />
+            <Metric label={t('files')} value={`${files.length}`} />
+            <Metric label={t('ready')} value={`${okCount}`} />
+            <Metric label={t('repair')} value={`${repairCount}`} />
           </div>
           <div className="grid grid-cols-2 gap-sm">
-            <ActionButton label="Verify server" icon="travel_explore" busy={busy} onClick={verifyServer} />
-            <ActionButton label="Repair FNL" icon="build" busy={busy} onClick={repairFnl} />
+            <ActionButton label={t('verifyServer')} icon="travel_explore" busy={busy} workingLabel={t('working')} onClick={verifyServer} />
+            <ActionButton label={t('repairFnl')} icon="build" busy={busy} workingLabel={t('working')} onClick={repairFnl} />
           </div>
           {message && <div className="text-xs text-on-surface-variant bg-surface-container-low border border-white/10 rounded p-sm">{message}</div>}
         </div>
 
         <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
           <div className="px-md py-sm bg-surface-container-high border-b border-white/10 flex items-center justify-between">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">FNL Coverage</span>
-            <span className="text-xs text-outline">{files.length} records</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('fnlCoverage')}</span>
+            <span className="text-xs text-outline">{files.length} {t('records')}</span>
           </div>
           <div className="overflow-auto max-h-[calc(100vh-14rem)]">
             <table className="w-full text-left">
               <thead className="sticky top-0 bg-surface-container-high text-outline border-b border-white/10">
                 <tr>
-                  <th className="px-sm py-sm text-[10px]">VALID TIME</th>
-                  <th className="px-sm py-sm text-[10px]">FILE</th>
-                  <th className="px-sm py-sm text-[10px]">STATUS</th>
-                  <th className="px-sm py-sm text-[10px]">SOURCE</th>
-                  <th className="px-sm py-sm text-[10px]">SIZE</th>
-                  <th className="px-sm py-sm text-[10px]">UPLOAD</th>
-                  <th className="px-sm py-sm text-[10px]">PATH</th>
+                  <th className="px-sm py-sm text-[10px]">{t('validTime')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('file')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('status')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('source')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('size')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('upload')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('path')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -136,7 +138,7 @@ export default function FnlManagement() {
                     <td className="px-sm py-sm"><StatusPill status={file.status} /></td>
                     <td className="px-sm py-sm text-xs text-outline">{file.source || '-'}</td>
                     <td className="px-sm py-sm text-xs text-on-surface-variant">{formatBytes(file.size_bytes)}</td>
-                    <td className="px-sm py-sm text-xs text-on-surface-variant">{file.uploaded ? 'uploaded' : '-'}</td>
+                    <td className="px-sm py-sm text-xs text-on-surface-variant">{file.uploaded ? t('uploaded') : '-'}</td>
                     <td className="px-sm py-sm text-xs text-outline max-w-[320px] truncate" title={file.server_path || file.local_path || ''}>
                       {file.server_path || file.local_path || '-'}
                     </td>
@@ -144,7 +146,7 @@ export default function FnlManagement() {
                 ))}
                 {files.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-md py-lg text-center text-outline">No FNL records loaded.</td>
+                    <td colSpan={7} className="px-md py-lg text-center text-outline">{t('noFnlRecords')}</td>
                   </tr>
                 )}
               </tbody>
@@ -156,7 +158,7 @@ export default function FnlManagement() {
   );
 }
 
-function ActionButton({ label, icon, busy, onClick }: { label: string; icon: string; busy: string; onClick: () => void }) {
+function ActionButton({ label, icon, busy, workingLabel, onClick }: { label: string; icon: string; busy: string; workingLabel: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -164,7 +166,7 @@ function ActionButton({ label, icon, busy, onClick }: { label: string; icon: str
       className="px-sm py-sm bg-primary-container text-on-primary-container rounded-lg text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
     >
       <span className="material-symbols-outlined text-sm">{icon}</span>
-      {busy === label ? 'Working...' : label}
+      {busy === label ? workingLabel : label}
     </button>
   );
 }
