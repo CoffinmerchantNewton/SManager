@@ -101,6 +101,9 @@ class ProductSyncService:
         if self.ssh.is_local:
             shutil.copy2(remote_path, local_path)
             return
+        if self.ssh.password:
+            self.ssh.download_file(remote_path, local_path)
+            return
         method = settings.PRODUCT_SYNC_METHOD.lower()
         if method == "rsync" and shutil.which("rsync"):
             self.run_rsync(remote_path, local_path)

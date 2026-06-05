@@ -82,6 +82,24 @@ class SSHClient:
         finally:
             client.close()
 
+    def download_file(self, remote_path: str, local_path: Path) -> None:
+        if self.is_local:
+            raise RuntimeError("download_file is only for remote SSH targets")
+        if not self.password:
+            raise RuntimeError("SERVER_SSH_PASSWORD is not configured")
+        client = self._paramiko_client()
+        try:
+            sftp = client.open_sftp()
+            try:
+                local_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = local_path.with_name(f".{local_path.name}.tmp")
+                sftp.get(remote_path, str(tmp_path))
+                tmp_path.replace(local_path)
+            finally:
+                sftp.close()
+        finally:
+            client.close()
+
     def _local_command(
         self,
         command: Sequence[str],
