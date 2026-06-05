@@ -19,8 +19,11 @@ PATTERNS = [
 
 def diagnose(paths: FlowPaths, run_id: str, tail_bytes: int = 200_000) -> dict[str, Any]:
     workflow = load_workflow(paths, run_id)
+    nodes = workflow.get("nodes", [])
+    node_status = {node.get("node"): node.get("status") for node in nodes}
+    node_names = [name for name in node_status if name]
     findings = []
-    for node in workflow.get("nodes", []):
+    for node in nodes:
         if node.get("status") == "error":
             findings.append(
                 {
@@ -36,9 +39,12 @@ def diagnose(paths: FlowPaths, run_id: str, tail_bytes: int = 200_000) -> dict[s
         text = read_tail(log_path, tail_bytes)
         for code, needles in PATTERNS:
             if any(needle in text for needle in needles):
+                node = infer_node(log_path, node_names)
+                if node and node_status.get(node) == "success":
+                    continue
                 findings.append(
                     {
-                        "node": infer_node(log_path),
+                        "node": node,
                         "code": code,
                         "message": f"matched {code} in {log_path.name}",
                         "suggested_action": suggested_action(code),
@@ -55,8 +61,12 @@ def read_tail(path: Path, tail_bytes: int) -> str:
         return handle.read().decode("utf-8", errors="ignore")
 
 
-def infer_node(path: Path) -> str | None:
+def infer_node(path: Path, node_names: list[str] | None = None) -> str | None:
     name = path.name
+    if node_names:
+        for node in sorted(node_names, key=len, reverse=True):
+            if name == node or name.startswith(f"{node}.") or name.startswith(f"{node}_"):
+                return node
     return name.split("_", 1)[0] if "_" in name else None
 
 
