@@ -29,6 +29,7 @@ runtime/products/**
 runtime/logs/**
 runtime/manifests/**
 runtime/cache/**
+runtime/deploy/**
 !runtime/.gitkeep
 !runtime/db/.gitkeep
 !runtime/fnl/.gitkeep
@@ -36,6 +37,7 @@ runtime/cache/**
 !runtime/logs/.gitkeep
 !runtime/manifests/.gitkeep
 !runtime/cache/.gitkeep
+!runtime/deploy/.gitkeep
 
 # Server-side heavy runtime outputs
 wrf-pollen/auto-pollen/runs/**
