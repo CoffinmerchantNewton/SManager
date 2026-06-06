@@ -588,7 +588,7 @@ function buildOverlayLayer(
   return {
     kind: 'image_overlay',
     name: metadataProduct.product_name,
-    imageUrl: productsApi.downloadUrl(imageProduct.id),
+    imageUrl: `${productsApi.downloadUrl(imageProduct.id)}?v=${encodeURIComponent(metadata.generated_at ?? metadataProduct.release_time ?? String(imageProduct.id))}`,
     bounds: metadata.bounds,
     opacity: metadata.opacity,
   };
@@ -677,6 +677,7 @@ function fallbackTimeline(city: (typeof fallbackCities)[number]) {
 
 interface PngOverlayMetadata {
   type: 'png_overlay';
+  generated_at?: string;
   image: {
     name: string;
   };
