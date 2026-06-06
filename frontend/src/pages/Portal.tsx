@@ -134,6 +134,7 @@ export default function Portal() {
           if (!cancelled && isCityForecastPayload(content.data)) {
             const payload = content.data;
             setCityForecast(payload);
+            setSelectedDayIndex(firstSignalDayIndex(payload));
             setCityStatus(`${t('cityForecast')}: ${activeBundle.label}`);
             const firstCity = payload.cities[0];
             if (firstCity) {
@@ -742,4 +743,13 @@ function isCityForecastPayload(value: unknown): value is CityForecastPayload {
         Array.isArray(city?.forecast),
     )
   );
+}
+
+function firstSignalDayIndex(payload: CityForecastPayload) {
+  const maxLength = Math.max(0, ...payload.cities.map((city) => city.forecast.length));
+  for (let index = 0; index < maxLength; index += 1) {
+    const hasSignal = payload.cities.some((city) => safeNumber(city.forecast[index]?.pollen_total) > 0);
+    if (hasSignal) return index;
+  }
+  return 0;
 }

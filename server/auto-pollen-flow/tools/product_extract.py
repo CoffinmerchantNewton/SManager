@@ -1112,7 +1112,8 @@ def write_png_overlay(
     values = orient_values_for_image(grid["values"], grid["lats"], grid["lons"])
     bounds = grid_bounds(grid["lats"], grid["lons"])
     value_range = finite_range(values)
-    rgba = rgba_heatmap(values, value_range["min"], value_range["max"])
+    color_scale = png_color_scale(variable, value_range)
+    rgba = rgba_heatmap(values, value_range["min"], value_range["max"], color_scale)
     png_path = unique_target(output_dir, f"{source.stem}_{variable}.png")
     write_png_rgba(png_path, rgba)
     metadata_path = unique_target(output_dir, f"{source.stem}_{variable}.overlay.json")
@@ -1129,8 +1130,9 @@ def write_png_overlay(
         },
         "bounds": bounds,
         "value_range": value_range,
+        "color_scale": color_scale,
         "opacity": float(os.environ.get("PRODUCT_PNG_OPACITY", "0.72")),
-        "legend": color_legend(value_range["min"], value_range["max"]),
+        "legend": color_legend(value_range["min"], value_range["max"], color_scale),
         "generated_at": now_iso(),
     }
     write_json(metadata_path, metadata)
@@ -1207,21 +1209,38 @@ def lon_variable_names() -> list[str]:
 
 
 def reduce_to_2d(array: Any):
-    import numpy as np  # type: ignore
-
     data = sanitize_array(array)
-    time_index = int(os.environ.get("PRODUCT_TIME_INDEX", "0"))
     vertical_index = int(os.environ.get("PRODUCT_VERTICAL_INDEX", "0"))
+    if data.ndim == 4:
+        data = data[:, vertical_index, :, :]
+    if data.ndim == 3:
+        data = data[select_time_index(data)]
     while data.ndim > 2:
-        if data.ndim == 4:
-            data = data[time_index, vertical_index]
-        elif data.ndim == 3:
-            data = data[time_index]
-        else:
-            data = data[0]
+        data = data[0]
     if data.ndim != 2:
         raise ValueError(f"expected 2D data after slicing, got shape={data.shape}")
     return data
+
+
+def select_time_index(data: Any) -> int:
+    import numpy as np  # type: ignore
+
+    raw = os.environ.get("PRODUCT_TIME_INDEX")
+    if raw and raw.strip().lower() not in {"auto", "max", "max_nonzero"}:
+        return max(0, min(int(raw), data.shape[0] - 1))
+    best_index = 0
+    best_score = float("-inf")
+    for index in range(data.shape[0]):
+        slice_data = np.asarray(data[index], dtype=float)
+        finite = slice_data[np.isfinite(slice_data)]
+        if finite.size == 0:
+            score = float("-inf")
+        else:
+            score = float(np.nanmax(np.abs(finite)))
+        if score > best_score:
+            best_score = score
+            best_index = index
+    return best_index
 
 
 def sanitize_array(array: Any):
@@ -1372,11 +1391,20 @@ def finite_range(values: Any) -> dict[str, float]:
     return {"min": vmin, "max": vmax}
 
 
-def rgba_heatmap(values: Any, vmin: float, vmax: float) -> Any:
+def png_color_scale(variable: str, value_range: dict[str, float]) -> str:
+    configured = os.environ.get("PRODUCT_PNG_SCALE")
+    if configured:
+        return configured.strip().lower()
+    if variable == "pollen_total" and value_range["min"] >= 0:
+        return "log1p"
+    return "linear"
+
+
+def rgba_heatmap(values: Any, vmin: float, vmax: float, scale: str = "linear") -> Any:
     import numpy as np  # type: ignore
 
     data = np.asarray(values, dtype=float)
-    normalized = np.clip((data - vmin) / (vmax - vmin), 0.0, 1.0)
+    normalized = normalize_for_color(data, vmin, vmax, scale)
     finite = np.isfinite(data)
     rgba = np.zeros((*data.shape, 4), dtype=np.uint8)
     max_alpha = int(max(0, min(255, round(float(os.environ.get("PRODUCT_PNG_ALPHA", "190"))))))
@@ -1389,6 +1417,22 @@ def rgba_heatmap(values: Any, vmin: float, vmax: float) -> Any:
             alpha = round(max_alpha * (0.28 + 0.72 * t))
             rgba[row, col] = [red, green, blue, alpha]
     return rgba
+
+
+def normalize_for_color(data: Any, vmin: float, vmax: float, scale: str) -> Any:
+    import numpy as np  # type: ignore
+
+    if scale == "log1p":
+        transformed = np.log1p(np.maximum(np.asarray(data, dtype=float), 0.0))
+        lower = math.log1p(max(0.0, vmin))
+        upper = math.log1p(max(0.0, vmax))
+    else:
+        transformed = np.asarray(data, dtype=float)
+        lower = vmin
+        upper = vmax
+    if upper <= lower:
+        upper = lower + 1.0
+    return np.clip((transformed - lower) / (upper - lower), 0.0, 1.0)
 
 
 def interpolate_rgb(t: float) -> tuple[int, int, int]:
@@ -1413,15 +1457,23 @@ def interpolate_rgb(t: float) -> tuple[int, int, int]:
     return ramp[-1][1]
 
 
-def color_legend(vmin: float, vmax: float) -> list[dict[str, Any]]:
+def color_legend(vmin: float, vmax: float, scale: str = "linear") -> list[dict[str, Any]]:
     stops = [0.0, 0.35, 0.65, 0.82, 1.0]
     return [
         {
-            "value": round(vmin + (vmax - vmin) * stop, 6),
+            "value": round(legend_value(vmin, vmax, scale, stop), 6),
             "color": "#{:02x}{:02x}{:02x}".format(*interpolate_rgb(stop)),
         }
         for stop in stops
     ]
+
+
+def legend_value(vmin: float, vmax: float, scale: str, stop: float) -> float:
+    if scale == "log1p":
+        lower = math.log1p(max(0.0, vmin))
+        upper = math.log1p(max(0.0, vmax))
+        return math.expm1(lower + (upper - lower) * stop)
+    return vmin + (vmax - vmin) * stop
 
 
 def write_png_rgba(path: Path, rgba: Any) -> None:

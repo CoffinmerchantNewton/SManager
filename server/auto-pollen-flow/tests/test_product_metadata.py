@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,6 +42,35 @@ class ProductMetadataTests(unittest.TestCase):
 
         self.assertGreaterEqual(len(cities), 20)
         self.assertTrue(all("name" in city and "longitude" in city and "latitude" in city for city in cities))
+
+    def test_reduce_to_2d_defaults_to_strongest_time_slice(self) -> None:
+        try:
+            import numpy as np  # type: ignore
+        except ModuleNotFoundError:
+            self.skipTest("numpy is not installed")
+        previous = os.environ.pop("PRODUCT_TIME_INDEX", None)
+        try:
+            data = np.array(
+                [
+                    [[0.0, 0.0], [0.0, 0.0]],
+                    [[1.0, 2.0], [3.0, 4.0]],
+                    [[0.5, 0.0], [0.0, 0.0]],
+                ]
+            )
+            reduced = product_extract.reduce_to_2d(data)
+        finally:
+            if previous is not None:
+                os.environ["PRODUCT_TIME_INDEX"] = previous
+
+        self.assertEqual(float(reduced.max()), 4.0)
+
+    def test_pollen_png_defaults_to_log_scale(self) -> None:
+        self.assertEqual(
+            product_extract.png_color_scale("pollen_total", {"min": 0.0, "max": 56000.0}),
+            "log1p",
+        )
+        legend = product_extract.color_legend(0.0, 56000.0, "log1p")
+        self.assertLess(legend[1]["value"], 56000.0 * 0.35)
 
 
 if __name__ == "__main__":
