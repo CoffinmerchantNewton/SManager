@@ -48,6 +48,15 @@ DEFAULT_NODES = [
 ]
 
 
+def configured_node_order(command_config: dict[str, Any]) -> list[str]:
+    raw_order = command_config.get("node_order")
+    if raw_order is None:
+        return DEFAULT_NODES
+    if not isinstance(raw_order, list) or not all(isinstance(name, str) and name for name in raw_order):
+        raise ValueError("node_order must be a non-empty list of node names")
+    return raw_order
+
+
 def paths() -> FlowPaths:
     return FlowPaths.from_env(SCRIPT_DIR)
 
@@ -81,8 +90,9 @@ def build_spec(args) -> dict[str, Any]:
     global_env = command_config.get("env", {})
     slurm_defaults = command_config.get("slurm_defaults", {})
     configured_nodes = command_config.get("nodes", {})
+    node_order = configured_node_order(command_config)
     nodes = []
-    for name in DEFAULT_NODES:
+    for name in node_order:
         config = configured_nodes.get(name, {})
         env = dict(global_env)
         env.update(config.get("env", {}))

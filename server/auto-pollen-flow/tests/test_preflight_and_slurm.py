@@ -92,6 +92,35 @@ class PreflightTests(unittest.TestCase):
             failed = [item["name"] for item in result["checks"] if not item["ok"] and item.get("required", True)]
             self.assertIn("node:wps_geogrid", failed)
 
+    def test_preflight_accepts_custom_node_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fnl_root = root / "fnl"
+            fnl_root.mkdir()
+
+            config = {
+                "env": {"FNL_ROOT": str(fnl_root)},
+                "node_order": ["prepare_temperature", "generate_wrfchemi", "wrf_run"],
+                "slurm_defaults": {
+                    "partition": "normal",
+                    "nodes": 1,
+                    "ntasks": 1,
+                    "cpus_per_task": 1,
+                },
+                "nodes": {
+                    "prepare_temperature": {"command": "true"},
+                    "generate_wrfchemi": {"command": "true"},
+                    "wrf_run": {"command": "true", "env": {"WRF_RUN_COMMAND": "true"}},
+                },
+            }
+
+            with mock.patch("lib.preflight.shutil.which", side_effect=lambda command: command if command == "bash" else None):
+                result = run_preflight(root, config)
+
+            self.assertTrue(result["ok"], result)
+            checked_nodes = [item["node"] for item in result["checks"] if item["name"].startswith("node:")]
+            self.assertEqual(checked_nodes, ["prepare_temperature", "generate_wrfchemi", "wrf_run"])
+
 
 class SlurmMockTests(unittest.TestCase):
     def test_submit_sbatch_parses_job_id_from_mock(self) -> None:

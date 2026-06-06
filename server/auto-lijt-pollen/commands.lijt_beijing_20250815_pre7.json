@@ -1,0 +1,110 @@
+{
+  "env": {
+    "FLOWCTL": "/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/flowctl.py",
+    "LIJT_BIN": "/g7/anxq/Zhangjt/workspace/Smanager/auto-lijt-pollen/bin",
+    "WRFCHEMI_FLOW_BIN": "/g7/anxq/Zhangjt/workspace/Smanager/auto-wrfchem-pollen/bin",
+    "ENV_SCRIPT": "/g7/anxq/Zhangjt/workspace/load_env.sh",
+    "PYTHON_BIN": "/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python",
+    "FNL_ROOTS": "/g1/COMMONDATA/glob/fnl",
+    "LIJT_SOURCE_ROOT": "/g7/anxq/pollen_predict/WRFChem_autumn_Beijing_pre7",
+    "LIJT_WPS_REL": "WRF-pollen/WPS-master",
+    "LIJT_WRF_REL": "WRF-pollen/WRF-pollen_Tot_Arte_Chen/test/em_real",
+    "LIJT_START_DATE": "20250815",
+    "LIJT_PREDICT_DAYS": "7",
+    "LIJT_FNL_GFS": "2",
+    "LIJT_WRFCHEM_NAME": "poll_BJ_smgr",
+    "LIJT_WRF_PARTITION": "normal",
+    "LIJT_WRF_NTASKS": "256",
+    "LIJT_WRF_NTASKS_PER_NODE": "32",
+    "LIJT_WRF_WALLTIME": "7:00:00",
+    "PRODUCT_SOURCE_GLOB": "$FLOW_RUN_DIR/wrfout/wrfout_d01_*:$FLOW_RUN_DIR/wrfchemi/*.nc:$FLOW_RUN_DIR/pollen_flux/*.nc",
+    "PRODUCT_COPY_SOURCES": "false",
+    "PRODUCT_SUMMARY_PRESET": "wrf_pollen",
+    "PRODUCT_SUMMARY_PRIMARY_VARIABLE": "E_POLLEN",
+    "PRODUCT_SUMMARY_MAX_STEPS": "9",
+    "PRODUCT_SUMMARY_EVERY_NTH": "24"
+  },
+  "node_order": [
+    "prepare_case",
+    "wps_fnl",
+    "wps_gfs",
+    "real",
+    "generate_wrfchemi",
+    "wrf_run",
+    "postprocess",
+    "product_extract",
+    "package_products"
+  ],
+  "slurm_defaults": {
+    "partition": "serial",
+    "nodes": 1,
+    "ntasks": 1,
+    "cpus_per_task": 1,
+    "walltime": "01:00:00"
+  },
+  "nodes": {
+    "prepare_case": {
+      "command": "bash \"$LIJT_BIN/prepare_case.sh\"",
+      "slurm": {
+        "walltime": "03:00:00"
+      }
+    },
+    "wps_fnl": {
+      "command": "bash \"$LIJT_BIN/run_wps_fnl.sh\"",
+      "slurm": {
+        "walltime": "03:00:00"
+      }
+    },
+    "wps_gfs": {
+      "command": "bash \"$LIJT_BIN/run_wps_gfs.sh\"",
+      "slurm": {
+        "walltime": "03:00:00"
+      }
+    },
+    "real": {
+      "command": "bash \"$LIJT_BIN/run_real.sh\"",
+      "env": {
+        "REAL_COMMAND": "run_lijt_real"
+      },
+      "slurm": {
+        "walltime": "01:30:00"
+      }
+    },
+    "generate_wrfchemi": {
+      "command": "bash \"$LIJT_BIN/generate_wrfchemi.sh\"",
+      "slurm": {
+        "partition": "normal",
+        "ntasks": 8,
+        "cpus_per_task": 1,
+        "walltime": "10:00:00"
+      }
+    },
+    "wrf_run": {
+      "command": "bash \"$LIJT_BIN/run_wrf.sh\"",
+      "env": {
+        "WRF_RUN_COMMAND": "run_lijt_wrf"
+      },
+      "slurm": {
+        "walltime": "08:00:00"
+      }
+    },
+    "postprocess": {
+      "command": "bash \"$LIJT_BIN/postprocess.sh\"",
+      "slurm": {
+        "walltime": "00:30:00"
+      }
+    },
+    "product_extract": {
+      "command": "bash \"/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/node_commands/product_extract.sh\"",
+      "slurm": {
+        "walltime": "01:00:00"
+      }
+    },
+    "package_products": {
+      "command": "bash \"/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/node_commands/package_products.sh\"",
+      "slurm": {
+        "walltime": "00:20:00"
+      }
+    }
+  }
+}

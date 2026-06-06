@@ -124,10 +124,10 @@ year = start_time.year
 mon  = start_time.month
 day  = start_time.day
 
-pollen_file = pollen_emiss_path + f'/{area}_emission_{poll_flux_date}_pre{predict_days}.nc'
+pollen_file = os.path.join(pollen_emiss_path, f'{area}_emission_{poll_flux_date}_pre{predict_days}.nc')
 # print(pollen_file)
 
-combined_file = meic_save_dir + f'combined_wrfchemi_{domain}_{year}_{mon:02d}_{day:02d}.nc'
+combined_file = os.path.join(meic_save_dir, f'combined_wrfchemi_{domain}_{year}_{mon:02d}_{day:02d}.nc')
 # combined_file = meic_save_dir + f'combined_wrfchemi_{domain}_2024_{mon:02d}_{day:02d}.nc'
 data = nc.Dataset(combined_file, 'r')
 var_all = list(data.variables.keys())
@@ -181,7 +181,7 @@ hourly_pollen_data_wrf_4d_che = pollen_distribution(pollen_file, XLAT, XLONG, st
 
 # 创建新文件
 os.makedirs(meic_poll_save_dir, exist_ok=True)
-new_file = meic_poll_save_dir + fr'wrfchemi_{domain}_{year}-{mon:02d}-{day:02d}_12_00_00.nc'
+new_file = os.path.join(meic_poll_save_dir, f'wrfchemi_{domain}_{year}-{mon:02d}-{day:02d}_12_00_00.nc')
 if os.path.exists(new_file):
     os.remove(new_file)
 

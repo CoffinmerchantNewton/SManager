@@ -25,6 +25,15 @@ REQUIRED_NODE_ENV = {
 }
 
 
+def configured_node_order(config: dict[str, Any]) -> list[str]:
+    raw_order = config.get("node_order")
+    if raw_order is None:
+        return list(REQUIRED_NODE_ENV)
+    if not isinstance(raw_order, list) or not all(isinstance(name, str) and name for name in raw_order):
+        return []
+    return raw_order
+
+
 def run_preflight(flow_root: Path, command_config: dict[str, Any] | None = None) -> dict[str, Any]:
     config = command_config or {}
     env = _string_map(config.get("env", {}))
@@ -44,7 +53,7 @@ def run_preflight(flow_root: Path, command_config: dict[str, Any] | None = None)
             checks.append(check_path(key.lower(), Path(value), required=key in {"NODE_COMMAND_DIR", "AUTO_POLLEN_ROOT"}))
 
     checks.extend(check_fnl_roots(env))
-    checks.extend(check_node_commands(env, node_configs))
+    checks.extend(check_node_commands(env, node_configs, configured_node_order(config)))
 
     slurm_defaults = config.get("slurm_defaults", {})
     if isinstance(slurm_defaults, dict):
@@ -124,15 +133,25 @@ def roots_from_config(config_env: dict[str, str]) -> list[Path]:
     return [Path(config_env[key]) for key in ("FNL_ROOT", "FNL_FALLBACK_ROOT") if config_env.get(key)]
 
 
-def check_node_commands(global_env: dict[str, str], node_configs: dict[str, Any]) -> list[dict[str, Any]]:
+def check_node_commands(global_env: dict[str, str], node_configs: dict[str, Any], node_order: list[str]) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
-    for node_name, required_env in REQUIRED_NODE_ENV.items():
+    if not node_order:
+        return [
+            {
+                "name": "node_order",
+                "ok": False,
+                "required": True,
+                "message": "node_order must be a list of node names",
+            }
+        ]
+    for node_name in node_order:
+        required_env = REQUIRED_NODE_ENV.get(node_name)
         node = node_configs.get(node_name, {}) if isinstance(node_configs.get(node_name, {}), dict) else {}
         node_env = dict(global_env)
         node_env.update(_string_map(node.get("env", {})))
         command = node.get("command")
-        command_env_value = node_env.get(required_env)
-        ok = bool(command and command_env_value)
+        command_env_value = node_env.get(required_env) if required_env else None
+        ok = bool(command and (command_env_value or required_env is None))
         checks.append(
             {
                 "name": f"node:{node_name}",
@@ -142,7 +161,7 @@ def check_node_commands(global_env: dict[str, str], node_configs: dict[str, Any]
                 "command": command,
                 "required_env": required_env,
                 "configured_value": command_env_value,
-                "message": "configured" if ok else f"missing {required_env} or node command",
+                "message": "configured" if ok else f"missing {required_env or 'node command'}",
             }
         )
     return checks

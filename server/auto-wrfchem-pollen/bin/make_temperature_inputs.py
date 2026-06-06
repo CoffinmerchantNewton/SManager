@@ -70,12 +70,33 @@ def interpolate_to_target(lat: np.ndarray, lon: np.ndarray, data: np.ndarray) ->
     return pd.DataFrame(values, index=tlat, columns=tlon)
 
 
-def write_daily_mean(frames: list[pd.DataFrame], out_dir: Path) -> None:
+def write_daily_mean(frames: list[pd.DataFrame], out_dir: Path) -> pd.DataFrame:
     if not frames:
         raise RuntimeError(f"no temperature frames for {out_dir}")
     mean = sum(frames) / float(len(frames))
     out_dir.mkdir(parents=True, exist_ok=True)
     mean.to_csv(out_dir / "TEM_Avg.csv", float_format="%.2f", na_rep="NaN")
+    return mean
+
+
+def read_daily_mean(out_dir: Path) -> pd.DataFrame | None:
+    path = out_dir / "TEM_Avg.csv"
+    if not path.exists():
+        return None
+    frame = pd.read_csv(path, index_col=0)
+    frame.index = frame.index.astype(float)
+    frame.columns = frame.columns.astype(float)
+    return frame
+
+
+def append_missing_report(out_root: Path, records: list[str]) -> None:
+    if not records:
+        return
+    out_root.mkdir(parents=True, exist_ok=True)
+    with (out_root / "missing_temperature_inputs.log").open("a", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(record)
+            handle.write("\n")
 
 
 def fnl_path(root: Path, when: datetime) -> Path:
@@ -111,15 +132,41 @@ def build_history(args) -> None:
     last_history = start - timedelta(days=1)
     fnl_root = Path(args.fnl_root)
     out_root = Path(args.out_root) / "ERA5" / f"{start.year}"
+    previous_mean: pd.DataFrame | None = None
+    missing_records: list[str] = []
     for day in date_range(year_start, last_history):
+        out_dir = out_root / f"{day:%Y%m%d}"
+        existing = read_daily_mean(out_dir)
+        if existing is not None:
+            previous_mean = existing
+            print(f"history {day:%Y%m%d} cached")
+            continue
         frames = []
         for hour in (0, 6, 12, 18):
             when = day.replace(hour=hour)
-            grib = fnl_path(fnl_root, when)
-            lat, lon, t2 = extract_t2_c(args.wgrib2, grib)
+            try:
+                grib = fnl_path(fnl_root, when)
+            except FileNotFoundError as exc:
+                record = f"history missing {when:%Y%m%d%H} {exc}"
+                missing_records.append(record)
+                print(record)
+                continue
+            try:
+                lat, lon, t2 = extract_t2_c(args.wgrib2, grib)
+            except Exception as exc:
+                record = f"history unreadable {when:%Y%m%d%H} {grib} {exc}"
+                missing_records.append(record)
+                print(record)
+                continue
             frames.append(interpolate_to_target(lat, lon, t2))
-        write_daily_mean(frames, out_root / f"{day:%Y%m%d}")
+        if not frames and previous_mean is not None:
+            record = f"history fill_previous_day {day:%Y%m%d}"
+            missing_records.append(record)
+            print(record)
+            frames.append(previous_mean)
+        previous_mean = write_daily_mean(frames, out_dir)
         print(f"history {day:%Y%m%d} frames={len(frames)}")
+    append_missing_report(out_root, missing_records)
 
 
 def build_forecast(args) -> None:
@@ -127,19 +174,46 @@ def build_forecast(args) -> None:
     cycle = datetime.strptime(args.gfs_cycle, "%Y%m%d%H") if args.gfs_cycle else (start - timedelta(days=1)).replace(hour=12)
     gfs_root = Path(args.gfs_root)
     grouped: dict[str, list[pd.DataFrame]] = defaultdict(list)
+    missing_records: list[str] = []
     end = start + timedelta(days=args.predict_days)
     max_hour = int((end.replace(hour=23) - cycle).total_seconds() // 3600)
     for fhour in range(0, max_hour + 1, 3):
         valid = cycle + timedelta(hours=fhour)
         if valid.date() < start.date() or valid.date() > end.date():
             continue
-        grib = gfs_path(gfs_root, cycle, fhour)
-        lat, lon, t2 = extract_t2_c(args.wgrib2, grib)
+        try:
+            grib = gfs_path(gfs_root, cycle, fhour)
+        except FileNotFoundError as exc:
+            record = f"forecast missing {valid:%Y%m%d%H} f{fhour:03d} {exc}"
+            missing_records.append(record)
+            print(record)
+            continue
+        try:
+            lat, lon, t2 = extract_t2_c(args.wgrib2, grib)
+        except Exception as exc:
+            record = f"forecast unreadable {valid:%Y%m%d%H} f{fhour:03d} {grib} {exc}"
+            missing_records.append(record)
+            print(record)
+            continue
         grouped[f"{valid:%Y%m%d}"].append(interpolate_to_target(lat, lon, t2))
     out_root = Path(args.out_root) / "GFS" / f"{start.year}" / f"{start:%Y%m%d}"
-    for day_key in sorted(grouped):
-        write_daily_mean(grouped[day_key], out_root / day_key)
-        print(f"forecast {day_key} frames={len(grouped[day_key])}")
+    previous_mean: pd.DataFrame | None = None
+    expected_days = [(start + timedelta(days=offset)).strftime("%Y%m%d") for offset in range(args.predict_days + 1)]
+    for day_key in expected_days:
+        out_dir = out_root / day_key
+        existing = read_daily_mean(out_dir)
+        if existing is not None:
+            previous_mean = existing
+            print(f"forecast {day_key} cached")
+        elif day_key in grouped:
+            previous_mean = write_daily_mean(grouped[day_key], out_dir)
+            print(f"forecast {day_key} frames={len(grouped[day_key])}")
+        elif previous_mean is not None:
+            record = f"forecast fill_previous_day {day_key}"
+            missing_records.append(record)
+            print(record)
+            previous_mean = write_daily_mean([previous_mean], out_dir)
+    append_missing_report(out_root, missing_records)
 
 
 def main() -> int:
