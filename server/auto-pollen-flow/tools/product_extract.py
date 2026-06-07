@@ -156,11 +156,15 @@ def discover_sources(run_dir: Path) -> list[Path]:
 def configured_patterns(run_dir: Path) -> list[str]:
     raw = os.environ.get("PRODUCT_SOURCE_GLOB")
     if raw:
-        return [item for item in raw.split(os.pathsep) if item]
+        return [expand_pattern(item) for item in raw.split(os.pathsep) if item]
     return [
         str(run_dir / "**" / "*.nc"),
         str(run_dir / "**" / "wrfout*"),
     ]
+
+
+def expand_pattern(pattern: str) -> str:
+    return os.path.expanduser(os.path.expandvars(pattern))
 
 
 def should_include(path: Path, run_dir: Path) -> bool:
