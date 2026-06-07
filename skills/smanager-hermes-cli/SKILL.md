@@ -289,3 +289,29 @@ PYTHONPYCACHEPREFIX=/tmp/smanager-pycache python3 -m compileall server/auto-poll
 ```bash
 cd frontend && npm run build
 ```
+
+## Lijt Beijing pre7 runs
+
+Lijt's Beijing autumn pre7 workflow is date-bound through the commands-file environment variable `LIJT_START_DATE`. When creating another year for the same August 15 pre7 case, first create or select the matching commands file under `server/auto-lijt-pollen/`, deploy it to:
+
+```text
+/g7/anxq/Zhangjt/workspace/Smanager/auto-lijt-pollen/
+```
+
+Then plan and submit with that same commands file:
+
+```bash
+python3 packages/cli/smanager.py plan \
+  --run-id lijt_bj_20240815_pre7_smanager \
+  --start 2024-08-15T12:00:00 \
+  --end 2024-08-22T12:00:00 \
+  --period autumn \
+  --domain beijing \
+  --variant lijt_autumn_pre7 \
+  --met-provider fnl_gfs \
+  --commands-file ../auto-lijt-pollen/commands.lijt_beijing_20240815_pre7.json
+
+python3 packages/cli/smanager.py submit --run-id lijt_bj_20240815_pre7_smanager
+```
+
+Do not reuse `commands.lijt_beijing_20250815_pre7.json` for 2024 or 2023 runs: the web/API plan dates and the Lijt internal `LIJT_START_DATE` must match.

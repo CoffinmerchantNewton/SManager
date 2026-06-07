@@ -42,3 +42,23 @@ cd /g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow
 /g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python flowctl.py submit \
   --run-id lijt_bj_20250815_pre7
 ```
+
+## Multi-year Beijing autumn pre7 runs
+
+Each target date needs its own commands file because `LIJT_START_DATE` is read
+by the Lijt node scripts at runtime. Do not change only the `flowctl plan`
+`--start/--end` values while reusing a commands file for another date.
+
+Prepared commands files:
+
+```text
+commands.lijt_beijing_20250815_pre7.json
+commands.lijt_beijing_20240815_pre7.json
+commands.lijt_beijing_20230815_pre7.json
+```
+
+Use run IDs in this form when submitting through Smanager:
+
+```text
+lijt_bj_YYYY0815_pre7_smanager
+```
