@@ -25,6 +25,7 @@ build/
 runtime/db/*.sqlite
 runtime/db/*.sqlite-*
 runtime/fnl/**
+runtime/fnl_repair/**
 runtime/products/**
 runtime/logs/**
 runtime/manifests/**
@@ -33,6 +34,7 @@ runtime/deploy/**
 !runtime/.gitkeep
 !runtime/db/.gitkeep
 !runtime/fnl/.gitkeep
+!runtime/fnl_repair/.gitkeep
 !runtime/products/.gitkeep
 !runtime/logs/.gitkeep
 !runtime/manifests/.gitkeep

@@ -114,8 +114,16 @@ def auto_pollen_wrf_output_dirs(env: dict[str, str], spec: dict[str, Any]) -> li
     run_name = wrf_archive_run_name(spec)
     if not run_name:
         return []
-    run_dir = Path(expand_env(auto_root, env)) / "WRF" / run_name
-    return [run_dir / "output", run_dir]
+    root = Path(expand_env(auto_root, env)) / "WRF"
+    run_names = [run_name]
+    variant = str(spec.get("variant") or "").strip()
+    if variant and variant not in {"default", "none"}:
+        run_names.append(f"{run_name}_{variant}")
+    dirs: list[Path] = []
+    for name in run_names:
+        run_dir = root / name
+        dirs.extend([run_dir / "output", run_dir])
+    return dirs
 
 
 def wrf_archive_run_name(spec: dict[str, Any]) -> str | None:

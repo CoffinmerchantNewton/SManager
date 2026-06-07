@@ -74,9 +74,7 @@ def initialize_run(paths: FlowPaths, spec: dict[str, Any]) -> None:
     paths.products_dir(run_id).mkdir(parents=True, exist_ok=True)
     write_json_atomic(paths.run_spec(run_id), spec)
     for node in node_names(spec):
-        status_path = paths.node_status(run_id, node)
-        if not status_path.exists():
-            write_json_atomic(status_path, initial_node_status(run_id, node))
+        write_json_atomic(paths.node_status(run_id, node), initial_node_status(run_id, node))
     refresh_workflow(paths, run_id)
     write_event(paths, run_id, "planned", "run planned")
 
@@ -105,12 +103,16 @@ def update_node_status(
         data["attempt"] = int(data.get("attempt") or 0) + 1
     if status in TERMINAL_STATUSES:
         data["finished_at"] = now_iso()
+    else:
+        data["finished_at"] = None
+    if status in {"pending", "ready"}:
+        data["started_at"] = None
     data["status"] = status
     data["message"] = message
     data["updated_at"] = now_iso()
     if progress is not None:
         data["progress"] = progress
-    if error_code is not None:
+    if error_code is not None or status not in {"error", "cancelled"}:
         data["error_code"] = error_code
     if slurm_job_id is not None:
         data["slurm_job_id"] = slurm_job_id
