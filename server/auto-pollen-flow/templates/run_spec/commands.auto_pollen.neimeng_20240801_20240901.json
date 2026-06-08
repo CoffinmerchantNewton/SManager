@@ -1,0 +1,105 @@
+{
+  "node_order": [
+    "fnl_verify",
+    "wps_geogrid",
+    "wrf_setup",
+    "wrf_run",
+    "postprocess_eval",
+    "product_extract",
+    "package_products"
+  ],
+  "env": {
+    "FLOWCTL": "/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/flowctl.py",
+    "NODE_COMMAND_DIR": "/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/node_commands",
+    "AUTO_POLLEN_ROOT": "/g7/anxq/Zhangjt/workspace/auto-pollen",
+    "ENV_SCRIPT": "/g7/anxq/Zhangjt/workspace/auto-pollen/load_env.sh",
+    "PYTHON_BIN": "/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python",
+    "FNL_ROOTS": "/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl",
+    "FNL_MIN_MB": "5",
+    "PRODUCT_SOURCE_GLOB": "/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24080100-24090100_official/output/wrfout_d02_*",
+    "PRODUCT_SUMMARY_PRESET": "wrf_pollen",
+    "PRODUCT_SUMMARY_PRIMARY_VARIABLE": "pollen_total",
+    "PRODUCT_SUMMARY_MAX_STEPS": "32",
+    "PRODUCT_SUMMARY_EVERY_NTH": "8",
+    "PRODUCT_SUMMARY_STEP_HOURS": "24",
+    "PRODUCT_COPY_SOURCES": "false",
+    "PRODUCT_GEOJSON_VARIABLE": "pollen_total",
+    "PRODUCT_CONTOUR_VARIABLE": "pollen_total",
+    "PRODUCT_GEOTIFF_VARIABLE": "pollen_total",
+    "PRODUCT_PNG_VARIABLE": "pollen_total",
+    "PRODUCT_PNG_OPACITY": "0.72",
+    "PRODUCT_CITY_FORECAST_ENABLED": "true",
+    "PRODUCT_CITY_POINTS_FILE": "/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/stations.china_pollen.json",
+    "PRODUCT_POLLEN_RISK_THRESHOLDS": "300,600,1000",
+    "PRODUCT_REGION": "neimeng",
+    "PRODUCT_POLLEN_TYPE": "pollen_total",
+    "PRODUCT_RESOLUTION": "9km d02"
+  },
+  "slurm_defaults": {
+    "partition": "normal",
+    "nodes": 1,
+    "ntasks": 32,
+    "cpus_per_task": 1,
+    "walltime": "02:00:00"
+  },
+  "nodes": {
+    "fnl_verify": {
+      "command": "\"$PYTHON_BIN\" \"$FLOWCTL\" fnl-verify --run-id \"$RUN_ID\""
+    },
+    "wps_geogrid": {
+      "command": "bash -lc 'set -eo pipefail; source \"$ENV_SCRIPT\"; cd \"$AUTO_POLLEN_ROOT\"; \"$PYTHON_BIN\" auto_wrf.py --start 2024080100 --end 2024090100 --period autumn --tree-map-order official --max-dom 2 --wps-only'",
+      "env": {
+        "WPS_GEOGRID_COMMAND": "auto_wrf.py --wps-only 2024080100-2024090100"
+      },
+      "slurm": {
+        "walltime": "06:00:00"
+      }
+    },
+    "wrf_setup": {
+      "command": "bash -lc 'set -eo pipefail; source \"$ENV_SCRIPT\"; cd \"$AUTO_POLLEN_ROOT\"; \"$PYTHON_BIN\" auto_wrf.py --start 2024080100 --end 2024090100 --period autumn --tree-map-order official --max-dom 2 --prep-only'",
+      "env": {
+        "WRF_SETUP_COMMAND": "auto_wrf.py --prep-only 2024080100-2024090100"
+      },
+      "slurm": {
+        "nodes": 2,
+        "ntasks": 64,
+        "cpus_per_task": 1,
+        "walltime": "08:00:00"
+      }
+    },
+    "wrf_run": {
+      "command": "bash -lc 'set -eo pipefail; source \"$ENV_SCRIPT\"; cd \"$AUTO_POLLEN_ROOT/WRF/wrf24080100-24090100_official\"; mpirun -np 64 ./wrf.exe'",
+      "env": {
+        "WRF_RUN_COMMAND": "mpirun -np 64 ./wrf.exe"
+      },
+      "slurm": {
+        "nodes": 2,
+        "ntasks": 64,
+        "cpus_per_task": 1,
+        "walltime": "96:00:00"
+      }
+    },
+    "postprocess_eval": {
+      "command": "bash -lc 'set -eo pipefail; source \"$ENV_SCRIPT\"; cd \"$AUTO_POLLEN_ROOT\"; RUNS=wrf24080100-24090100_official MIN_TIMES=0 bash batch_eval_pollen.sh'",
+      "env": {
+        "POSTPROCESS_EVAL_COMMAND": "RUNS=wrf24080100-24090100_official MIN_TIMES=0 bash batch_eval_pollen.sh"
+      },
+      "slurm": {
+        "walltime": "04:00:00"
+      }
+    },
+    "product_extract": {
+      "command": "bash \"$NODE_COMMAND_DIR/product_extract.sh\"",
+      "slurm": {
+        "walltime": "02:00:00"
+      }
+    },
+    "package_products": {
+      "command": "bash \"$NODE_COMMAND_DIR/package_products.sh\"",
+      "slurm": {
+        "walltime": "00:20:00"
+      }
+    }
+  }
+}
+

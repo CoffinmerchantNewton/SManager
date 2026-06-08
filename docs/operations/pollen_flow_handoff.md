@@ -65,6 +65,19 @@ lijt_bj_20230815_pre7_smanager
 2024-07-01 00:00 UTC -> 2024-10-01 00:00 UTC
 ```
 
+That 92-day run was later cancelled because the business forecast products need
+to appear sooner and the queue wall-time risk was too high. The current
+operational submission is split into three independent monthly runs:
+
+```text
+2024070100_2024080100_autumn_neimeng_official
+2024080100_2024090100_autumn_neimeng_official
+2024090100_2024100100_autumn_neimeng_official
+```
+
+This split may introduce small month-boundary spin-up differences, which were
+accepted for the current business-product priority.
+
 4. Five missing public FNL files were downloaded from NCAR/RDA THREDDS and
    uploaded to:
 
@@ -193,52 +206,82 @@ j_parent_start = 1, 9
 parent_grid_ratio = 1, 3
 ```
 
-The active date-specific SManager commands file is:
+The active date-specific SManager commands files are:
 
 ```text
-server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20241001.json
+server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20240801.json
+server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240801_20240901.json
+server/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240901_20241001.json
 ```
 
 Remote deployed path:
 
 ```text
-/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20241001.json
+/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20240801.json
+/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240801_20240901.json
+/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240901_20241001.json
 ```
 
-Current run id:
+Current run ids:
 
 ```text
-2024070100_2024100100_autumn_neimeng_official
+2024070100_2024080100_autumn_neimeng_official
+2024080100_2024090100_autumn_neimeng_official
+2024090100_2024100100_autumn_neimeng_official
 ```
 
 Current output directories:
 
 ```text
-/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24070100-24100100
-/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24100100_official
-/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/runs/2024070100_2024100100_autumn_neimeng_official
+/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24070100-24080100
+/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24080100-24090100
+/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24090100-24100100
+/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24080100_official
+/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24080100-24090100_official
+/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24090100-24100100_official
+/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/runs/2024070100_2024080100_autumn_neimeng_official
+/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/runs/2024080100_2024090100_autumn_neimeng_official
+/g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/runs/2024090100_2024100100_autumn_neimeng_official
 ```
 
 Active Slurm chain at the time this note was written:
 
 ```text
-20650462 fnl_verify        success
-20650463 wps_geogrid       running
-20650464 wrf_setup         pending, afterok dependency
-20650465 wrf_run           pending, afterok dependency
-20650466 postprocess_eval  pending, afterok dependency
-20650467 product_extract   pending, afterok dependency
-20650468 package_products  pending, afterok dependency
+2024070100_2024080100_autumn_neimeng_official:
+  20653489 fnl_verify        success
+  20653490 wps_geogrid       pending/running after dependency release
+  20653491 wrf_setup         pending, afterok dependency
+  20653492 wrf_run           pending, afterok dependency
+  20653493 postprocess_eval  pending, afterok dependency
+  20653494 product_extract   pending, afterok dependency
+  20653495 package_products  pending, afterok dependency
+
+2024080100_2024090100_autumn_neimeng_official:
+  20653497 fnl_verify
+  20653498 wps_geogrid
+  20653499 wrf_setup
+  20653500 wrf_run
+  20653501 postprocess_eval
+  20653502 product_extract
+  20653503 package_products
+
+2024090100_2024100100_autumn_neimeng_official:
+  20653506 fnl_verify
+  20653507 wps_geogrid
+  20653508 wrf_setup
+  20653509 wrf_run
+  20653510 postprocess_eval
+  20653511 product_extract
+  20653512 package_products
 ```
 
-Verified during the final clean run:
+Verified before submitting the monthly runs:
 
 ```text
-FNL manifest: all server_ok
-FNL run-dir links: 372
-The five repaired FNL cycles are linked from /g7/anxq/Zhangjt/static/fnl/2024
-geogrid.exe: successful completion
-ungrib.exe: running when last checked
+All three monthly commands files passed local and remote JSON validation.
+All three monthly commands files passed SManager preflight.
+The monthly target WPS/WRF/static FNL directories were absent before submit.
+The old 92-day run was cancelled through SManager and no pollen Slurm jobs from it remained queued.
 ```
 
 ## Useful Commands
@@ -248,44 +291,44 @@ Local SManager CLI:
 ```powershell
 cd E:\SManager
 python packages\cli\smanager.py doctor
-python packages\cli\smanager.py preflight --commands-file /g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20241001.json
-python packages\cli\smanager.py status --run-id 2024070100_2024100100_autumn_neimeng_official
-python packages\cli\smanager.py logs --run-id 2024070100_2024100100_autumn_neimeng_official --node wps_geogrid --tail 200
-python packages\cli\smanager.py diagnose --run-id 2024070100_2024100100_autumn_neimeng_official
+python packages\cli\smanager.py preflight --commands-file /g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20240801.json
+python packages\cli\smanager.py status --run-id 2024070100_2024080100_autumn_neimeng_official
+python packages\cli\smanager.py logs --run-id 2024070100_2024080100_autumn_neimeng_official --node wps_geogrid --tail 200
+python packages\cli\smanager.py diagnose --run-id 2024070100_2024080100_autumn_neimeng_official
 ```
 
 Server-side status without the local API:
 
 ```bash
 cd /g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow
-/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python flowctl.py status --run-id 2024070100_2024100100_autumn_neimeng_official --json
-/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python flowctl.py logs --run-id 2024070100_2024100100_autumn_neimeng_official --node wps_geogrid --tail 200
+/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python flowctl.py status --run-id 2024070100_2024080100_autumn_neimeng_official --json
+/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python flowctl.py logs --run-id 2024070100_2024080100_autumn_neimeng_official --node wps_geogrid --tail 200
 squeue -u anxq -o '%i|%j|%T|%M|%l|%D|%R'
 ```
 
-Plan and submit the Neimeng run:
+Plan and submit a monthly Neimeng run:
 
 ```powershell
 cd E:\SManager
 python packages\cli\smanager.py plan `
-  --run-id 2024070100_2024100100_autumn_neimeng_official `
+  --run-id 2024070100_2024080100_autumn_neimeng_official `
   --start 2024070100 `
-  --end 2024100100 `
+  --end 2024080100 `
   --period autumn `
   --domain neimeng `
   --variant official `
   --met-provider FNL `
-  --commands-file /g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20241001.json
+  --commands-file /g7/anxq/Zhangjt/workspace/Smanager/auto-pollen-flow/templates/run_spec/commands.auto_pollen.neimeng_20240701_20240801.json
 
-python packages\cli\smanager.py submit --run-id 2024070100_2024100100_autumn_neimeng_official --dry-run
-python packages\cli\smanager.py submit --run-id 2024070100_2024100100_autumn_neimeng_official
+python packages\cli\smanager.py submit --run-id 2024070100_2024080100_autumn_neimeng_official --dry-run
+python packages\cli\smanager.py submit --run-id 2024070100_2024080100_autumn_neimeng_official
 ```
 
 Cancel safely:
 
 ```powershell
-python packages\cli\smanager.py cancel-run --run-id 2024070100_2024100100_autumn_neimeng_official --dry-run
-python packages\cli\smanager.py cancel-run --run-id 2024070100_2024100100_autumn_neimeng_official --real
+python packages\cli\smanager.py cancel-run --run-id 2024070100_2024080100_autumn_neimeng_official --dry-run
+python packages\cli\smanager.py cancel-run --run-id 2024070100_2024080100_autumn_neimeng_official --real
 ```
 
 If there are inner or stale Slurm jobs, inspect before cancelling:
@@ -425,13 +468,27 @@ When cleaning, cancel the whole active dependency chain and any stale duplicate
 WPS job, then remove only this run's target directories:
 
 ```text
-/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24070100-24100100
-/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24100100
-/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24100100_official
-/g7/anxq/Zhangjt/workspace/auto-pollen/static/fnl24070100-24100100
+/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24070100-24080100
+/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24080100-24090100
+/g7/anxq/Zhangjt/workspace/auto-pollen/WPS/wps24090100-24100100
+/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24080100_official
+/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24080100-24090100_official
+/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24090100-24100100_official
+/g7/anxq/Zhangjt/workspace/auto-pollen/static/fnl24070100-24080100
+/g7/anxq/Zhangjt/workspace/auto-pollen/static/fnl24080100-24090100
+/g7/anxq/Zhangjt/workspace/auto-pollen/static/fnl24090100-24100100
 ```
 
 Verify exact paths before `rm -rf`.
+
+The cancelled 92-day run left partial output under:
+
+```text
+/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24100100_official
+```
+
+That path is separate from the monthly runs. Do not delete it unless explicitly
+asked, because it may still be useful for diagnosis.
 
 ### Local backend and web visibility
 
@@ -450,28 +507,34 @@ using, whether the API is running, and whether products have been synced after
 
 ## When Products Finish
 
-After `package_products` succeeds, sync products into the local backend:
+After `package_products` succeeds, sync each monthly run into the local backend:
 
 ```powershell
 cd E:\SManager
-python packages\cli\smanager.py sync-products --run-id 2024070100_2024100100_autumn_neimeng_official
-python packages\cli\smanager.py products --run-id 2024070100_2024100100_autumn_neimeng_official
+python packages\cli\smanager.py sync-products --run-id 2024070100_2024080100_autumn_neimeng_official
+python packages\cli\smanager.py sync-products --run-id 2024080100_2024090100_autumn_neimeng_official
+python packages\cli\smanager.py sync-products --run-id 2024090100_2024100100_autumn_neimeng_official
+python packages\cli\smanager.py products --run-id 2024070100_2024080100_autumn_neimeng_official
+python packages\cli\smanager.py products --run-id 2024080100_2024090100_autumn_neimeng_official
+python packages\cli\smanager.py products --run-id 2024090100_2024100100_autumn_neimeng_official
 ```
 
-Product metadata for this run should include:
+Product metadata for these runs should include:
 
 ```text
 PRODUCT_REGION=neimeng
 PRODUCT_POLLEN_TYPE=pollen_total
 PRODUCT_RESOLUTION=9km d02
-PRODUCT_SOURCE_GLOB=/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24100100_official/output/wrfout_d02_*
+PRODUCT_SOURCE_GLOB=/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24070100-24080100_official/output/wrfout_d02_*
+PRODUCT_SOURCE_GLOB=/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24080100-24090100_official/output/wrfout_d02_*
+PRODUCT_SOURCE_GLOB=/g7/anxq/Zhangjt/workspace/auto-pollen/WRF/wrf24090100-24100100_official/output/wrfout_d02_*
 ```
 
 The summary product is configured as daily sampling from hourly/3-hourly WRF
 outputs:
 
 ```text
-PRODUCT_SUMMARY_MAX_STEPS=93
+PRODUCT_SUMMARY_MAX_STEPS=32 for July and August, 31 for September
 PRODUCT_SUMMARY_EVERY_NTH=8
 PRODUCT_SUMMARY_STEP_HOURS=24
 ```
@@ -484,9 +547,11 @@ Neimeng Zhangjt auto-pollen:
 
 ```text
 The SManager submission path, FNL repair, WPS bootstrap, output paths, and main
-pitfalls are understood and documented. The current 20240701-20241001 run has
-started cleanly and passed fnl_verify/geogrid, but the full 92-day WRF run and
-final web products were not yet complete when this note was written.
+pitfalls are understood and documented. The first 92-day attempt was cancelled
+after reaching WRF because the business output needed faster partial delivery.
+The current operational path is the three monthly Neimeng runs listed above.
+They were planned, preflighted, submitted, and accepted by Slurm, but the final
+monthly web products were not yet complete when this note was written.
 ```
 
 Lijt Beijing WRF-Chem pollen:
@@ -498,6 +563,6 @@ end through final web products in this session. Treat it as partially learned
 and partially exercised, not fully taken over.
 ```
 
-The next operator or AI should continue by monitoring the active Neimeng run,
-then return to Lijt Beijing if the goal is to completely take over that separate
-workflow.
+The next operator or AI should continue by monitoring the three active monthly
+Neimeng runs, sync products after each `package_products`, then return to Lijt
+Beijing if the goal is to completely take over that separate workflow.
