@@ -13,40 +13,29 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
-    DATABASE_URL: str = "sqlite:///./pollen_forecast.db"
+    DATABASE_URL: str = "mysql+pymysql://smanager:12345678@127.0.0.1:3306/smanager?charset=utf8mb4"
 
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"
     SECRET_KEY: str = "your-secret-key-change-in-production"
     AUTH_TOKEN_EXPIRE_MINUTES: int = 720
 
-    SERVER_SSH_HOST: Optional[str] = None
-    SERVER_SSH_USER: Optional[str] = None
-    SERVER_SSH_PASSWORD: Optional[str] = None
-    SERVER_SSH_PORT: int = 22
-    SERVER_PYTHON_BIN: str = "python3"
-    SERVER_FLOWCTL_PATH: str = "~/auto-pollen-flow/flowctl.py"
-    SERVER_FLOW_WORKDIR: Optional[str] = None
-    SERVER_FLOW_ROOT: Optional[str] = None
-    SERVER_COMMANDS_FILE: Optional[str] = None
+    SERVER_API_BASE_URL: Optional[str] = None
+    SERVER_API_TOKEN: Optional[str] = None
+    TUNNEL_HEALTH_URL: Optional[str] = None
     SERVER_FNL_ROOTS: Optional[str] = None
-    SERVER_FNL_UPLOAD_DIR: Optional[str] = None
-    SERVER_SSH_TIMEOUT: int = 20
+    SERVER_FNL_REPAIR_ROOT: Optional[str] = None
     FNL_DOWNLOAD_COMMAND: Optional[str] = None
-    JUMPBOX_FNL_CACHE_DIR: str = "runtime/fnl"
+    LOCAL_FNL_CACHE_DIR: str = "runtime/fnl"
     FNL_MIN_MB: float = 5.0
-    FNL_UPLOAD_METHOD: str = "rsync"
-    JUMPBOX_PRODUCTS_DIR: str = "runtime/products"
-    JUMPBOX_LOGS_DIR: str = "runtime/logs"
-    JUMPBOX_MANIFESTS_DIR: str = "runtime/manifests"
-    JUMPBOX_CACHE_DIR: str = "runtime/cache"
-    PRODUCT_SYNC_METHOD: str = "rsync"
+    LOCAL_PRODUCTS_DIR: str = "runtime/products"
+    LOCAL_LOGS_DIR: str = "runtime/logs"
+    LOCAL_MANIFESTS_DIR: str = "runtime/manifests"
+    LOCAL_CACHE_DIR: str = "runtime/cache"
     PRODUCT_INLINE_MAX_MB: float = 20.0
     NOTIFICATION_WEBHOOK_URL: Optional[str] = None
     NOTIFICATION_WEBHOOK_TIMEOUT: int = 10
     STORAGE_RETENTION_DAYS: int = 30
     STORAGE_MAX_GB: float = 50.0
-    AGENT_MAX_AUTO_ACTIONS_PER_RUN: int = 3
-    AGENT_TICK_INTERVAL_MINUTES: int = 30
 
 settings = Settings()

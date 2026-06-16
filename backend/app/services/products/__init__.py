@@ -1,3 +1,1 @@
-from .sync import ProductSyncService
-
-__all__ = ["ProductSyncService"]
+__all__: list[str] = []

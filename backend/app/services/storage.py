@@ -117,11 +117,11 @@ class StorageService:
 
 def storage_roots() -> dict[str, str]:
     return {
-        "fnl": settings.JUMPBOX_FNL_CACHE_DIR,
-        "products": settings.JUMPBOX_PRODUCTS_DIR,
-        "logs": settings.JUMPBOX_LOGS_DIR,
-        "manifests": settings.JUMPBOX_MANIFESTS_DIR,
-        "cache": settings.JUMPBOX_CACHE_DIR,
+        "fnl": settings.LOCAL_FNL_CACHE_DIR,
+        "products": settings.LOCAL_PRODUCTS_DIR,
+        "logs": settings.LOCAL_LOGS_DIR,
+        "manifests": settings.LOCAL_MANIFESTS_DIR,
+        "cache": settings.LOCAL_CACHE_DIR,
     }
 
 

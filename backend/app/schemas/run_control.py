@@ -40,20 +40,6 @@ class FnlRepairRequest(FnlVerifyRequest):
     pass
 
 
-class AgentTickRequest(BaseModel):
-    run_id: Optional[str] = None
-    start: str
-    end: str
-    period: Literal["spring", "summer", "autumn"]
-    domain: str = "neimeng"
-    variant: str = "official"
-    met_provider: str = "FNL"
-    commands_file: Optional[str] = None
-    repair_fnl: bool = True
-    dry_run_submit: bool = True
-    allow_noop: bool = False
-
-
 class FlowResponse(BaseModel):
     ok: bool = True
     data: dict[str, Any]

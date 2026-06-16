@@ -1,994 +1,346 @@
-# China Pollen Forecast System 工程实施规划
+# SManager Agent Guide
 
-本文面向后续开发者和 AI 助手，描述如何把当前 `auto-pollen` 脚本体系升级为一套可每日自动运行、可观测、可恢复、可由 AI 辅助诊断和重试的花粉预报业务系统。
+本文是 SManager 后续开发和 AI 协作的主入口。当前目标不是继续加强本地控制面，而是把每日预报主链路收敛到 CentOS 服务器普通用户工作目录中，让本地机器只承担长期通信、FNL 补给、可视化和人工介入。
 
-## 背景
+## 当前环境
 
-项目目标是基于 WRF-Pollen / WRF-Chem 建设全国或区域花粉扩散业务预报平台。
+- 本地办公电脑可以访问互联网，已准备 Docker、conda、Node.js。
+- CentOS 服务器不能访问互联网，有 Slurm，可提交 WRF-Pollen 计算任务；网络可能短时不可达，但服务器自身通常仍在运行，极小概率重启。
+- 服务器上已有一键运行脚本，能按当天日期和中国不同区域提交 WRF-Pollen 预报。
+- 服务器已有 FNL/GFS 自动同步脚本，但 FNL 可能延迟、缺失或下载不完整。
+- 服务器没有 system 权限，不能依赖 systemd 服务；常驻进程用 `nohup`、`screen` 或 `tmux`。
+- 公网访问暂不纳入当前阶段，frp/公网域名/公开页面先不做。
 
-当前运行环境分为两台机器：
+## 核心目标
 
-- 内网 CentOS 服务器：不能访问外网，负责 WPS、WRF、WRF-Pollen、后处理等重计算任务，可使用 Slurm 队列。
-- 跳板机笔记本：可以访问外网，也可以 SSH 登录内网服务器，负责下载 FNL、上传输入数据、轮询任务状态、下载产物、提供后端 API、运行前端，并为 Hermes/AI 助手提供 CLI 控制面。
+每日指定时间准时完成花粉预报。遇到本地电脑失效、网络断连、服务器重启、FNL 不完整、单个 Slurm 阶段失败等问题时，系统应尽量自动恢复；无法恢复时，也要降级到 GFS 或留下清晰状态，避免静默失败。
 
-当前 `wrf-pollen/auto-pollen/` 已经能做单次或批量运行：
+可靠性排序：
 
-- `auto_wrf.py`：单个时段的 WPS -> real -> pollen prep -> sbatch 提交流程。
-- `batch_run.sh`：批量提交多个季节窗口，prep 成功后提交 WRF，并可自动 eval。
-- `scripts/copy_fnl.py`：在服务器本地 FNL 主备目录中扫描、校验、复制或软链接 FNL。
-- `batch_eval_pollen.sh`：批量评估已有 WRF 输出。
-- `restart_all_runs.sh`：按 restart 文件续跑历史任务。
+1. 准时提交并完成预报。
+2. 优先使用本地修复后的 FNL，提高输入质量。
+3. FNL 无法及时修复时自动降级 GFS。
+4. 前端、AI、通知、公开访问都不能成为预报主链路的必要条件。
 
-当前 `backend/` 已接入服务器 `flowctl` 控制面、FNL 补齐、产物同步、运行事件、本地 storage 快照、只读诊断上下文、规则化恢复建议、单账号鉴权、password SSH、轻量迁移和 storage lifecycle；`server/auto-pollen-flow` 节点脚本已可通过 commands-file 注入真实 WPS/WRF/后处理命令，并提供生产 commands 模板、preflight、Slurm mock 测试和增强 product manifest；`frontend/` 已有运行控制、FNL 管理、产物列表下载、PNG overlay/GeoJSON/等值线/GeoTIFF capability 产品识别、Portal 图层/播放/点选和真实登录。现场仍需在私有 `.env` 与生产 commands-file 中填入最终凭据、FNL 下载命令和业务阈值，并在 CentOS 服务器窗口执行 preflight、submit dry-run 和小窗口实跑验收。
-
-## 总体原则
-
-1. 服务器只做可离线执行的计算 flow，不依赖外网。
-2. 跳板机负责联网、跨机器同步、调度入口、状态聚合、通知和 AI 决策。
-3. 所有节点必须幂等：重复执行同一节点不会破坏已有成功产物。
-4. 所有关键状态必须结构化落盘，不能只靠日志文本。
-5. AI 自动重试必须受规则约束：先确定性诊断，再选择有限动作，超过次数通知人工。
-6. 后端、Hermes/AI 助手尽量复用同一套 CLI，避免各自绕过业务逻辑。
-7. 大文件不进数据库，数据库只保存元数据、索引、状态和路径。
-8. 每次优化都要以可维护性为前提：测试通过后直接修改到最有用的实现，不以补丁堆叠方式保留新旧两套实现。
-
-## 目标目录架构
-
-项目目录按职责拆成五层：
-
-1. `apps/`：跳板机上运行的用户界面和后端服务；不再维护独立 `apps/hermes-agent`。
-2. `packages/`：前后端和 agent 共用的契约、类型、CLI、诊断规则。
-3. `server/`：要部署到内网服务器的离线 flow 包装层。
-4. `runtime/`：跳板机本地运行时数据，不进 Git。
-5. `wrf-pollen/`：WRF-Pollen 模式源码和现有 `auto-pollen`，先保留原状，逐步由 `server/flow` 包装。
-
-目标结构：
+## 新架构边界
 
 ```text
-SManager/
-  AGENT.md
-  README.md
-  docs/
-    architecture/
-      overall_requirements.md
-      project_structure.md
-      deployment_topology.md
-      data_contracts.md
-      retry_policy.md
-    operations/
-      daily_runbook.md
-      fnl_runbook.md
-      incident_playbook.md
+本地办公电脑
+  Docker tunnel service
+  smanager-local backend/frontend
+  FNL downloader/uploader
+  optional AI observer
 
-  apps/
-    backend/
-      app/
-        api/
-          routes/
-            runs.py
-            fnl.py
-            products.py
-            diagnostics.py
-            dashboard.py
-        core/
-          config.py
-          database.py
-          security.py
-        models/
-        schemas/
-        services/
-          ssh/
-          flow/
-          fnl/
-          products/
-          diagnostics/
-          notifications/
-        workers/
-          scheduler.py
-          product_sync.py
-      tests/
-      pyproject.toml
+      long-lived tunnel / reverse channel
 
-    frontend/
-      src/
-        app/
-        pages/
-          Dashboard/
-          Runs/
-          RunDetail/
-          FnlManagement/
-          Products/
-          Scheduler/
-        components/
-        services/
-        types/
-      tests/
-      package.json
-
-  skills/
-    smanager-hermes-cli/
-      SKILL.md
-
-  packages/
-    contracts/
-      run_spec.schema.json
-      node_status.schema.json
-      workflow_status.schema.json
-      fnl_manifest.schema.json
-      product_manifest.schema.json
-      agent_action.schema.json
-      diagnosis_analysis.schema.json
-    cli/
-      smanager.py
-    diagnostics/
-      error_patterns.yaml
-      recovery_actions.yaml
-    python/
-      smanager_common/
-        models.py
-        time.py
-        jsonio.py
-        paths.py
-
-  server/
-    auto-pollen-flow/
-      flowctl.py
-      nodes/
-        fnl_verify.py
-        wps_geogrid.py
-        wps_ungrib.py
-        wps_metgrid.py
-        wrf_setup.py
-        real.py
-        compute_gdd.py
-        prep_pollen.py
-        wrf_run.py
-        postprocess_eval.py
-        product_extract.py
-        package_products.py
-      lib/
-        config.py
-        state.py
-        events.py
-        slurm.py
-        paths.py
-        lock.py
-        diagnostics.py
-      templates/
-        sbatch/
-        run_spec/
-      tests/
-    deploy/
-      install_server_flow.sh
-      sync_to_server.sh
-
-  runtime/
-    db/
-      pollen_forecast.sqlite
-    fnl/
-    products/
-    logs/
-    manifests/
-    cache/
-
-  wrf-pollen/
-    auto-pollen/
-    run/
-    chem/
-    Registry/
+CentOS 服务器
+  smanager-server daemon
+  server workfolder FNL repair store
+  Slurm prep -> wrf_run -> postprocess
+  status/event/product manifests
 ```
 
-### 当前到目标的迁移
+### 服务器职责
 
-不要一次性移动所有代码。先新建目标目录，再逐步搬迁和补兼容入口。
+服务器是主控端，负责：
 
-| 当前目录 | 目标目录 | 策略 |
-| --- | --- | --- |
-| `backend/` | `apps/backend/` | 第二阶段迁移，先保持原路径可运行；迁移时保留旧入口或更新 README |
-| `frontend/` | `apps/frontend/` | 等真实 API 稳定后迁移，避免 UI 开发被路径调整打断 |
-| `wrf-pollen/auto-pollen/` | `server/auto-pollen-flow/` 包装它 | 不直接搬 WRF 脚本，先做 wrapper 和状态协议 |
-| 根目录 `AGENT.md` | 保持根目录 | 作为 AI 助手和工程协作入口 |
-| 运行产物 | `runtime/` | 不进 Git，后端只保存索引和 manifest |
+- 定时创建每日预报任务。
+- 按区域生成 run spec。
+- 检查 FNL/GFS 输入。
+- 发布 FNL repair request。
+- 在 repair deadline 前等待本地补齐。
+- deadline 到仍不可用时自动切 GFS。
+- 提交 Slurm 三阶段任务：
+  - prep：`geogrid.exe`、`link_grib.csh`、`ungrib.exe`、`metgrid.exe`、symbol link、`real.exe`、`compute-wrfchemi`
+  - run：`mpirun -np 384 wrf.exe`
+  - postprocess：Python 分析脚本
+- 写结构化状态、事件、日志索引和产品 manifest。
+- 网络断开或本地失效时仍可独立运行。
 
-第一阶段建议只新增：
+服务器端不得依赖：
+
+- 外网访问。
+- 本地后端在线。
+- AI 在线。
+- 公网服务。
+- systemd root 权限。
+
+### 本地职责
+
+本地办公电脑是补给站和可视化端，负责：
+
+- 用 Docker 启动长期通信/内网穿透服务，保持与服务器的控制通道。
+- 轮询或接收服务器 FNL repair request。
+- 从 NASA 或其他外网源下载缺失/损坏 FNL。
+- 本地校验 FNL，再上传到服务器指定 workfolder。
+- 展示 run 进度、FNL 状态、Slurm 阶段、日志、产品和告警。
+- 手工触发受控动作，如重新上传 FNL、重试节点、取消 run。
+
+本地不得成为每日预报的主调度器。即使本地完全关机，服务器也应按计划提交任务，并在必要时使用 GFS。
+
+## 通信设计
+
+当前阶段需要一个在本地 Docker 中长期运行的内网通信服务，不做公网暴露。
+
+推荐形态：
 
 ```text
-docs/architecture/
-packages/contracts/
-packages/diagnostics/
-server/auto-pollen-flow/
-runtime/.gitkeep
+docker compose
+  tunnel-daemon
+    - 维护到服务器的长连接
+    - 复用连接执行 API/文件同步
+    - 断线自动重连
+
+  smanager-local-api
+    - 本地 FastAPI
+    - 给前端提供状态缓存和人工操作入口
+
+  smanager-frontend
+    - 本地管理页面
 ```
 
-### 目录边界
+优先实现轻量可靠方案：
 
-`apps/backend/`：
+- 通信控制面优先用 HTTP API。
+- 大文件优先用 `rsync --partial` 或分片上传，必须支持断点和校验。
+- 不再每条命令临时创建一次 SSH client。
+- SSH 可以作为 tunnel 的底层连接，但业务代码不要散落临时 shell 命令和裸 SSH 客户端调用。
 
-- FastAPI 服务。
-- 只通过 SSH/CLI 操作服务器，不直接假设服务器文件可本地访问。
-- 负责数据库、API、认证、通知、产物索引。
+建议 tunnel 能力：
 
-`apps/frontend/`：
+- 健康检查：心跳、最近成功通信时间、服务器 daemon 状态。
+- API 转发：本地访问服务器 `smanager-server` 的状态和 repair request。
+- 文件上传：FNL 上传到服务器 workfolder staging 目录。
+- 自动重连：指数退避，记录断线和恢复事件。
+- 本地缓存：服务器短时不可达时，前端仍能展示最近一次状态快照。
 
-- 只调用后端 API。
-- 不存业务规则，不直接拼服务器路径。
-- 页面围绕 `run_id`、DAG 节点、FNL 覆盖、产物浏览展开。
+## 服务器常驻服务
 
-`skills/smanager-hermes-cli/`：
-
-- Hermes/AI 助手的操作说明入口。
-- 只通过 `packages/cli/smanager.py` 调用后端 API，不直接 SSH 到服务器。
-- 当需要扩展自动值守能力时，优先扩展后端 API 和 CLI 契约，不恢复第二套 agent 代码。
-
-`packages/contracts/`：
-
-- 放 JSON Schema 或 Pydantic 可导出的契约。
-- 服务器 flow、后端、CLI、前端类型都从这里对齐。
-- 状态文件字段变化必须先改 contracts。
-- 当前覆盖 run spec、node status、workflow status、FNL manifest、product manifest、agent action 和 diagnosis analysis。
-
-`packages/diagnostics/`：
-
-- 放错误模式和恢复动作。
-- AI 助手、Hermes、后端诊断接口共用。
-- 当前规则入口为 `packages/diagnostics/recovery_actions.json` 和 `packages/diagnostics/engine.py`；后端 `/runs/{run_id}/diagnose` 会在服务器原始 finding 外追加 `analysis`，给出风险等级、是否允许自动动作、推荐 CLI 和人工处理标志。
-
-`server/auto-pollen-flow/`：
-
-- 只包含可部署到内网服务器的轻量 Python/SH 包装层。
-- 不依赖跳板机数据库，不依赖外网。
-- 通过 `flowctl.py` 暴露稳定 CLI。
-
-`runtime/`：
-
-- 跳板机本地运行态数据。
-- 必须加入 `.gitignore`。
-- 只保留 `.gitkeep` 之类占位文件。
-
-`wrf-pollen/`：
-
-- 模式源码和已有自动化脚本。
-- 继续作为计算核心和历史研发记录所在地。
-- `server/auto-pollen-flow` 成熟前，不大规模重排该目录。
-
-### 包命名建议
-
-Python 包：
-
-- 后端公共包：`smanager_common`
-- 服务器 flow：`auto_pollen_flow`
-- Hermes/AI skill：`smanager-hermes-cli`
-
-CLI：
-
-- 跳板机统一 CLI：`smanager`
-- 服务器统一 CLI：`flowctl`
-
-### Git 忽略建议
-
-后续应在 `.gitignore` 中加入：
-
-```text
-runtime/db/*.sqlite
-runtime/fnl/**
-runtime/products/**
-runtime/logs/**
-runtime/manifests/**
-runtime/cache/**
-wrf-pollen/auto-pollen/runs/**
-wrf-pollen/auto-pollen/WPS/**
-wrf-pollen/auto-pollen/WRF/**
-wrf-pollen/auto-pollen/logs/**
-```
-
-保留必要占位：
-
-```text
-!runtime/.gitkeep
-!runtime/db/.gitkeep
-!runtime/fnl/.gitkeep
-!runtime/products/.gitkeep
-!runtime/logs/.gitkeep
-!runtime/manifests/.gitkeep
-!runtime/cache/.gitkeep
-```
-
-`auto-pollen` 现有脚本不要一次性推翻，第一阶段以包装和补状态为主。
-
-## 运行 ID
-
-所有系统对象都应围绕 `run_id`。
-
-建议格式：
-
-```text
-YYYYMMDDHH_<period>_<domain>_<variant>
-```
-
-示例：
-
-```text
-2026060400_spring_neimeng_official
-2026080100_autumn_neimeng_gdd805
-```
-
-每次运行必须保存：
-
-- `run_id`
-- 起止时间：`start`, `end`
-- 季节：`spring/summer/autumn`
-- 区域和域配置
-- 驱动数据源：`FNL`、后续可扩展 `GFS/GDAS`
-- 代码版本：WRF-Pollen commit、auto-pollen commit
-- 编译版本或可执行文件路径
-- namelist 快照
-- FNL manifest
-- Slurm job id
-- retry attempt
-- 产物路径和 checksum
-
-## 服务器 Flow DAG
-
-标准每日或业务运行 DAG：
-
-```text
-run_plan
-  -> fnl_verify
-  -> wps_geogrid
-  -> wps_ungrib
-  -> wps_metgrid
-  -> wrf_setup
-  -> real
-  -> compute_gdd
-  -> prep_pollen
-  -> wrf_run
-  -> postprocess_eval
-  -> product_extract
-  -> package_products
-```
-
-说明：
-
-- `run_plan`：生成 `run_spec.json`，锁定本次参数。
-- `fnl_verify`：校验服务器上 FNL 是否齐全、大小是否合理、magic 是否为 GRIB。
-- `wps_geogrid`：可按区域和网格复用，不必每次重跑。
-- `wps_ungrib`：依赖 FNL。
-- `wps_metgrid`：依赖 geogrid 和 ungrib。
-- `wrf_setup`：复制或链接 WRF 模板、生成 `namelist.input`、链接 `met_em`。
-- `real`：生成 `wrfinput_d0X` 和 `wrfbdy_d01`。
-- `compute_gdd`：计算初始 GDD。
-- `prep_pollen`：注入 `FRAC_POLLEN_*`、`POLLEN_GDD_*`、`NTOTAL_POLLEN_*`。
-- `wrf_run`：提交或运行 `wrf.exe`。
-- `postprocess_eval`：沉降评估、站点匹配、时间序列分析。
-- `product_extract`：提取前端可展示的数据产品。
-- `package_products`：生成产物 manifest，供跳板机下载和索引。
-
-## 状态文件协议
-
-每个节点写一个状态文件：
-
-```text
-runs/<run_id>/state/<node>.status.json
-```
-
-工作流汇总状态：
-
-```text
-runs/<run_id>/state/workflow.status.json
-```
-
-事件流：
-
-```text
-runs/<run_id>/events.jsonl
-```
-
-节点状态示例：
-
-```json
-{
-  "run_id": "2026060400_spring_neimeng_official",
-  "node": "wps_ungrib",
-  "status": "running",
-  "progress": 35,
-  "attempt": 1,
-  "slurm_job_id": "123456",
-  "started_at": "2026-06-04T08:00:00+08:00",
-  "updated_at": "2026-06-04T08:12:00+08:00",
-  "finished_at": null,
-  "error_code": null,
-  "message": "ungrib.exe running",
-  "inputs": [
-    "runs/2026060400_spring_neimeng_official/fnl_manifest.json"
-  ],
-  "outputs": [],
-  "log_files": [
-    "logs/wps_ungrib.log"
-  ]
-}
-```
-
-`status` 枚举：
-
-- `pending`
-- `ready`
-- `running`
-- `success`
-- `error`
-- `skipped`
-- `retrying`
-- `cancelled`
-
-写文件必须使用原子写：
-
-```text
-write <file>.tmp -> fsync -> mv <file>.tmp <file>
-```
-
-这样后端和 Hermes/AI 助手读取时不会遇到半截 JSON。
-
-## 服务器 CLI
-
-建议实现 `flowctl.py`，作为服务器侧唯一入口。
-
-基础命令：
+由于没有 system 权限，服务器端用普通用户进程：
 
 ```bash
-python flow/flowctl.py plan --run-id 2026060400_spring_neimeng_official --start 2026060400 --end 2026060700 --period spring
-python flow/flowctl.py submit --run-id 2026060400_spring_neimeng_official
-python flow/flowctl.py status --run-id 2026060400_spring_neimeng_official --json
-python flow/flowctl.py logs --run-id 2026060400_spring_neimeng_official --node wrf_run --tail 200
-python flow/flowctl.py diagnose --run-id 2026060400_spring_neimeng_official --json
-python flow/flowctl.py collect-context --run-id 2026060400_spring_neimeng_official
-python flow/flowctl.py retry --run-id 2026060400_spring_neimeng_official --node wrf_run
-python flow/flowctl.py cancel --run-id 2026060400_spring_neimeng_official
-python flow/flowctl.py products --run-id 2026060400_spring_neimeng_official --manifest
+screen -S smanager-server
+cd /path/to/SManager/server/smanager-server
+nohup ./run_server.sh >> logs/serverd.out 2>&1 &
 ```
 
-第一阶段可以让 `flowctl submit` 包装现有 `auto_wrf.py --prep-only` 和 WRF sbatch 脚本；后续再拆成真正节点级 DAG。
+后续应提供：
 
-## Slurm 调度策略
+```text
+server/smanager-server/
+  serverd.py              # 常驻 API 和调度循环
+  scheduler.py            # 普通用户态定时器
+  repair_requests.py      # FNL 修复请求状态机
+  run_manager.py          # run 创建、提交、恢复、降级
+  tunnel_api.py           # 与本地补给端通信的 API
+  config.example.yaml
+```
 
-两种实现方式都可行。
+服务器 daemon 只做白名单业务动作，不提供任意 shell 执行接口。
 
-优先方案：节点脚本 + Slurm dependency。
+必须支持：
+
+- `tick`：扫描是否到预报时间，创建或推进 run。
+- `reconcile`：扫描已有 run、Slurm job、状态文件，恢复 daemon 重启后的内存状态。
+- `repair-request list/detail`：供本地查询缺失 FNL。
+- `repair upload/verify/complete`：接收本地上传的 FNL 并二次校验。
+- `status`：返回 workflow、node、FNL、产品摘要。
+- `logs`：返回白名单日志尾部。
+
+## FNL 策略
+
+FNL 修复不得写入或覆盖服务器原始自动同步目录。
+
+新增服务器 workfolder：
+
+```text
+$SMANAGER_WORK/
+  fnl_repair/
+    staging/
+    verified/
+      2026/
+        20260616/
+          fnl_20260616_00_00.grib2
+```
+
+取 FNL 时的优先级：
+
+1. `$SMANAGER_WORK/fnl_repair/verified/...` 中本地修复并经服务器校验的 FNL。
+2. 服务器自动同步的 FNL 主目录。
+3. 服务器自动同步的 FNL 备用目录。
+4. GFS fallback。
+
+FNL 校验至少包括：
+
+- 文件存在。
+- 大小大于配置阈值。
+- 文件头为 `GRIB`。
+- 可选：`wgrib2` 能读 inventory。
+- 上传后服务器端二次校验。
+
+上传流程必须是：
+
+```text
+本地下载
+  -> 本地校验
+  -> 上传到 server staging
+  -> 服务器校验
+  -> atomic rename 到 verified
+  -> 更新 repair request
+```
+
+不得直接向正式目录写半成品文件。
+
+## FNL 主动同步
+
+可以保留 FNL 主动同步，但它不是服务器主链路的前置条件。
+
+本地可以定时预取未来需要的 FNL：
+
+- 按每日预报窗口提前下载可能需要的时次。
+- 下载后放入本地 cache。
+- 若服务器 repair request 出现，优先从本地 cache 上传。
+- 若服务器未请求，不主动覆盖服务器 verified 目录。
+
+主动同步的目标是减少等待时间，不是替代服务器端 FNL 校验。
+
+## Run 状态模型
+
+服务器必须写结构化状态文件，供 daemon、本地后端、前端和 AI 读取：
+
+```text
+run_spec.json
+workflow.status.json
+state/<node>.status.json
+events.jsonl
+fnl_manifest.json
+repair_requests.jsonl
+products/product_manifest.json
+```
+
+日志只用于诊断，不能作为唯一状态源。
+
+WRF 进度可以保持简单：
+
+```text
+(最后一个 wrfout 的预报时间 - 第一个 wrfout 的预报时间) / 总预报时长
+```
+
+如果只能可靠拿到文件名时间，就先用文件名；mtime 只用于估算生成速度和 ETA。
+
+## 开发环境
+
+### 本地
+
+- Docker / Docker Compose：运行 tunnel、本地 API、前端和辅助服务。
+- conda：运行本地 Python 工具、FNL 下载和调试脚本。
+- Node.js：运行 React/Vite 前端。
+- Python 后端：优先 FastAPI，复用现有 `backend/` 能力时要逐步瘦身。
+
+常用本地命令应保持简单：
 
 ```bash
-prep_job=$(sbatch --parsable prep.sh)
-wrf_job=$(sbatch --parsable --dependency=afterok:${prep_job} wrf.sh)
-post_job=$(sbatch --parsable --dependency=afterok:${wrf_job} postprocess.sh)
+docker compose up -d tunnel local-api frontend
+cd frontend && npm run dev
 ```
 
-优点是依赖关系交给 Slurm，缺点是状态聚合需要额外查询。
+### 服务器
 
-备选方案：flow driver 轮询节点。
+- 普通用户目录部署。
+- 不要求 root，不要求 systemd。
+- 使用 `screen`、`tmux` 或 `nohup` 保持 daemon。
+- Slurm 提交仍通过 `sbatch --dependency=afterok`。
+- 所有路径通过配置文件注入，不在代码中写死私有路径。
 
-优点是状态可控，适合复杂 AI 诊断；缺点是 driver 进程要保持运行或被定时唤醒。
+## 开发思路
 
-建议：
+1. 先保证服务器独立准点运行。
+2. 再保证本地能补 FNL。
+3. 再做可视化和人工操作。
+4. 最后再考虑 AI 助手、公网访问、复杂通知。
 
-- MVP 先沿用现有 `batch_run.sh` 的“prep 后提交 WRF”逻辑，但补结构化状态。
-- 第二阶段改为 `sbatch --dependency=afterok`，并记录所有 job id。
-- 外部 Hermes/AI 值守流程负责定时 `squeue/sacct` 和状态文件对账；本仓库通过后端 API 和 CLI 暴露查询入口。
+每次开发都要问：
 
-## FNL 闭环
+- 如果本地电脑关机，这个功能会不会阻塞服务器预报？
+- 如果服务器短时连不上，本地是否能等待并恢复？
+- 如果 daemon 重启，状态能否从文件和 Slurm 恢复？
+- 如果 FNL 下载到一半，会不会污染正式输入？
+- 如果重复点击或重复 tick，会不会重复提交大任务？
 
-服务器上通常会有 FNL 数据，但有概率缺失、截断、大小异常或被错误页占位污染。因此生产流程必须是“服务器优先，本地校验通过则直接使用；只有缺失或损坏时，才由跳板机下载并上传”。
+## 开发优先级
 
-FNL 保障流程：
+### P0：服务器主控闭环
 
-```text
-determine_needed_fnl
-  -> server_fnl_scan
-  -> server_pick_best_existing_copy
-  -> if server_ok: use_server_fnl
-  -> if missing_or_bad:
-       download_missing_fnl_to_jumpbox
-       local_grib_magic_check
-       write_or_update_fnl_manifest
-       rsync/scp_to_server
-       server_fnl_verify_again
-  -> record_manifest_in_db
-```
+- 新增服务器普通用户态 `smanager-server` daemon。
+- 支持每日定时 tick。
+- 支持 run 幂等创建。
+- 支持 FNL 优先级扫描：repair verified -> server FNL -> fallback FNL -> GFS。
+- 支持 repair deadline 和 GFS fallback。
+- 支持 Slurm 三阶段依赖提交。
+- 支持 daemon 重启后的 reconcile。
 
-`server_fnl_scan` 应复用或包装当前 `scripts/copy_fnl.py --scan-only` 的能力，检查：
+### P1：本地 Docker 通信和 FNL 补给
 
-- 目标时段内每 6 小时 FNL 是否齐全。
-- 文件是否大于最低阈值。
-- 文件 magic 是否为 `GRIB`。
-- 主目录和备用目录多副本中是否可选出体积最大的有效副本。
+- 新增 Docker Compose。
+- 新增 tunnel 服务，保持本地和服务器长期通信。
+- 新增本地 FNL repair worker。
+- 支持下载、校验、断点上传、服务器二次校验。
+- 本地缓存 repair request 和最近状态。
 
-只有以下情况才触发跳板机下载和上传：
+### P2：前端监测和管理后台瘦身
 
-- 服务器主备目录都没有某个时次。
-- 服务器已有文件过小或 magic 不是 `GRIB`。
-- 服务器已有软链接指向失效路径。
-- `ungrib.exe` 后续证明某个文件虽然通过基础校验但实际不可用。
+- 首页展示 Python 分析结果和最新产品。
+- 管理后台展示每个 run、区域、Slurm 阶段和 FNL 状态。
+- 提供有限人工动作：重新上传 FNL、重试节点、取消 run、切换 GFS。
+- 删除本地作为主调度器的旧页面或入口。
 
-FNL manifest 示例：
+### P3：主动同步和自动诊断
 
-```json
-{
-  "provider": "FNL",
-  "start": "2026060400",
-  "end": "2026060700",
-  "files": [
-    {
-      "name": "fnl_20260604_00_00.grib2",
-      "size_bytes": 32768000,
-      "sha256": "optional",
-      "local_path": "storage/fnl/2026/20260604/fnl_20260604_00_00.grib2",
-      "server_path": "/g7/anxq/Zhangjt/static/fnl/2026/20260604/fnl_20260604_00_00.grib2",
-      "valid_grib": true
-    }
-  ]
-}
-```
+- 本地提前同步可能需要的 FNL。
+- 自动发现缺口并预填本地 cache。
+- 规则化诊断常见错误。
+- AI 只作为观察和建议，不进入准点提交主链路。
 
-注意：
+### P4：公网访问和更复杂运维
 
-- 文件很大时 sha256 可做可选项，至少保存 size、mtime、GRIB magic。
-- manifest 需要记录文件来源：`server_existing`、`jumpbox_downloaded`、`jumpbox_uploaded`。
-- 下载任务应只下载缺失或损坏时次，不重复下载服务器已验证通过的文件。
-- 上传使用 `rsync --partial --inplace` 或可恢复策略。
-- 上传后必须在服务器上二次运行 `copy_fnl.py --scan-only` 或新的 `flowctl fnl-verify`。
-- 后续若业务要“未来预报”，FNL 可能有时效滞后，应抽象 `met_provider`，为 GFS/GDAS 预留接口。
+当前阶段不做。等内网闭环稳定后，再考虑 frp 公网暴露、认证加强、通知机器人和多用户。
 
-## 跳板机后端
+## 删除和瘦身原则
 
-后端职责：
+项目噪声要低。旧方案里不再符合新边界的内容应删除或降级：
 
-- 保存运行元数据、任务状态、日志索引、产物索引。
-- 通过 SSH 调用服务器 CLI。
-- 管理 FNL 下载、校验、上传。
-- 提供前端 API。
-- 给 Hermes/AI 助手暴露可执行动作。
+- 删除 `skills/` 下旧 AI skill，后续需要时重新设计。
+- 删除或隐藏本地“主调度器”入口；本地只编辑服务器 schedule 或触发受控动作。
+- 不再维护独立 AI agent。
+- 不再让后端通过一次一 SSH 的方式承担核心调度。
+- 不再新增多套状态模型，服务器 manifest 是事实源。
+- 不再保留同时可用但语义冲突的新旧实现。
+- 旧 `packages/`、`scripts/`、`server/auto-*`、临时 SSH/Paramiko 检查脚本和 SQLite 运行库都应删除。
 
-建议新增服务层：
+如需保留兼容入口，必须在文档中明确标注 deprecated，并给出删除时间点。
 
-```text
-backend/app/services/
-  ssh_client.py       # SSH 命令执行、scp/rsync 封装
-  server_flow.py      # submit/status/retry/logs/products
-  fnl_store.py        # 下载、校验、manifest、上传
-  product_store.py    # 产物下载、索引、本地文件服务
-  storage.py          # 跳板机 runtime 本地目录快照
-  diagnostics.py      # 错误分类与建议动作
-```
+## 安全边界
 
-建议新增 API：
+- 不提交 SSH 密码、NASA 凭据、token、服务器私有路径。
+- 服务器 API 只暴露白名单动作。
+- 文件上传必须限制目录，禁止路径穿越。
+- 自动重试必须有限次数。
+- 删除 run、覆盖已验证 FNL、修改生产配置后提交，都必须人工确认。
 
-```text
-GET    /api/v1/runs
-POST   /api/v1/runs
-GET    /api/v1/runs/{run_id}
-POST   /api/v1/runs/{run_id}/submit
-GET    /api/v1/runs/{run_id}/status
-GET    /api/v1/runs/{run_id}/nodes
-GET    /api/v1/runs/{run_id}/logs
-GET    /api/v1/runs/{run_id}/events
-POST   /api/v1/runs/{run_id}/retry
-POST   /api/v1/runs/{run_id}/cancel
-POST   /api/v1/runs/{run_id}/sync-products
+## 当前仓库改造方向
 
-GET    /api/v1/fnl/coverage
-POST   /api/v1/fnl/repair
-POST   /api/v1/fnl/verify-server
-POST   /api/v1/fnl/download
-POST   /api/v1/fnl/upload
-POST   /api/v1/fnl/verify
+当前仓库保留：
 
-GET    /api/v1/products
-GET    /api/v1/products/{product_id}
-GET    /api/v1/products/{product_id}/download
-GET    /api/v1/products/{product_id}/content
+- `backend/`：本地 MySQL API、状态缓存、产品/FNL 元数据和后续 tunnel 接入点。
+- `frontend/`：本地监测和管理界面。
+- `runtime/`：本地缓存、产物、日志和 manifest，不包含数据库文件。
 
-GET    /api/v1/system/doctor
-GET    /api/v1/system/storage
+后续推荐改法：
 
-GET    /api/v1/diagnostics/{run_id}
-POST   /api/v1/diagnostics/{run_id}/apply
-```
+1. 新建干净的 `server/smanager-server`，不复用旧本地控制器实现。
+2. 新建 Docker tunnel/FNL repair worker。
+3. 继续瘦身 `backend/`：只做本地监控、补给 API 和 MySQL 元数据。
+4. 瘦身 `frontend/`：围绕服务器事实源展示，不再假设本地掌控业务流程。
+5. AI 操作规范等新架构稳定后再写。
 
-## 轻量数据库设计
-
-SQLite 足够作为第一阶段数据库。
-
-建议核心表：
-
-```text
-runs
-  id
-  run_id
-  start_time
-  end_time
-  period
-  domain
-  variant
-  met_provider
-  status
-  progress
-  attempt
-  server_run_dir
-  created_at
-  updated_at
-
-run_nodes
-  id
-  run_id
-  node_name
-  status
-  progress
-  attempt
-  slurm_job_id
-  started_at
-  finished_at
-  error_code
-  message
-
-run_events
-  id
-  run_id
-  node_name
-  level
-  event_type
-  message
-  payload_json
-  created_at
-
-fnl_files
-  id
-  provider
-  valid_time
-  file_name
-  local_path
-  server_path
-  size_bytes
-  sha256
-  valid_grib
-  uploaded
-  created_at
-
-products
-  id
-  run_id
-  product_type
-  product_name
-  local_path
-  server_path
-  mime_type
-  size_bytes
-  checksum
-  valid_time
-  published
-  created_at
-
-agent_actions
-  id
-  run_id
-  action_type
-  reason
-  status
-  attempt
-  input_json
-  output_json
-  created_at
-```
-
-文件存储目录：
-
-```text
-storage/
-  fnl/<year>/<yyyymmdd>/
-  products/<run_id>/
-  logs/<run_id>/
-  manifests/<run_id>/
-```
-
-数据库只存路径和元数据，不直接存大文件。
-
-## Hermes/AI CLI 自动值守
-
-本仓库不再维护独立 `apps/hermes-agent` 代码。Hermes 或 AI 助手应通过 `skills/smanager-hermes-cli/SKILL.md` 学习操作方式，并通过 `packages/cli/smanager.py` 调用后端 API。需要定时触发时，由外部 Hermes、cron 或 systemd timer 调用 CLI/API；业务逻辑仍收敛在后端和服务器 `flowctl`。
-
-职责：
-
-- 定时检查当天/未来任务是否已创建。
-- 先检查服务器 FNL 是否齐全和可用；只有缺失或损坏时才下载和上传。
-- 触发服务器 flow。
-- 轮询状态、Slurm 队列和日志。
-- 判断是否需要自动重试。
-- 下载产物并更新数据库。
-- 发送机器人通知；第一版可先只写 `agent_actions` 审计和系统日志。
-
-建议循环：
-
-```text
-external_tick_or_cli
-  -> load_active_runs
-  -> ensure_daily_run_created
-  -> ensure_fnl_ready
-  -> ensure_server_flow_submitted
-  -> poll_server_status
-  -> diagnose_errors
-  -> apply_retry_policy
-  -> sync_products_if_success
-  -> notify_if_needed
-```
-
-自动重试策略：
-
-| 错误类型 | 识别方式 | 自动动作 |
-| --- | --- | --- |
-| 缺 FNL | `MISSING fnl_*`、`fnl_verify error` | 先确认服务器主备目录无有效副本，再由跳板机下载并上传 |
-| FNL 非 GRIB | magic 校验失败、ungrib 报 grib edition 异常 | 标记服务器副本损坏，跳板机重新下载该时次并上传 |
-| ungrib 失败 | WPS 日志错误 | 重新 link FNL 后重跑 ungrib |
-| metgrid 失败 | 缺 `met_em` 或 geogrid/metgrid 日志报错 | 从 WPS 相关节点重试 |
-| real 层数错误 | `num_metgrid_levels`、2019-06-12 层数切换 | 拆分时段或修正 namelist |
-| WRF 积分崩溃 | CFL、segfault、rsl.error | 优先 restart 续跑，必要时降 `time_step` |
-| 队列提交失败 | sbatch 返回非 job id | 延迟重试提交 |
-| 磁盘不足 | `No space left` | 停止自动重试并通知 |
-| 产物缺失 | WRF 成功但无目标产品 | 重跑 postprocess，不重跑 WRF |
-
-自动重试限制：
-
-- 单节点默认最多 2 次。
-- WRF restart 续跑最多 2 次。
-- 涉及参数改变如降 `time_step` 必须记录 `agent_actions`。
-- 任何 destructive 操作都不要自动执行，例如删除整个 run 目录。
-- 三次同类失败后通知人工。
-
-## 前端
-
-前端应该展示真实运行态，而不是只展示配置壳。
-
-前端主题要求：
-
-- 默认主题保持当前科研业务风格，强调真实运行态、清晰数据密度、冷静的科技感和可读性。
-- 右上角维护主题切换入口，可切换到暖色调“小猪模式”。
-- 小猪模式可以参考 lulu 猪、pp 猪的日常、猪培根、小猪菊苣的温暖、可爱、日常感，但不要牺牲业务页面的信息层级和可读性。
-- 小猪模式的视觉元素可以包含暖色背景、柔和状态色、可爱的插画或纹理；如果需要图标或背景，可以使用图片生成技能创建位图素材。
-- 指针可以尝试变成猪蹄；如果影响 UI 可用性、浏览器兼容性或实现成本过高，可以先不做，把主题切换和页面可读性放在第一优先级。
-- 主题实现要集中维护，例如统一 theme token、CSS 变量或主题上下文，避免在页面中零散硬编码颜色。
-
-前端维护要求：
-
-- 不允许为了兼容旧视觉而长期保留“旧实现 + 新实现”两套逻辑；确认测试没问题后，直接收敛成唯一实现。
-- 不以零碎打补丁的方式堆叠样式覆盖；更新时应梳理现有组件和样式，只保留最有用、最清晰的实现。
-- 每次前端更新后至少运行 `npm run build`；涉及交互或布局时，还要人工或自动化检查关键页面是否可用、文字是否溢出、按钮是否可点击。
-
-优先页面：
-
-1. Dashboard
-   - 已接入 `/dashboard/overview`，展示今日运行态势、FNL 覆盖、Slurm 队列计数、最近 Hermes/AI 动作、最新产物入口和系统日志。
-
-2. Run Detail
-   - 已有 `/admin/runs/:runId` 页面，展示 DAG 节点状态、progress、attempt、job id、诊断、事件、日志尾部、Hermes 动作和产品入口。
-   - 后续可继续补手动 retry/cancel 的详情页内联操作。
-
-3. FNL Management
-   - 按日期显示 FNL 缺失/已下载/已上传/服务器已校验
-   - 手动下载和上传
-
-4. Products
-   - 地图产品、站点时间序列、CSV、图片
-   - 历史预报结果查询
-
-5. Scheduler
-   - 每日自动任务配置
-   - 预报窗口、季节、区域、variant
-   - 通知配置
-
-前端不要直接调用 SSH；所有操作经后端 API。
-
-## 产物规范
-
-每次成功运行应生成：
-
-```text
-runs/<run_id>/products/product_manifest.json
-```
-
-示例：
-
-```json
-{
-  "run_id": "2026060400_spring_neimeng_official",
-  "generated_at": "2026-06-04T20:00:00+08:00",
-  "products": [
-    {
-      "type": "station_timeseries_csv",
-      "name": "station_pollen_timeseries.csv",
-      "path": "products/station_pollen_timeseries.csv",
-      "mime": "text/csv"
-    },
-    {
-      "type": "png_overlay",
-      "name": "pollen_d02_24h.png",
-      "path": "products/pollen_d02_24h.png",
-      "mime": "image/png"
-    },
-    {
-      "type": "png_overlay_metadata",
-      "name": "pollen_d02_24h.overlay.json",
-      "path": "products/pollen_d02_24h.overlay.json",
-      "mime": "application/json"
-    },
-    {
-      "type": "geojson",
-      "name": "pollen_contour_24h.geojson",
-      "path": "products/pollen_contour_24h.geojson",
-      "mime": "application/geo+json"
-    }
-  ]
-}
-```
-
-产物下载到跳板机后，后端写入 `products` 表，前端只读后端索引。
-
-当前实现状态：
-
-- 后端已经支持按 `product_manifest.json` 下载、索引和提供产品文件下载。
-- Products 页面已经能触发同步、筛选 run 产品并下载文件。
-- 服务器 `product_extract.sh` 已支持按 `PRODUCT_SOURCE_GLOB` 或默认规则扫描 `.nc`/`wrfout*` 文件；设置 `PRODUCT_SUMMARY_PRESET=wrf_pollen` 后会按 `wrfout.txt` 对应的真实变量结构抽取 `POLLEN_1..9`、`T2`、`U10`、`V10`、`RAINC`、`RAINNC`、`RAINSH`，并派生 `pollen_total`、`dominant_species_index`、`t2_c`、`wind10_ms`、`precip_accum_mm`、`precip_step_mm`，用于 7 天花粉预报这类轻量同步场景；启用 summary 后默认不再复制原始大 `wrfout`。`PRODUCT_SUMMARY_VARIABLES`/`PRODUCT_SUMMARY_VARIABLE` 可用于自定义或旧式单变量提取。设置 `PRODUCT_CITY_FORECAST_ENABLED=true` 后会生成 `city_forecast_json`，用于城市查询、风险等级、未来 7 天曲线和主要致敏物种展示；风险阈值用 `PRODUCT_POLLEN_RISK_THRESHOLDS` 按业务标准校准。设置 `PRODUCT_GEOJSON_VARIABLE` 后可从 NetCDF 生成抽样点 GeoJSON，设置 `PRODUCT_PNG_VARIABLE` 后可生成 PNG overlay 和 `*.overlay.json` 元数据。
-- `package_products.sh` 已能把提取结果合成为非空 `product_manifest.json`。
-- 后端 `sync-products` 已验证可以下载并索引 `.nc`、`.geojson`、`.png` 和 `.overlay.json` 产品，Products 页面可下载这些文件。
-- Cesium 花粉分布页面已能优先加载最新 PNG overlay 产品层和 `city_forecast_json` 城市预报，支持城市查询、未来 7 天时间轴、风险等级、主导物种、气温、降水和风速展示；没有可用产品时使用示例城市点位。尚未渲染原始 NetCDF，也尚未支持 GeoTIFF/切片等更多地图层类型。
-
-下一步推荐链路：
-
-```text
-wrfout / postprocess nc
-  -> product_extract: 从 wrfout 预提取 7 天小 summary nc，包含总花粉、主导物种、气温、降水、风速；基于 summary 生成城市预报 JSON、抽样点 GeoJSON 和 PNG overlay；后续增加等值线/切片生成
-  -> package_products: 写入 product_manifest.json
-  -> backend sync-products: 下载到 runtime/products/<run_id> 并入库
-  -> frontend Products / Map: 读取产品索引并渲染城市预报、GeoJSON、PNG/栅格层
-```
-
-前端不要直接读取服务器路径或原始大 NetCDF；若需要浏览器地图展示，应优先生成 GeoJSON、PNG overlay、GeoTIFF 切片或其他轻量产品。原始 `.nc` 可以作为下载归档产品同步，但不应作为第一版浏览器实时渲染格式。
-已同步的 `.json/.geojson/.overlay.json` 轻量产品可通过 `/api/v1/products/{product_id}/content` 返回 JSON 内容，PNG 等二进制产品通过 `/download` 返回；当前门户页会优先加载最新 PNG overlay 和 `city_forecast_json`，并在没有 overlay 时尝试加载 GeoJSON 产品层。
-
-## 分阶段实施路线
-
-### Phase 0：梳理和约束
-
-目标：不改核心运行逻辑，先建立共同语言。
-
-- 新增本文件。
-- 确认服务器 `auto-pollen` 部署路径。
-- 确认 SSH 用户、Slurm 分区、FNL 服务器存放目录、产物下载目录。
-- 确认每日预报窗口：起报时间、跑几天、用 FNL 还是后续 GFS/GDAS。
-
-验收：
-
-- 可以用一段命令说明每日流程从下载 FNL 到产物展示的责任边界。
-
-### Phase 1：服务器状态化 MVP
-
-目标：让现有脚本可被后端和 Hermes/AI CLI 稳定观测。
-
-- 在 `auto-pollen` 下新增 `flow/`。
-- 实现 `state.py`：原子写 JSON 状态和 events.jsonl。
-- 实现 `flowctl status/logs/diagnose`。
-- 包装 `auto_wrf.py --prep-only` 和 WRF sbatch，使其写状态。
-- 包装 `copy_fnl.py --scan-only` 为 `flowctl fnl-verify`。
-- 每个 run 创建 `runs/<run_id>/run_spec.json`。
-
-验收：
-
-- 跳板机 SSH 执行 `flowctl status --json` 能获得完整状态。
-- 手动断开后重新执行 `flowctl status` 不依赖进程内存。
-
-### Phase 2：跳板机后端接服务器
-
-目标：后端从演示数据变为真实运行控制台。
-
-- 实现 SSH 客户端。
-- 新增 runs API。
-- 后端调用服务器 `flowctl plan/submit/status/logs/retry`。
-- SQLite 新增 `runs/run_nodes/run_events`。
-- Dashboard 改为真实统计，不再使用写死值。
-
-验收：
-
-- 前端或 Swagger 能创建 run、提交 run、查看真实节点状态和日志。
-
-### Phase 3：FNL 服务器优先校验和补齐闭环
-
-目标：优先使用服务器已有 FNL；只有服务器缺失或损坏时，跳板机才自动补齐。
-
-- 实现服务器 FNL 扫描接口，复用 `copy_fnl.py --scan-only` 或封装为 `flowctl fnl-verify`。
-- 后端和 Hermes/AI CLI 先调用服务器扫描，拿到缺失/损坏清单。
-- 实现跳板机 FNL 下载器。
-- 只下载缺失或损坏的时次。
-- 生成或更新 FNL manifest，记录来源和校验结果。
-- 实现上传到服务器目录或 staging 目录。
-- 上传后调用服务器校验。
-- 数据库记录 FNL 文件状态。
-
-验收：
-
-- 服务器 FNL 完整时，不触发跳板机下载。
-- 故意删除服务器某个 FNL，后端 repair 或 Hermes/AI CLI 能发现、下载/上传、服务器校验通过。
-- 故意放置一个非 GRIB 或过小文件，后端 repair 或 Hermes/AI CLI 能识别损坏并只补该时次。
-
-### Phase 4：Hermes/AI CLI 自动值守
-
-目标：每日定时运行和有限自动重试。
-
-- 通过后端 `agent/tick` API 和 CLI 快捷入口实现一次性 tick。
-- 实现调度规则。
-- 实现错误分类。
-- 实现 retry policy。
-- 实现通知 webhook。
-- 记录每个 agent action。
-
-当前实现状态：
-
-- `agent/tick` 和 CLI `agent-tick` 已可执行一次性值守流程。
-- Scheduler 的 `POST /api/v1/tasks/{id}/run` 和 CLI `task-run` 已可基于任务模板触发一次 tick，默认 dry-run submit。
-- 诊断规则已能给出是否允许自动动作和是否需要人工介入。
-- `NOTIFICATION_WEBHOOK_URL` 可选配置；agent tick 失败或诊断要求人工时会发送 webhook，未配置则跳过并在输出中说明。
-- `agent_actions` 已记录 tick、FNL repair 和 notification 等自动动作。
-
-验收：
-
-- 一个完整每日 run 可无人值守完成。
-- FNL 缺失、队列提交失败、postprocess 缺产物至少三类问题可自动恢复或通知。
-
-### Phase 5：产物和前端业务化
-
-目标：前端可展示预报结果和历史结果。
-
-- 定义 product manifest。
-- 后处理从 `wrfout` 或评估结果中提取目标花粉变量，生成轻量 `.nc` 归档、CSV、PNG、GeoJSON、GeoTIFF/切片等产品。
-- 后端下载并索引产品。
-- 前端 Run Detail 和 Products 页面展示真实产物。
-- 前端地图优先渲染 GeoJSON/PNG overlay/栅格切片，不直接依赖服务器路径或原始大 NetCDF。
-- 支持历史 run 查询。
-
-验收：
-
-- 前端能打开某次 run，看到 DAG、日志、诊断、产物和历史记录。
-- 从服务器提取出的产品能写入 manifest，被跳板机下载索引，并在前端作为地图层或下载文件出现。
-
-### Phase 6：更强 AI 诊断
-
-目标：AI 可以基于 CLI 和状态文件辅助排障。
-
-- 为常见错误建立诊断规则库。
-- 为 AI 提供只读上下文打包命令：`flowctl collect-context`，后端 `/runs/{run_id}/context` 和 CLI `collect-context` 统一转发。
-- 为 AI 提供受控动作：`retry-node`、`upload-fnl`、`restart-wrf`。
-- 所有 AI 动作写入 `agent_actions`。
-
-当前实现状态：
-
-- `packages/diagnostics/recovery_actions.json` 已覆盖 FNL 缺失/损坏、节点命令缺失、Slurm 提交失败、磁盘满、WRF CFL、段错误和通用节点失败。
-- 后端 `GET /api/v1/runs/{run_id}/diagnose` 与 `collect-context` 会返回 `analysis.summary` 和 `analysis.recommendations`。
-- CLI `diagnose --summary` 可只查看规则化诊断建议；Hermes 应优先读取该字段决定是否允许自动修复或必须升级人工。
-
-验收：
-
-- AI 不需要直接翻服务器所有目录，只通过 CLI 就能获得关键诊断上下文。
-- AI 建议和实际动作有审计记录。
-
-## 近期最小可交付
-
-建议下一步先做这 5 件事：
-
-1. 根目录保留本 `AGENT.md`。
-2. 在 `wrf-pollen/auto-pollen/flow/` 增加状态写入库和 `flowctl.py`。
-3. 增加 `flowctl plan/status/fnl-verify/logs`，先不重构 DAG。
-4. 后端增加 SSH 配置和 `/api/v1/runs/{run_id}/status`，直接读取服务器 `flowctl status --json`。
-5. Hermes/AI 值守先只做监控和通知，不立刻自动改参数。
-
-这样能最快把系统从“跑脚本”推进到“可被平台观测和接管”。
-
-## 注意事项
-
-- 不要删除现有 `auto-pollen` 运行脚本；先包装，后重构。
-- 不要把服务器不能联网这件事藏在后端里；FNL 下载和上传必须是明确节点。
-- 不要把日志解析当作唯一状态来源；日志用于诊断，状态文件用于控制。
-- 不要让前端直接依赖服务器路径；统一通过后端和 product manifest。
-- 不要把 FNL 写死为永久唯一数据源；未来真实预报可能需要接 GFS/GDAS。
-- 不要让 AI 自动做不可逆操作；所有动作必须有限、可审计、可回滚或可人工接管。
+最终系统要达到：服务器自己会按点跑，本地在线时会帮它用上更好的 FNL，本地离线时服务器也会自动降级完成预报。

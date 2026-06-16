@@ -6,7 +6,7 @@ from .core.config import settings
 from .core.migrations import run_migrations
 from .core.seeds import seed_operational_defaults
 from .core.security import require_admin
-from .api import workflows, tasks, products, dashboard, runs, fnl, agent, system, auth
+from .api import workflows, tasks, products, dashboard, runs, fnl, system, auth
 
 run_migrations(engine)
 with SessionLocal() as seed_db:
@@ -35,7 +35,6 @@ app.include_router(products.router, prefix=f"{settings.API_V1_STR}/products", ta
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"], dependencies=admin_dependencies)
 app.include_router(runs.router, prefix=f"{settings.API_V1_STR}/runs", tags=["runs"], dependencies=admin_dependencies)
 app.include_router(fnl.router, prefix=f"{settings.API_V1_STR}/fnl", tags=["fnl"], dependencies=admin_dependencies)
-app.include_router(agent.router, prefix=f"{settings.API_V1_STR}/agent", tags=["agent"], dependencies=admin_dependencies)
 app.include_router(system.router, prefix=f"{settings.API_V1_STR}/system", tags=["system"], dependencies=admin_dependencies)
 
 @app.get("/")

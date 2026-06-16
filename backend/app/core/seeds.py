@@ -4,7 +4,6 @@ import json
 
 from sqlalchemy.orm import Session
 
-from .config import settings
 from ..models.models import ScheduledTask, TaskStatus, Workflow, WorkflowNode, WorkflowStatus
 
 
@@ -69,10 +68,6 @@ def seed_workflow(db: Session) -> None:
 def seed_scheduled_task(db: Session) -> None:
     task = db.query(ScheduledTask).filter(ScheduledTask.task_id == "TASK-AUTO-POLLEN-NEIMENG").first()
     if task:
-        template = parse_template(task.template)
-        if not template.get("commands_file"):
-            template["commands_file"] = default_commands_file()
-            task.template = json.dumps(template, ensure_ascii=False)
         return
     db.add(
         ScheduledTask(
@@ -89,10 +84,7 @@ def seed_scheduled_task(db: Session) -> None:
                     "met_provider": "FNL",
                     "cycle_hour": 0,
                     "forecast_days": 7,
-                    "dry_run_submit": True,
-                    "repair_fnl": True,
-                    "allow_noop": True,
-                    "commands_file": default_commands_file(),
+                    "server_owned": True,
                 },
                 ensure_ascii=False,
             ),
@@ -101,15 +93,6 @@ def seed_scheduled_task(db: Session) -> None:
             success_rate=100.0,
         )
     )
-
-
-def default_commands_file() -> str | None:
-    if settings.SERVER_COMMANDS_FILE:
-        return settings.SERVER_COMMANDS_FILE
-    if settings.SERVER_FLOW_WORKDIR:
-        return f"{settings.SERVER_FLOW_WORKDIR.rstrip('/')}/templates/run_spec/commands.auto_pollen.production.json"
-    return None
-
 
 def parse_template(template: str | None) -> dict:
     if not template:
