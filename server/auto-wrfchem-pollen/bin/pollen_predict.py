@@ -70,6 +70,11 @@ parser.add_argument("--ef_root", type=str, required=True)
 parser.add_argument("--ef_chen_root", type=str, required=True)
 parser.add_argument("--temp_root", type=str, required=True)
 parser.add_argument("--cache_dir", type=str, required=True)
+parser.add_argument("--lat-min", type=float, default=35.0)
+parser.add_argument("--lat-max", type=float, default=45.0)
+parser.add_argument("--lon-min", type=float, default=111.0)
+parser.add_argument("--lon-max", type=float, default=121.0)
+parser.add_argument("--resolution", type=float, default=0.1)
 args = parser.parse_args()
 start_date_str = args.start_date_str
 predict_days   = args.predict_days
@@ -86,12 +91,8 @@ monday = emiss_date.strftime('%m%d')
 start_doy = (start_date - datetime.datetime(year, 1, 1)).days  # 计算年积日（1月1日为0）
 # print('start_doy', start_doy)
 
-lat_lon_res = [
-    {"lat_lon_ranges": (35, 45, 111, 121), "res": 0.1}
-]
-item = lat_lon_res[0]
-lat_min, lat_max, lon_min, lon_max = item["lat_lon_ranges"]
-res = item["res"]
+lat_min, lat_max, lon_min, lon_max = args.lat_min, args.lat_max, args.lon_min, args.lon_max
+res = args.resolution
 is_or_not_0p25 = '' if res == 0.1 else '_0p25'
 # print(f"处理范围：lat {lat_max}-{lat_min}, lon {lon_max}-{lon_min}, 分辨率：{res}")
 shape1, shape2 = int((lat_max - lat_min) / res + 1), int((lon_max - lon_min) / res + 1)

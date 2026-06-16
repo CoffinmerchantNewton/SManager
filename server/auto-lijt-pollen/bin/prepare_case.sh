@@ -13,8 +13,11 @@ require_var LIJT_WRF_REL
 LIJT_START_DATE=${LIJT_START_DATE:-20250815}
 LIJT_PREDICT_DAYS=${LIJT_PREDICT_DAYS:-7}
 LIJT_FNL_GFS=${LIJT_FNL_GFS:-2}
+LIJT_PROGRAM_REL=${LIJT_PROGRAM_REL:-program}
 case_name=${LIJT_CASE_NAME:-$(basename "${LIJT_SOURCE_ROOT}")}
 case_root=${LIJT_CASE_ROOT:-${FLOW_RUN_DIR}/case/${case_name}}
+wps_top=${LIJT_WPS_REL%%/*}
+wrf_top=${LIJT_WRF_REL%%/*}
 
 [ -d "${LIJT_SOURCE_ROOT}" ] || fail "Lijt source root does not exist: ${LIJT_SOURCE_ROOT}"
 mkdir -p "${FLOW_RUN_DIR}/case"
@@ -24,13 +27,19 @@ if [ ! -d "${case_root}/program" ]; then
   cp -a --reflink=auto "${LIJT_SOURCE_ROOT}/program" "${case_root}/program"
 fi
 
-if [ ! -d "${case_root}/WRF-pollen" ]; then
-  cp -a --reflink=auto "${LIJT_SOURCE_ROOT}/WRF-pollen" "${case_root}/WRF-pollen"
-fi
+for top in "${wps_top}" "${wrf_top}"; do
+  [ -n "${top}" ] || continue
+  [ "${top}" = "." ] && continue
+  [ "${top}" = "program" ] && continue
+  if [ ! -d "${case_root}/${top}" ]; then
+    [ -d "${LIJT_SOURCE_ROOT}/${top}" ] || fail "Lijt top-level dir missing: ${LIJT_SOURCE_ROOT}/${top}"
+    cp -a --reflink=auto "${LIJT_SOURCE_ROOT}/${top}" "${case_root}/${top}"
+  fi
+done
 
 lijt_wps_dir="${case_root}/${LIJT_WPS_REL}"
 lijt_wrf_dir="${case_root}/${LIJT_WRF_REL}"
-lijt_program_dir="${case_root}/program"
+lijt_program_dir="${case_root}/${LIJT_PROGRAM_REL}"
 [ -d "${lijt_wps_dir}" ] || fail "copied WPS dir missing: ${lijt_wps_dir}"
 [ -d "${lijt_wrf_dir}" ] || fail "copied WRF run dir missing: ${lijt_wrf_dir}"
 [ -d "${lijt_program_dir}" ] || fail "copied program dir missing: ${lijt_program_dir}"
@@ -44,11 +53,14 @@ met_save_path="${case_root}/WPS_met_save_data/pre${LIJT_PREDICT_DAYS}days_12-12_
 wrfchemi_save_path="${case_root}/WPS_met_save_data/wrfchemi_data_12-12_pre${LIJT_PREDICT_DAYS}/${year}"
 mkdir -p "${met_save_path}/${LIJT_START_DATE}" "${wrfchemi_save_path}" "${FLOW_RUN_DIR}/wrfchemi" "${FLOW_RUN_DIR}/wrfout"
 
-find "${lijt_wrf_dir}" -maxdepth 1 \( -name 'met_em.d01.*' -o -name 'wrfchemi_d01_*' -o -name 'wrfout_d01_*' -o -name 'wrfrst_d01_*' -o -name 'rsl.*' -o -name '*.err' -o -name '*.out' \) -delete
+if [ "${LIJT_PURGE_RUNTIME:-0}" = "1" ]; then
+  find "${lijt_wrf_dir}" -maxdepth 1 \( -name 'met_em.d01.*' -o -name 'wrfchemi_d01_*' -o -name 'wrfout_d01_*' -o -name 'wrfrst_d01_*' -o -name 'rsl.*' -o -name '*.err' -o -name '*.out' \) -delete
+fi
 
 cat > "${FLOW_RUN_DIR}/lijt_case.env" <<EOF
 LIJT_SOURCE_ROOT="${LIJT_SOURCE_ROOT}"
 LIJT_CASE_ROOT="${case_root}"
+LIJT_PROGRAM_REL="${LIJT_PROGRAM_REL}"
 LIJT_PROGRAM_DIR="${lijt_program_dir}"
 LIJT_WPS_DIR="${lijt_wps_dir}"
 LIJT_WRF_DIR="${lijt_wrf_dir}"
@@ -58,6 +70,14 @@ LIJT_START_DATE="${LIJT_START_DATE}"
 LIJT_PREDICT_DAYS="${LIJT_PREDICT_DAYS}"
 LIJT_FNL_GFS="${LIJT_FNL_GFS}"
 LIJT_WRFCHEM_NAME="${LIJT_WRFCHEM_NAME:-poll_lijt_smgr}"
+LIJT_TIME_STEP="${LIJT_TIME_STEP:-}"
+AREA="${AREA:-Beijing}"
+WRFCHEMI_DOMAIN="${WRFCHEMI_DOMAIN:-d01}"
+POLLEN_LAT_MIN="${POLLEN_LAT_MIN:-}"
+POLLEN_LAT_MAX="${POLLEN_LAT_MAX:-}"
+POLLEN_LON_MIN="${POLLEN_LON_MIN:-}"
+POLLEN_LON_MAX="${POLLEN_LON_MAX:-}"
+POLLEN_GRID_RES="${POLLEN_GRID_RES:-}"
 EOF
 
 echo "${case_root}" > "${FLOW_RUN_DIR}/lijt_case_root.txt"

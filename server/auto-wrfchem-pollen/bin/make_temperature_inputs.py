@@ -15,9 +15,6 @@ import pandas as pd
 from scipy.interpolate import RegularGridInterpolator
 
 
-LAT_MIN, LAT_MAX, LON_MIN, LON_MAX, RES = 35.0, 45.0, 111.0, 121.0, 0.1
-
-
 def date_range(start: datetime, end: datetime):
     current = start
     while current <= end:
@@ -25,9 +22,9 @@ def date_range(start: datetime, end: datetime):
         current += timedelta(days=1)
 
 
-def target_grid():
-    lat = np.linspace(LAT_MIN, LAT_MAX, int((LAT_MAX - LAT_MIN) / RES + 1))
-    lon = np.linspace(LON_MIN, LON_MAX, int((LON_MAX - LON_MIN) / RES + 1))
+def target_grid(args):
+    lat = np.linspace(args.lat_min, args.lat_max, int((args.lat_max - args.lat_min) / args.resolution + 1))
+    lon = np.linspace(args.lon_min, args.lon_max, int((args.lon_max - args.lon_min) / args.resolution + 1))
     xlon, xlat = np.meshgrid(lon, lat)
     return lat, lon, xlat, xlon
 
@@ -60,8 +57,8 @@ def extract_t2_c(wgrib2: str, grib: Path) -> tuple[np.ndarray, np.ndarray, np.nd
     return lat, lon, data
 
 
-def interpolate_to_target(lat: np.ndarray, lon: np.ndarray, data: np.ndarray) -> pd.DataFrame:
-    tlat, tlon, xlat, xlon = target_grid()
+def interpolate_to_target(args, lat: np.ndarray, lon: np.ndarray, data: np.ndarray) -> pd.DataFrame:
+    tlat, tlon, xlat, xlon = target_grid(args)
     if lat[0] > lat[-1]:
         lat = lat[::-1]
         data = data[::-1, :]
@@ -158,7 +155,7 @@ def build_history(args) -> None:
                 missing_records.append(record)
                 print(record)
                 continue
-            frames.append(interpolate_to_target(lat, lon, t2))
+            frames.append(interpolate_to_target(args, lat, lon, t2))
         if not frames and previous_mean is not None:
             record = f"history fill_previous_day {day:%Y%m%d}"
             missing_records.append(record)
@@ -195,7 +192,7 @@ def build_forecast(args) -> None:
             missing_records.append(record)
             print(record)
             continue
-        grouped[f"{valid:%Y%m%d}"].append(interpolate_to_target(lat, lon, t2))
+        grouped[f"{valid:%Y%m%d}"].append(interpolate_to_target(args, lat, lon, t2))
     out_root = Path(args.out_root) / "GFS" / f"{start.year}" / f"{start:%Y%m%d}"
     previous_mean: pd.DataFrame | None = None
     expected_days = [(start + timedelta(days=offset)).strftime("%Y%m%d") for offset in range(args.predict_days + 1)]
@@ -228,6 +225,11 @@ def main() -> int:
     parser.add_argument("--wgrib2", default="/g1/app/mathlib/wgrib2/2.0.6/intel/bin/wgrib2")
     parser.add_argument("--skip-history", action="store_true")
     parser.add_argument("--skip-forecast", action="store_true")
+    parser.add_argument("--lat-min", type=float, default=35.0)
+    parser.add_argument("--lat-max", type=float, default=45.0)
+    parser.add_argument("--lon-min", type=float, default=111.0)
+    parser.add_argument("--lon-max", type=float, default=121.0)
+    parser.add_argument("--resolution", type=float, default=0.1)
     args = parser.parse_args()
     if not args.skip_history:
         build_history(args)

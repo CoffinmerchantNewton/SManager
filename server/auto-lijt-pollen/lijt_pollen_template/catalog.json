@@ -1,0 +1,116 @@
+{
+  "template_root": "/g7/anxq/Zhangjt/workspace/Smanager/auto-lijt-pollen/lijt_pollen_template",
+  "default_work_root": "/g7/anxq/Zhangjt/workspace/Smanager/auto-lijt-pollen/lijt_pollen_template/work",
+  "common": {
+    "LIJT_BIN": "/g7/anxq/Zhangjt/workspace/Smanager/auto-lijt-pollen/bin",
+    "WRFCHEMI_FLOW_BIN": "/g7/anxq/Zhangjt/workspace/Smanager/auto-wrfchem-pollen/bin",
+    "ENV_SCRIPT": "/g7/anxq/Zhangjt/workspace/load_env.sh",
+    "PYTHON_BIN": "/g7/anxq/Zhangjt/softwares/miniconda3/envs/wrfTool/bin/python",
+    "FNL_ROOTS": "/g1/COMMONDATA/glob/fnl:/g7/anxq/Zhangjt/static/fnl",
+    "LIJT_GEOG_DATA_PATH": "/g7/anxq/pollen_predict/WPS-geog_data",
+    "MEIC_DIR": "/g7/anxq/Zhangjt/workspace/pollen_forcast/meic-2017-0p25-RADM2"
+  },
+  "profiles": {
+    "beijing_spring_pre7": {
+      "available": true,
+      "region": "Beijing",
+      "season": "spring",
+      "source_root": "/g7/anxq/pollen_predict/WRFChem_spring_Beijing_pre7",
+      "program_rel": "program",
+      "wps_rel": "WRF-pollen/WPS-master",
+      "wrf_rel": "WRF-pollen/WRF-pollen_300_rh/test/em_real",
+      "emission_model_dir": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Beijing_sim_2026/Beijing_predict/auto_run_wrfchemi_predict_3_lijt",
+      "emission_run_script": "Beijing_auto_run_wrfchemi.py",
+      "model_env": {
+        "AREA": "Beijing",
+        "PARAM_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Beijing_sim_2026/Spring_phenological_model_DATA/DOY_optimal_parameters",
+        "PFT_FILE": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Plant_function_type_CLM.nc",
+        "EF_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Beijing_sim_2026/ef_DL_history/ef_surface/ef_surface_2d",
+        "EF_CHEN_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Beijing_sim_2026/ef_DL_history/ef_surface/ef_surface_2d",
+        "TEMPERATURE_MODEL_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Beijing_sim_2026/Beijing_predict"
+      }
+    },
+    "beijing_autumn_pre7": {
+      "available": true,
+      "region": "Beijing",
+      "season": "autumn",
+      "source_root": "/g7/anxq/pollen_predict/WRFChem_autumn_Beijing_pre7",
+      "program_rel": "program",
+      "wps_rel": "WRF-pollen/WPS-master",
+      "wrf_rel": "WRF-pollen/WRF-pollen_Tot_Arte_Chen/test/em_real",
+      "emission_model_dir": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/Beijing_sim/Beijing_predict/auto_run_wrfchemi_predict_3_lijt",
+      "emission_run_script": "Beijing_auto_run_wrfchemi.py",
+      "model_env": {
+        "AREA": "Beijing",
+        "PARAM_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/Beijing_sim/Autumn_phenological_model_DATA/DOY_optimal_parameters",
+        "PFT_FILE": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/Plant_function_type_CLM.nc",
+        "EF_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/Beijing_sim/ef_DL_history/ef_surface/ef_surface_2d",
+        "EF_CHEN_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/Beijing_sim/ef_DL_history-Chenopods_0p3/ef_surface/ef_surface_2d",
+        "TEMPERATURE_MODEL_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/Beijing_sim/Beijing_predict"
+      }
+    },
+    "yulin_spring_pre7": {
+      "available": true,
+      "region": "Yulin",
+      "season": "spring",
+      "source_root": "/g7/anxq/pollen_predict/WRFChem_spring_Yulin_pre7",
+      "program_rel": "program",
+      "wps_rel": "WRF-pollen/WPS-master",
+      "wrf_rel": "WRF-pollen/WRF-pollen_300_rh/test/em_real",
+      "emission_model_dir": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Yulin_sim_2026/Yulin_predict/auto_run_wrfchemi_predict_3_lijt",
+      "emission_run_script": "Yulin_auto_run_wrfchemi.py",
+      "model_env": {
+        "AREA": "Yulin",
+        "PARAM_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Yulin_sim_2026/Spring_phenological_model_DATA/DOY_optimal_parameters",
+        "PFT_FILE": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Plant_function_type_CLM.nc",
+        "EF_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Yulin_sim_2026/ef_DL_history/ef_surface/ef_surface_2d",
+        "EF_CHEN_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Yulin_sim_2026/ef_DL_history/ef_surface/ef_surface_2d",
+        "TEMPERATURE_MODEL_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Yulin_sim_2026/Yulin_predict"
+      }
+    },
+    "yulin_autumn_pre7": {
+      "available": false,
+      "region": "Yulin",
+      "season": "autumn",
+      "note": "当前服务器 /g7/anxq/pollen_predict 下没有 WRFChem_autumn_Yulin_pre* 源模板。不要直接拿 China 或 Beijing 秋季模板冒充榆林秋季；需要补齐源模板后再加入本清单。"
+    },
+    "neimeng_spring_pre7": {
+      "available": true,
+      "region": "InnerMG",
+      "season": "spring",
+      "source_root": "/g7/anxq/pollen_predict/WRFChem_spring_InnerMG_pre7",
+      "program_rel": "program",
+      "wps_rel": "WRF-pollen/WPS-master",
+      "wrf_rel": "WRF-pollen/WRF-pollen_300_rh/test/em_real",
+      "emission_model_dir": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/InnerMG_sim_2026/InnerMG_predict/auto_run_wrfchemi_predict_3_lijt",
+      "emission_run_script": "InnerMG_auto_run_wrfchemi.py",
+      "model_env": {
+        "AREA": "InnerMG",
+        "PARAM_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/InnerMG_sim_2026/Spring_phenological_model_DATA/DOY_optimal_parameters",
+        "PFT_FILE": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/Plant_function_type_CLM.nc",
+        "EF_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/InnerMG_sim_2026/ef_DL_history/ef_surface/ef_surface_2d",
+        "EF_CHEN_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/InnerMG_sim_2026/ef_DL_history/ef_surface/ef_surface_2d",
+        "TEMPERATURE_MODEL_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Spring/InnerMG_sim_2026/InnerMG_predict"
+      }
+    },
+    "neimeng_autumn_pre7": {
+      "available": true,
+      "region": "InnerMG",
+      "season": "autumn",
+      "source_root": "/g7/anxq/pollen_predict/WRFChem_autumn_InnerMG_pre7",
+      "program_rel": "program",
+      "wps_rel": "WRF-pollen/WPS-master",
+      "wrf_rel": "WRF-pollen/WRF-pollen_Tot/test/em_real",
+      "emission_model_dir": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/InnerMG_sim/InnerMG_predict/auto_run_wrfchemi_predict_3_lijt",
+      "emission_run_script": "InnerMG_auto_run_wrfchemi.py",
+      "model_env": {
+        "AREA": "InnerMG",
+        "PARAM_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/InnerMG_sim/Autumn_phenological_model_DATA/DOY_optimal_parameters",
+        "PFT_FILE": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/Plant_function_type_CLM.nc",
+        "EF_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/InnerMG_sim/ef_DL_history/ef_surface/ef_surface_2d",
+        "EF_CHEN_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/InnerMG_sim/ef_DL_history/ef_surface/ef_surface_2d",
+        "TEMPERATURE_MODEL_ROOT": "/g7/anxq/Zhangjt/workspace/pollen_forcast/Autumn/InnerMG_sim/InnerMG_predict"
+      }
+    }
+  }
+}

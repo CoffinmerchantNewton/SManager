@@ -66,6 +66,7 @@ load_lijt_runtime_modules() {
 configure_wrf_namelist() {
   local namelist="$1"
   local start_date year month day end_date end_year end_month end_day levels
+  local met_dir first_met e_we e_sn
   start_date=$(run_start_date)
   year="${start_date:0:4}"
   month="${start_date:4:2}"
@@ -84,6 +85,22 @@ configure_wrf_namelist() {
   sed -i "s/end_month                = [0-9]*,/end_month                = ${end_month},/" "${namelist}"
   sed -i "s/end_day                  = [0-9]*,/end_day                  = ${end_day},/" "${namelist}"
   sed -i "s/end_hour                 = [0-9]*,/end_hour                 = 12,/" "${namelist}"
+  if [ -n "${LIJT_TIME_STEP:-}" ]; then
+    sed -i "s/time_step                = [0-9]*/time_step                = ${LIJT_TIME_STEP}/" "${namelist}"
+  fi
+
+  met_dir="${LIJT_MET_SAVE_PATH:-}/${LIJT_START_DATE:-}"
+  if [ -d "${met_dir}" ] && command -v ncdump >/dev/null 2>&1; then
+    first_met=$(find "${met_dir}" -maxdepth 1 -name 'met_em.d01.*.nc' | sort | head -n 1)
+    if [ -n "${first_met}" ]; then
+      e_we=$(ncdump -h "${first_met}" | awk -F= '/WEST-EAST_GRID_DIMENSION/ {gsub(/[^0-9]/, "", $2); print $2; exit}')
+      e_sn=$(ncdump -h "${first_met}" | awk -F= '/SOUTH-NORTH_GRID_DIMENSION/ {gsub(/[^0-9]/, "", $2); print $2; exit}')
+      if [ -n "${e_we}" ] && [ -n "${e_sn}" ]; then
+        sed -i -E "s/(e_we[[:space:]]*=[[:space:]]*)[0-9]+(,.*)/\1${e_we}\2/" "${namelist}"
+        sed -i -E "s/(e_sn[[:space:]]*=[[:space:]]*)[0-9]+(,.*)/\1${e_sn}\2/" "${namelist}"
+      fi
+    fi
+  fi
 
   if [ "${year:2:2}" -le 16 ]; then
     levels=27

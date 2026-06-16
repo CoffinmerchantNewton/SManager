@@ -10,5 +10,12 @@ load_lijt_runtime_modules
 cd "${LIJT_PROGRAM_DIR}"
 ./auto_run_wps_fnl.sh "${LIJT_START_DATE}" "${LIJT_CASE_ROOT}" "${LIJT_WPS_DIR}" "${LIJT_PREDICT_DAYS}" "${LIJT_FNL_GFS}" "${LIJT_MET_SAVE_PATH}"
 
-test -n "$(find "${LIJT_MET_SAVE_PATH}/${LIJT_START_DATE}" -maxdepth 1 -name 'met_em.d01.*' -print -quit)"
-echo "[wps_fnl] met_em saved in ${LIJT_MET_SAVE_PATH}/${LIJT_START_DATE}"
+met_dir="${LIJT_MET_SAVE_PATH}/${LIJT_START_DATE}"
+ori_dir="${LIJT_MET_SAVE_PATH}/${LIJT_START_DATE}_ori"
+if [ -d "${ori_dir}" ]; then
+  mkdir -p "${met_dir}"
+  cp -f "${ori_dir}"/met_em.d01.* "${met_dir}/"
+fi
+
+test -n "$(find "${met_dir}" -maxdepth 1 -name 'met_em.d01.*' -print -quit)"
+echo "[wps_fnl] met_em saved in ${met_dir}"
