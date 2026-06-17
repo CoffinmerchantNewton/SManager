@@ -1,12 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { SlurmSummary, StatusPill } from '../components/RunDisplay';
 import { useI18n } from '../i18n';
-import { dashboardApi, productsApi } from '../services/api';
-import type { AgentAction, DashboardOverview, SystemLog } from '../types/index';
+import { runNavState } from '../hooks/useRunNavigation';
+import { dashboardApi, productsApi, runDetailPath } from '../services/api';
+import type { AgentAction, DashboardOverview, DashboardRunSummary, SystemLog } from '../types/index';
 import { errorMessage } from '../utils/errors';
 
 export default function Dashboard() {
   const { t } = useI18n();
+  const location = useLocation();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,7 +18,7 @@ export default function Dashboard() {
     setLoading(true);
     setError('');
     try {
-      const response = await dashboardApi.getOverview({ recent_limit: 8 });
+      const response = await dashboardApi.getOverview({ recent_limit: 10 });
       setOverview(response.data);
     } catch (err: unknown) {
       setError(errorMessage(err, 'Failed to load dashboard overview'));
@@ -38,6 +41,8 @@ export default function Dashboard() {
 
   const stats = overview?.stats;
   const fnl = overview?.fnl;
+  const server = overview?.server;
+  const detailNav = runNavState(location.pathname, t('dashboardTitle'));
 
   return (
     <div className="min-h-full p-6 technical-grid">
@@ -45,6 +50,9 @@ export default function Dashboard() {
         <div>
           <h1 className="mb-1 font-headline-xl text-headline-xl text-on-background">{t('dashboardTitle')}</h1>
           <p className="font-body-md text-on-surface-variant">{t('dashboardSubtitle')}</p>
+          {overview?.stale && (
+            <p className="mt-2 text-xs text-amber-300">服务器暂不可达，部分数据来自本地缓存。</p>
+          )}
         </div>
         <button
           onClick={loadOverview}
@@ -57,6 +65,36 @@ export default function Dashboard() {
 
       {error && <div className="mb-6 rounded-lg border border-error/30 bg-error-container/20 p-md text-sm text-error">{error}</div>}
 
+      {server?.daemon && (
+        <section className="mb-8 grid grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="服务器时间" value={formatShort(server.server_time_local)} icon="schedule" tone="info" />
+          <MetricCard
+            label="定时调度"
+            value={server.config?.schedule_enabled ?? server.daemon.schedule_enabled ? '运行中' : '已停止'}
+            icon="timer"
+            tone={server.config?.schedule_enabled ?? server.daemon.schedule_enabled ? 'ok' : 'info'}
+          />
+          <MetricCard label="下次 Tick" value={formatShort(server.daemon.next_tick_at)} icon="event" tone="info" />
+          <MetricCard label="活跃 Run" value={`${server.daemon.active_runs ?? 0}`} icon="rocket_launch" tone="info" />
+        </section>
+      )}
+
+      {server?.config?.regions && server.config.regions.length > 0 && (
+        <section className="mb-8 rounded-lg border border-white/10 bg-surface-container p-md">
+          <p className="mb-2 font-label-caps text-label-caps uppercase text-outline">当前预报区域</p>
+          <p className="text-xs text-on-surface-variant">
+            {server.config.regions.length} 个区域：{server.config.regions.join(', ')}
+          </p>
+        </section>
+      )}
+
+      {server?.daemon && (
+        <section className="mb-8 grid grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-2">
+          <MetricCard label="上次 Tick" value={server.daemon.last_tick_result || '-'} icon="play_circle" tone="ok" />
+          <MetricCard label="待补 FNL" value={`${server.daemon.pending_repairs ?? 0}`} icon="cloud_sync" tone={(server.daemon.pending_repairs ?? 0) > 0 ? 'danger' : 'ok'} />
+        </section>
+      )}
+
       <section className="mb-8 grid grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label={t('systemHealth')} value={`${stats?.system_health ?? 100}%`} icon="health_and_safety" tone="ok" />
         <MetricCard label={t('runningRuns')} value={`${stats?.running_workflows ?? 0}/${stats?.total_workflows ?? 0}`} icon="play_circle" tone="info" />
@@ -65,7 +103,18 @@ export default function Dashboard() {
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-gutter xl:grid-cols-[1.4fr_0.6fr]">
-        <Panel title={t('recentRuns')}>
+        <Panel
+          title={t('recentRuns')}
+          action={
+            <Link
+              to="/admin/runs/list"
+              className="inline-flex items-center gap-1 text-[10px] text-cyan-300 hover:text-cyan-200"
+            >
+              {t('viewAllRuns')}
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+          }
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="border-b border-white/10 text-outline">
@@ -73,21 +122,32 @@ export default function Dashboard() {
                   <th className="px-sm py-sm text-[10px]">{t('run')}</th>
                   <th className="px-sm py-sm text-[10px]">{t('status')}</th>
                   <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
+                  <th className="px-sm py-sm text-[10px]">Slurm</th>
                   <th className="px-sm py-sm text-[10px]">{t('window')}</th>
                   <th className="px-sm py-sm text-[10px]">{t('domain')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {(overview?.runs ?? []).map((run) => (
-                  <tr key={run.run_id} className="hover:bg-white/[0.03]">
+                  <tr key={run.run_key || run.run_id} className="hover:bg-white/[0.03]">
                     <td className="max-w-[260px] px-sm py-sm">
-                      <Link to={`/admin/runs/${encodeURIComponent(run.run_id)}`} className="font-data-mono text-xs text-cyan-300 hover:text-cyan-200">
-                        {run.run_id}
+                      <Link
+                        to={runDetailPath(run)}
+                        state={detailNav}
+                        className="font-data-mono text-xs text-cyan-300 hover:text-cyan-200"
+                      >
+                        {run.run_key || run.run_id}
                       </Link>
+                      {run.last_error && (
+                        <p className="mt-0.5 truncate text-[10px] text-error">{String(run.last_error)}</p>
+                      )}
                     </td>
                     <td className="px-sm py-sm"><StatusPill status={run.status} /></td>
                     <td className="px-sm py-sm text-xs text-on-surface">{run.progress}%</td>
-                    <td className="px-sm py-sm text-xs text-outline">{run.start_time || '-'} {'->'} {run.end_time || '-'}</td>
+                    <td className="px-sm py-sm text-xs text-outline">
+                      <SlurmSummary run={run} />
+                    </td>
+                    <td className="px-sm py-sm text-xs text-outline">{run.period || '-'} / {run.start_time || '-'}</td>
                     <td className="px-sm py-sm text-xs text-outline">{run.domain || '-'}</td>
                   </tr>
                 ))}
@@ -177,11 +237,20 @@ function MetricCard({
   );
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-surface-container">
-      <div className="border-b border-white/10 bg-surface-container-high px-md py-sm">
+      <div className="flex items-center justify-between border-b border-white/10 bg-surface-container-high px-md py-sm">
         <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">{title}</span>
+        {action}
       </div>
       <div className="p-md">{children}</div>
     </div>
@@ -221,17 +290,6 @@ function LogRow({ log }: { log: SystemLog }) {
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const normalized = status.toLowerCase();
-  const color =
-    normalized === 'success' || normalized === 'ready'
-      ? 'text-tertiary border-tertiary/30 bg-tertiary/10'
-      : normalized === 'error' || normalized === 'failed'
-        ? 'text-error border-error/30 bg-error/10'
-        : 'text-cyan-300 border-cyan-400/30 bg-cyan-400/10';
-  return <span className={`inline-flex rounded border px-2 py-0.5 font-data-mono text-[10px] uppercase ${color}`}>{status}</span>;
-}
-
 function EmptyState({ text }: { text: string }) {
   return <p className="text-sm text-outline">{text}</p>;
 }
@@ -239,4 +297,11 @@ function EmptyState({ text }: { text: string }) {
 function formatDate(value?: string | null) {
   if (!value) return '-';
   return new Date(value).toLocaleString();
+}
+
+function formatShort(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
 }

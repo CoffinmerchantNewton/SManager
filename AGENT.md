@@ -35,7 +35,7 @@
 
 CentOS 服务器
   smanager-server daemon
-  server workfolder FNL repair store
+  /g7/anxq/Zhangjt/static/fnl/ (staging + 按年归档)
   Slurm prep -> wrf_run -> postprocess
   status/event/product manifests
 ```
@@ -47,7 +47,7 @@ CentOS 服务器
 - 定时创建每日预报任务。
 - 按区域生成 run spec。
 - 检查 FNL/GFS 输入。
-- 发布 FNL repair request。
+- FNL 缺失时发布 repair request（staging 目录）。
 - 在 repair deadline 前等待本地补齐。
 - deadline 到仍不可用时自动切 GFS。
 - 提交 Slurm 三阶段任务：
@@ -110,7 +110,7 @@ docker compose
 
 - 健康检查：心跳、最近成功通信时间、服务器 daemon 状态。
 - API 转发：本地访问服务器 `smanager-server` 的状态和 repair request。
-- 文件上传：FNL 上传到服务器 workfolder staging 目录。
+- 文件上传：FNL 上传到服务器 staging 目录（`/g7/anxq/Zhangjt/static/fnl/staging/`）。
 - 自动重连：指数退避，记录断线和恢复事件。
 - 本地缓存：服务器短时不可达时，前端仍能展示最近一次状态快照。
 
@@ -120,8 +120,9 @@ docker compose
 
 ```bash
 screen -S smanager-server
-cd /path/to/SManager/server/smanager-server
-nohup ./run_server.sh >> logs/serverd.out 2>&1 &
+cd /g7/anxq/Zhangjt/workspace/auto-pollen-lijt/server/smanager-server
+./run_server.sh
+# Ctrl+A D 脱离 screen；进程在 screen 里前台运行即可，不必再套 nohup
 ```
 
 后续应提供：
@@ -154,18 +155,20 @@ FNL 修复不得写入或覆盖服务器原始自动同步目录。
 新增服务器 workfolder：
 
 ```text
-$SMANAGER_WORK/
-  fnl_repair/
-    staging/
-    verified/
-      2026/
-        20260616/
-          fnl_20260616_00_00.grib2
+/g7/anxq/Zhangjt/static/fnl/
+  staging/                          # 临时接收区（上传后待校验）
+  2025/
+    fnl_20250818_00_00.grib2        # 校验通过后 atomic rename 到此处
+    fnl_20250818_06_00.grib2
+  2026/
+    fnl_20260616_00_00.grib2
 ```
+
+校验通过后按 `{YYYY}/fnl_YYYYMMDD_HH_00.grib2` 格式归档，与服务器备份目录 `/g7/anxq/Zhangjt/static/fnl` 共用同一棵目录树。
 
 取 FNL 时的优先级：
 
-1. `$SMANAGER_WORK/fnl_repair/verified/...` 中本地修复并经服务器校验的 FNL。
+1. `/g7/anxq/Zhangjt/static/fnl/{YYYY}/` — 本地主动上传、经服务器校验的 FNL（最新最优）。
 2. 服务器自动同步的 FNL 主目录。
 3. 服务器自动同步的 FNL 备用目录。
 4. GFS fallback。
@@ -184,8 +187,8 @@ FNL 校验至少包括：
 本地下载
   -> 本地校验
   -> 上传到 server staging
-  -> 服务器校验
-  -> atomic rename 到 verified
+  -> 服务器校验（GRIB 头 + wgrib2）
+  -> atomic rename 到 /g7/anxq/Zhangjt/static/fnl/{YYYY}/
   -> 更新 repair request
 ```
 
@@ -200,7 +203,7 @@ FNL 校验至少包括：
 - 按每日预报窗口提前下载可能需要的时次。
 - 下载后放入本地 cache。
 - 若服务器 repair request 出现，优先从本地 cache 上传。
-- 若服务器未请求，不主动覆盖服务器 verified 目录。
+- 若服务器未请求，不主动覆盖服务器 `/g7/anxq/Zhangjt/static/fnl/{YYYY}/` 目录。
 
 主动同步的目标是减少等待时间，不是替代服务器端 FNL 校验。
 
@@ -274,7 +277,7 @@ cd frontend && npm run dev
 - 新增服务器普通用户态 `smanager-server` daemon。
 - 支持每日定时 tick。
 - 支持 run 幂等创建。
-- 支持 FNL 优先级扫描：repair verified -> server FNL -> fallback FNL -> GFS。
+- 支持 FNL 优先级扫描：本地补给目录 -> server FNL -> fallback FNL -> GFS。
 - 支持 repair deadline 和 GFS fallback。
 - 支持 Slurm 三阶段依赖提交。
 - 支持 daemon 重启后的 reconcile。
@@ -327,20 +330,174 @@ cd frontend && npm run dev
 - 自动重试必须有限次数。
 - 删除 run、覆盖已验证 FNL、修改生产配置后提交，都必须人工确认。
 
+## 当前环境具体配置
+
+### 服务器
+
+- IP/用户名/密码：见 `连接信息.txt`（已加入 .gitignore，不提交到 git）。
+- 工作目录：`/g7/anxq/Zhangjt/workspace/auto-pollen-lijt`（以下简称 `$PROJECT_ROOT`）。
+- 已有完整自动预报脚本，WRF/Slurm 不需要重新配置。
+- FNL 自动同步一直在跑，偶尔需要人工补。
+- 服务器有 wgrib2：`/g1/app/mathlib/wgrib2/2.0.6/intel/bin/wgrib2`。
+
+### 服务器已有脚本结构
+
+```text
+$PROJECT_ROOT/
+  config/
+    paths.py          # 所有路径定义（FNL_ROOT、GFS_ROOT、RUNS_ROOT 等）
+    layout.py         # runs/output/logs 目录布局
+    registry.py       # 区域×季节×时效注册表（含 wrfchemi 配置）
+    slurm.py          # Slurm 节点/核数配置
+  scripts/
+    run_autumn_pre7.sh        # 秋季三物种入口：bash scripts/run_autumn_pre7.sh --region <Region> --start <YYYYMMDD>
+    run_spring_pre7.sh        # 春季入口
+    batch_forecast.sh         # Slurm 两阶段提交（prep → wrf），由上面脚本调用
+    auto_pollen_forecast.py   # Python 主入口，处理目录创建、WPS、real、wrfchemi、sbatch
+    copy_fnl.py               # 服务器内部 FNL 收集（从 COMMONDATA 链接到运行目录）
+    dates.py                  # ForecastWindow：计算 WPS/FNL/GFS 时间窗
+  template/           # WPS/WRF 模板（各区域各季节）
+  shared/             # geogrid 缓存等共享数据
+  runs/               # 运行目录（自动创建）
+  output/             # 输出 wrfout（自动创建）
+  logs/               # 日志（自动创建）
+```
+
+### 已支持区域（秋季 pre7 三物种）
+
+| 区域 | 内部名 | 分辨率 | 网格 | Slurm 配置 |
+|------|--------|--------|------|-----------|
+| 北京 | `Beijing` | 3 km | 172×172 | 8 节点 256 核 |
+| 内蒙古 | `InnerMG` | 9 km | 277×247 | 12 节点 384 核 |
+| 陕西 | `Shaanxi` | 3 km | 250×360 | 12 节点 384 核 |
+
+每日预报命令（在服务器上）：
+```bash
+cd /g7/anxq/Zhangjt/workspace/auto-pollen-lijt
+bash scripts/run_autumn_pre7.sh --region Beijing --start $(date +%Y%m%d)
+bash scripts/run_autumn_pre7.sh --region InnerMG --start $(date +%Y%m%d)
+bash scripts/run_autumn_pre7.sh --region Shaanxi --start $(date +%Y%m%d)
+```
+
+三个区域互不依赖，可并行提交。
+
+### 服务器关键路径
+
+```text
+FNL 主目录：  /g1/COMMONDATA/glob/fnl
+FNL 补给目录：/g7/anxq/Zhangjt/static/fnl/{YYYY}/fnl_YYYYMMDD_HH_00.grib2
+FNL staging：  /g7/anxq/Zhangjt/static/fnl/staging/（临时接收区）
+GFS 目录：    /g1/COMMONDATA/glob/gfs
+wrgrib2：     /g1/app/mathlib/wgrib2/2.0.6/intel/bin/wgrib2
+环境脚本：    /g7/anxq/Zhangjt/workspace/load_env.sh（Python/conda）
+WRF 环境脚本：/g7/anxq/Zhangjt/workspace/auto-pollen-lijt/load_wrf_env.sh（Intel MPI）
+```
+
+### 本地办公电脑
+
+- Windows 11 Home，Git Bash 环境。
+- Conda 26.3.2，Python 3.13.13，pip 26.0.1。
+- Node.js v22.22.3，npm 10.9.8。
+- OpenSSH 10.3p1，Git 2.54.0，curl 8.19.0。
+- Docker Desktop 已安装（`C:\Program Files\Docker\Docker`），已加入系统 PATH，当前 shell 需重启后生效。
+- 无 rsync、无 wgrib2、无 screen/tmux（Windows 不需要）。
+- 本地已有 conda 环境：`base`、`0920`、`for_cnmaps_39`、`pytorch_li`。
+
+### 本地缺失组件及应对
+
+| 组件 | 状态 | 解决方案 |
+|------|------|---------|
+| Docker | 已装，需重启 shell | 重启 Git Bash 终端后可用 |
+| rsync | 无 | 用 Python paramiko/SFTP 实现断点上传 |
+| wgrib2 | 无 | 本地只做基础校验（文件大小 > 5MB），服务器端用 wgrib2 做精细校验 |
+
+### FNL 主动同步策略（本地 → 服务器）
+
+本地主动轮询 NASA FNL 官网，发现最新数据立即下载到本地 cache，然后上传到服务器 `/g7/anxq/Zhangjt/static/fnl/{YYYY}/`，与服务器 `/g1/COMMONDATA/glob/fnl` 完全不冲突。
+
+取 FNL 时服务器端优先级：
+1. `/g7/anxq/Zhangjt/static/fnl/{YYYY}/` — 本地主动上传、经服务器校验的 FNL（最新最优）。
+2. `/g1/COMMONDATA/glob/fnl` — 服务器自动同步（可能延迟数小时）。
+3. GFS fallback。
+
+本地 FNL 校验只需：文件存在 + 大小 > 5 MB。
+服务器端二次校验：`GRIB` 文件头 + wgrib2 inventory 能读。
+
+上传流程：
+```text
+本地轮询 NASA → 下载到本地 cache → 大小校验 → SFTP 上传到服务器 staging/
+→ 服务器校验（GRIB头 + wgrib2）→ atomic rename 到 /g7/anxq/Zhangjt/static/fnl/{YYYY}/
+```
+
+不得直接写入服务器自动同步目录 `/g1/COMMONDATA/glob/fnl`。
+
+### FNL 文件命名与时间窗
+
+FNL 文件名格式：`fnl_YYYYMMDD_HH_00.grib2`，每日 4 个时次（00Z、06Z、12Z、18Z）。
+FNL 通常延迟约 6-8 小时（例如 12Z 数据约 20:00 UTC 可用）。
+
+预报时间窗由 `scripts/dates.py` 的 `ForecastWindow` 计算，`fnl_gfs=2` 时：
+- FNL 覆盖：`(start - 2d)_12Z` 到 `(start - 1d)_12Z`
+- GFS 覆盖：`(start - 1d)_18Z` 到预报终点
+
+### 旧脚本处理
+
+- `auto_run_pollen_forcast.py`（旧本地主调度器）：**不再使用**，新架构下服务器自控。
+- `copy_fnl.py`：服务器内部用，负责从 COMMONDATA 收集 FNL 到运行目录，本地不直接调用。
+- `skills/`、`packages/`、`scripts/` 中的旧 AI agent 和临时 SSH 脚本：待清理。
+
 ## 当前仓库改造方向
 
 当前仓库保留：
 
-- `backend/`：本地 MySQL API、状态缓存、产品/FNL 元数据和后续 tunnel 接入点。
+- `backend/`：本地 API、状态缓存、产品/FNL 元数据和 tunnel 接入点。
 - `frontend/`：本地监测和管理界面。
 - `runtime/`：本地缓存、产物、日志和 manifest，不包含数据库文件。
 
 后续推荐改法：
 
-1. 新建干净的 `server/smanager-server`，不复用旧本地控制器实现。
-2. 新建 Docker tunnel/FNL repair worker。
-3. 继续瘦身 `backend/`：只做本地监控、补给 API 和 MySQL 元数据。
+1. 新建 `server/smanager-server`，实现服务器 daemon（定时 tick、FNL repair request、Slurm 提交、状态文件写入）。
+2. 新建本地 Docker tunnel + FNL 同步 worker。
+3. 瘦身 `backend/`：只做本地监控、补给 API 和元数据。
 4. 瘦身 `frontend/`：围绕服务器事实源展示，不再假设本地掌控业务流程。
 5. AI 操作规范等新架构稳定后再写。
 
+## 当前开发优先级（6 月）
+
+### P0：服务器 daemon 原型（最高优先级）
+
+服务器端新建轻量 Python daemon（`server/smanager-server/`），实现：
+
+1. 定时 tick：每天北京时间 07:30 检查当天是否需要提交预报。
+2. FNL 检查：调用 `copy_fnl.py` 的 `scan_range` 检查所需 FNL 是否就绪。
+3. Repair request：FNL 缺失时写 request 文件到 staging 目录，等待本地上传。
+4. Deadline + fallback：等待至 07:50，仍缺则切换 `fnl_gfs=1`（减少 FNL 依赖）或直接用 GFS。
+5. Slurm 提交：调用 `run_autumn_pre7.sh` 对三个区域（Beijing、InnerMG、Shaanxi）分别提交。
+6. 状态文件：写 `workflow.status.json`、`events.jsonl`、`fnl_manifest.json`。
+7. Reconcile：daemon 重启后从文件和 `squeue` 恢复状态。
+
+### P1：本地 FNL 主动同步
+
+本地 Python 轮询服务（可先在 conda 环境里跑，后迁入 Docker）：
+
+1. 轮询 NASA FNL 官网（`https://nomads.ncep.noaa.gov/`）最新时次。
+2. 发现新文件 → 下载到本地 cache → 校验大小。
+3. SFTP 上传到服务器 `staging/` 目录。
+4. 记录已同步时次，避免重复下载。
+
+### P2：Docker tunnel 和前端
+
+- 启动 Docker Compose：tunnel-daemon + local-api + frontend。
+- tunnel 保持到服务器的长连接，支持 API 转发和文件上传。
+- 前端展示：预报进度、FNL 状态、Slurm 阶段、产品输出。
+
+### P3：主动诊断与清理
+
+- 清理旧脚本（旧 AI agent、旧本地调度入口）。
+- 自动发现 FNL 缺口并预填本地 cache。
+- 规则化诊断常见 Slurm 错误。
+
 最终系统要达到：服务器自己会按点跑，本地在线时会帮它用上更好的 FNL，本地离线时服务器也会自动降级完成预报。
+
+如果有一些服务器的配置不熟悉（如服务器时间是UTC还是UTC+8），可以自行ssh上去看
+python 环境使用 `conda activate wrfTool`（见 `run_server.sh`），缺失的包自行安装

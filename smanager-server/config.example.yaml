@@ -1,0 +1,78 @@
+# SManager 服务器配置示例
+# 复制为 config.yaml 后按需修改
+
+server:
+  host: "0.0.0.0"
+  port: 8765
+  # 可选：设置后所有写操作需携带 Authorization: Bearer <token>
+  api_token: ""
+
+schedule:
+  enabled: true
+  # 北京时间每日 tick 时刻
+  tick_time: "07:30"
+  timezone: "Asia/Shanghai"
+  # FNL repair 等待截止（北京时间），超时后降级 GFS
+  repair_deadline: "07:50"
+  # 调度器轮询间隔（秒）
+  poll_interval: 60
+
+# 天擎日均气温数据自动下载（独立于预报 tick）
+tianqing:
+  enabled: true
+  # 北京时间首次尝试时刻，之后每小时重试直到当天数据就绪
+  start_time: "02:00"
+  timezone: "Asia/Shanghai"
+  # 下载脚本（download_dates.sh YYYYMMDD YYYYMMDD）
+  script_path: "/g7/anxq/Zhangjt/workspace/auto-pollen-lijt/Tianqing_data_download/music-sdk-scriptFile-v2.0/download_dates.sh"
+  data_dir: "/g7/anxq/Zhangjt/workspace/pollen_emission/Mete_Data/Tianqing_TEM_Avg_download"
+  min_lines: 100
+  timeout_seconds: 3600
+
+forecast:
+  # season 仅作记录；自动 tick 按月份选择：3-6 春季，7-10 秋季，其余跳过
+  season: "autumn"
+  pre: "pre7"
+  # 每日自动提交的区域（内部名，见 config/registry.py）
+  regions:
+    - Beijing
+    - InnerMG
+    - Shaanxi
+    - Yulin
+    - China
+  # 默认 fnl_gfs 模式；repair deadline 后自动切换为 fallback
+  fnl_gfs_default: 2
+  fnl_gfs_fallback: 1
+  # 非交互重复目录策略
+  task_dup_action: "continue"
+
+paths:
+  project_root: "/g7/anxq/Zhangjt/workspace/auto-pollen-lijt"
+  fnl_staging: "/g7/anxq/Zhangjt/static/fnl/staging"
+  fnl_archive: "/g7/anxq/Zhangjt/static/fnl"
+  wgrib2: "/g1/app/mathlib/wgrib2/2.0.6/intel/bin/wgrib2"
+  fnl_min_mb: 5.0
+
+# 文件树暴露的根目录（相对 project_root 或绝对路径）
+file_tree:
+  roots:
+    project:
+      path: "."
+      label: "项目根目录"
+      writable: false
+    runs:
+      path: "runs"
+      label: "运行目录"
+      writable: false
+    output:
+      path: "output"
+      label: "输出目录"
+      writable: false
+    logs:
+      path: "logs"
+      label: "日志目录"
+      writable: false
+    fnl:
+      path: "/g7/anxq/Zhangjt/static/fnl"
+      label: "FNL 补给目录"
+      writable: false

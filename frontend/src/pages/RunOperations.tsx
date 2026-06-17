@@ -1,409 +1,393 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n';
-import { agentApi, runsApi } from '../services/api';
-import type { AgentAction, ForecastRunWorkflowStatus } from '../types';
+import { serverApi } from '../services/api';
+import type { ServerConfig, ServerDaemonStatus, ServerRegionInfo } from '../types';
 import { errorMessage } from '../utils/errors';
 
-const NODE_ORDER = [
-  'fnl_verify',
-  'wps_geogrid',
-  'wps_ungrib',
-  'wps_metgrid',
-  'wrf_setup',
-  'real',
-  'compute_gdd',
-  'prep_pollen',
-  'wrf_run',
-  'postprocess_eval',
-  'product_extract',
-  'package_products',
-];
+/** 服务器 registry 未返回时的展示名（内部名 → 中文） */
+const REGION_FALLBACK: Record<string, { display_name: string; slurm_code: string }> = {
+  Beijing: { display_name: '北京', slurm_code: 'BJ' },
+  InnerMG: { display_name: '内蒙古', slurm_code: 'IMG' },
+  Shaanxi: { display_name: '陕西', slurm_code: 'SX' },
+  Yulin: { display_name: '榆林', slurm_code: 'YL' },
+  China: { display_name: '全国', slurm_code: 'CN' },
+};
 
-interface DiagnosisPayload {
-  findings?: Array<Record<string, unknown>>;
+function mergeRegionList(apiList: ServerRegionInfo[], configRegions?: string[]): ServerRegionInfo[] {
+  const map = new Map<string, ServerRegionInfo>();
+  for (const item of apiList) {
+    map.set(item.region, item);
+  }
+  for (const key of configRegions ?? []) {
+    if (!map.has(key)) {
+      const fb = REGION_FALLBACK[key];
+      map.set(key, {
+        region: key,
+        display_name: fb?.display_name ?? key,
+        seasons: [],
+        slurm_code: fb?.slurm_code ?? '',
+      });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.region.localeCompare(b.region));
 }
 
 export default function RunOperations() {
   const { t } = useI18n();
-  const [form, setForm] = useState({
-    run_id: '',
-    start: '2026060400',
-    end: '2026060412',
-    period: 'spring',
-    domain: 'neimeng',
-    variant: 'official',
-    commands_file: '',
-  });
-  const [runId, setRunId] = useState('');
-  const [workflow, setWorkflow] = useState<ForecastRunWorkflowStatus | null>(null);
-  const [logs, setLogs] = useState('');
-  const [selectedNode, setSelectedNode] = useState('fnl_verify');
-  const [actions, setActions] = useState<AgentAction[]>([]);
-  const [diagnosis, setDiagnosis] = useState<DiagnosisPayload | null>(null);
+  const [status, setStatus] = useState<ServerDaemonStatus | null>(null);
+  const [config, setConfig] = useState<ServerConfig | null>(null);
+  const [regions, setRegions] = useState<ServerRegionInfo[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState('');
+  const [stale, setStale] = useState(false);
 
-  const activeRunId = runId || workflow?.run_id || form.run_id;
-  const sortedNodes = useMemo(() => {
-    const nodes = workflow?.nodes ?? [];
-    return [...nodes].sort((a, b) => NODE_ORDER.indexOf(a.node) - NODE_ORDER.indexOf(b.node));
-  }, [workflow]);
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const [statusRes, configRes, regionsRes] = await Promise.all([
+        serverApi.status(),
+        serverApi.config(),
+        serverApi.regions(),
+      ]);
+      const st = statusRes.data?.data?.payload as ServerDaemonStatus | undefined;
+      const cfg = configRes.data?.data?.config as ServerConfig | undefined;
+      const regList = (regionsRes.data?.data?.regions || []) as ServerRegionInfo[];
 
-  const updateForm = (key: string, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
-  };
+      setStatus(st || null);
+      setConfig(cfg || null);
+      setRegions(mergeRegionList(regList, cfg?.forecast?.regions));
+      setStale(Boolean(statusRes.data?.data?.stale || configRes.data?.data?.stale));
+      if (cfg?.forecast?.regions?.length) {
+        setSelectedRegions(cfg.forecast.regions);
+      } else {
+        setSelectedRegions(regList.map((r) => r.region));
+      }
+    } catch (err: unknown) {
+      setMessage(errorMessage(err, '加载服务器状态失败'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
 
   const runAction = async (label: string, action: () => Promise<void>) => {
     setBusy(label);
-    setMessage(null);
+    setMessage('');
     try {
       await action();
-    } catch (error: unknown) {
-      setMessage({
-        kind: 'error',
-        text: errorMessage(error, 'Operation failed'),
-      });
+    } catch (err: unknown) {
+      setMessage(errorMessage(err, '操作失败'));
     } finally {
       setBusy('');
     }
   };
 
-  const planRun = () =>
-    runAction(t('plan'), async () => {
-      const payload = {
-        ...form,
-        run_id: form.run_id || undefined,
-        commands_file: form.commands_file || undefined,
-      };
-      const response = await runsApi.plan(payload);
-      const plannedRunId = response.data.data.run_id;
-      setRunId(plannedRunId);
-      setMessage({ kind: 'info', text: `Run planned: ${plannedRunId}` });
-      await refreshStatus(plannedRunId);
+  const handleScheduleToggle = (enabled: boolean) =>
+    runAction('schedule', async () => {
+      if (enabled) {
+        await serverApi.enableSchedule();
+        setMessage('定时调度已启用');
+      } else {
+        await serverApi.disableSchedule();
+        setMessage('定时调度已停用');
+      }
+      await loadAll();
     });
 
-  const refreshStatus = async (id = activeRunId) => {
-    if (!id) return;
-    const response = await runsApi.status(id);
-    setWorkflow(response.data.data);
+  const handleSaveRegions = () =>
+    runAction('regions', async () => {
+      if (selectedRegions.length === 0) {
+        setMessage('请至少选择一个区域');
+        return;
+      }
+      await serverApi.updateConfig({ regions: selectedRegions });
+      setMessage('预报区域配置已保存');
+      await loadAll();
+    });
+
+  const handleSubmitForecast = (force: boolean) =>
+    runAction(force ? 'force' : 'submit', async () => {
+      const res = await serverApi.submitForecast({
+        force,
+        regions: selectedRegions.length ? selectedRegions : undefined,
+      });
+      const data = res.data?.data;
+      const tick = data?.tick as { regions_submitted?: string[]; regions_skipped?: string[] } | undefined;
+      const submitted = tick?.regions_submitted?.length ?? 0;
+      const skipped = tick?.regions_skipped?.length ?? 0;
+      setMessage(
+        data?.message ||
+          `${force ? '强制提交' : '提交预报'}完成：提交 ${submitted} 个区域，跳过 ${skipped} 个`,
+      );
+      await loadAll();
+    });
+
+  const handleReconcile = () =>
+    runAction('reconcile', async () => {
+      await serverApi.reconcile();
+      setMessage('Reconcile 已触发（含 squeue/sacct 异常检测）');
+      await loadAll();
+    });
+
+  const toggleRegion = (region: string) => {
+    setSelectedRegions((current) =>
+      current.includes(region) ? current.filter((item) => item !== region) : [...current, region],
+    );
   };
 
-  const verifyFnl = () =>
-    runAction(t('fnlVerify'), async () => {
-      if (!activeRunId) return;
-      await runsApi.fnlVerify(activeRunId);
-      await refreshStatus(activeRunId);
-      await loadActions(activeRunId);
-    });
-
-  const repairFnl = () =>
-    runAction(t('hermesRepair'), async () => {
-      if (!activeRunId) return;
-      await agentApi.tick({
-        ...form,
-        run_id: activeRunId,
-        commands_file: form.commands_file || undefined,
-        repair_fnl: true,
-        dry_run_submit: true,
-        allow_noop: true,
-      });
-      await refreshStatus(activeRunId);
-      await loadActions(activeRunId);
-    });
-
-  const submitDryRun = () =>
-    runAction(t('submitDryRun'), async () => {
-      if (!activeRunId) return;
-      await runsApi.submit(activeRunId, { dry_run: true, allow_noop: true });
-      await refreshStatus(activeRunId);
-    });
-
-  const syncProducts = () =>
-    runAction(t('syncProducts'), async () => {
-      if (!activeRunId) return;
-      await runsApi.syncProducts(activeRunId);
-      await loadActions(activeRunId);
-    });
-
-  const loadLogs = () =>
-    runAction(t('loadLogs'), async () => {
-      if (!activeRunId) return;
-      const response = await runsApi.logs(activeRunId, { node: selectedNode, tail: 200 });
-      setLogs(response.data.logs);
-    });
-
-  const diagnoseRun = () =>
-    runAction(t('diagnose'), async () => {
-      if (!activeRunId) return;
-      const response = await runsApi.diagnose(activeRunId);
-      setDiagnosis(response.data.data);
-    });
-
-  const retrySelectedNode = (dryRun: boolean) =>
-    runAction(dryRun ? t('retryDryRun') : t('retryReal'), async () => {
-      if (!activeRunId || !selectedNode) return;
-      if (!dryRun && !confirm(`Retry node ${selectedNode} for ${activeRunId}?`)) {
-        return;
-      }
-      const response = await runsApi.retry(activeRunId, { node: selectedNode, dry_run: dryRun });
-      setMessage({
-        kind: 'info',
-        text: dryRun
-          ? `Retry dry-run checked for ${selectedNode}.`
-          : response.data.data?.message || `Retry submitted for ${selectedNode}.`,
-      });
-      await refreshStatus(activeRunId);
-    });
-
-  const cancelRun = (dryRun: boolean) =>
-    runAction(dryRun ? t('cancelDryRun') : t('cancelReal'), async () => {
-      if (!activeRunId) return;
-      if (!dryRun && !confirm(`Cancel run ${activeRunId}?`)) {
-        return;
-      }
-      const response = await runsApi.cancel(activeRunId, { dry_run: dryRun });
-      const data = response.data.data;
-      setMessage({
-        kind: 'info',
-        text: dryRun
-          ? `Cancel dry-run found ${(data.nodes ?? []).length} active nodes.`
-          : data.no_op
-            ? 'No active nodes to cancel.'
-            : `Cancel requested for ${(data.cancelled_nodes ?? []).length} nodes.`,
-      });
-      await refreshStatus(activeRunId);
-    });
-
-  async function loadActions(id: string) {
-    const response = await agentApi.actions({ run_id: id, limit: 20 });
-    setActions(response.data.data.actions ?? []);
-  }
-
-  useEffect(() => {
-    if (activeRunId) {
-      void loadActions(activeRunId);
-    }
-  }, [activeRunId]);
+  const scheduleEnabled = config?.schedule?.enabled ?? status?.schedule_enabled ?? false;
+  const tickTime = config?.schedule?.tick_time || '07:30';
 
   return (
-    <div className="p-lg technical-grid min-h-full flex flex-col gap-gutter">
+    <div className="min-h-full p-lg technical-grid flex flex-col gap-gutter">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface">{t('runOperationsTitle')}</h1>
-          <p className="text-outline font-body-md">
-            {t('runOperationsSubtitle')}
+          <h1 className="font-headline-xl text-headline-xl text-on-surface">{t('navRuns')}</h1>
+          <p className="font-body-md text-outline">
+            管理 smanager-server 定时调度与预报区域；季节由服务器按月份自动选择（3–6 春 / 7–10 秋）
           </p>
+          {stale && <p className="mt-2 text-xs text-amber-300">服务器暂不可达，展示缓存数据。</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-sm">
-          {activeRunId && (
-            <Link
-              to={`/admin/runs/${encodeURIComponent(activeRunId)}`}
-              className="px-md py-sm bg-primary-container text-on-primary-container rounded-lg text-sm font-semibold"
-            >
-              <span className="material-symbols-outlined align-middle mr-2 text-sm">open_in_new</span>
-              {t('openDetail')}
-            </Link>
-          )}
-          <button
-            onClick={() => refreshStatus()}
-            disabled={!activeRunId || !!busy}
-            className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10 disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
-            {t('refresh')}
-          </button>
-        </div>
+        <button
+          onClick={() => void loadAll()}
+          disabled={loading || !!busy}
+          className="rounded-lg border border-white/10 bg-surface-container-high px-md py-sm text-sm text-on-surface hover:bg-white/10 disabled:opacity-40"
+        >
+          <span className="material-symbols-outlined mr-2 align-middle text-sm">refresh</span>
+          {t('refresh')}
+        </button>
       </header>
 
-      <section className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-gutter">
-        <div className="bg-surface-container border border-white/10 rounded-lg p-md flex flex-col gap-sm">
-          <span className="font-label-caps text-label-caps text-outline uppercase">{t('runSpec')}</span>
-          <input className="ops-input" placeholder={t('runIdOptional')} value={form.run_id} onChange={(e) => updateForm('run_id', e.target.value)} />
-          <div className="grid grid-cols-2 gap-sm">
-            <input className="ops-input" value={form.start} onChange={(e) => updateForm('start', e.target.value)} />
-            <input className="ops-input" value={form.end} onChange={(e) => updateForm('end', e.target.value)} />
+      {message && (
+        <div className="rounded-lg border border-white/10 bg-surface-container-low p-md text-sm text-on-surface">
+          {message}
+        </div>
+      )}
+
+      <Panel title="定时任务开关" loading={loading && !config}>
+        <div className="flex flex-col gap-md sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-on-surface">
+              每日自动预报 Tick
+              <span className={`ml-2 rounded px-2 py-0.5 text-[10px] font-semibold ${scheduleEnabled ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high text-outline'}`}>
+                {scheduleEnabled ? '已启用' : '已关闭'}
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-outline">
+              北京时间每天 {tickTime} 自动扫描 FNL、创建 repair request 并提交各区域 Slurm 任务
+            </p>
+            {status?.next_tick_at && (
+              <p className="mt-1 text-xs text-cyan-300/80">下次执行：{formatTime(status.next_tick_at)}</p>
+            )}
           </div>
-          <div className="grid grid-cols-3 gap-sm">
-            <select className="ops-input" value={form.period} onChange={(e) => updateForm('period', e.target.value)}>
-              <option value="spring">spring</option>
-              <option value="summer">summer</option>
-              <option value="autumn">autumn</option>
-            </select>
-            <input className="ops-input" value={form.domain} onChange={(e) => updateForm('domain', e.target.value)} />
-            <input className="ops-input" value={form.variant} onChange={(e) => updateForm('variant', e.target.value)} />
-          </div>
-          <input
-            className="ops-input"
-            placeholder={t('commandsFilePath')}
-            value={form.commands_file}
-            onChange={(e) => updateForm('commands_file', e.target.value)}
+          <Toggle
+            checked={scheduleEnabled}
+            disabled={!!busy}
+            onChange={(checked) => void handleScheduleToggle(checked)}
           />
-          <div className="grid grid-cols-2 gap-sm pt-sm">
-            <OpsButton label={t('plan')} icon="add_task" busy={busy} workingLabel={t('working')} onClick={planRun} />
-            <OpsButton label={t('fnlVerify')} icon="fact_check" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={verifyFnl} />
-            <OpsButton label={t('hermesRepair')} icon="build" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={repairFnl} />
-            <OpsButton label={t('submitDryRun')} icon="send" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={submitDryRun} />
-            <OpsButton label={t('syncProducts')} icon="download" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={syncProducts} />
-            <OpsButton label={t('loadLogs')} icon="article" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={loadLogs} />
-            <OpsButton label={t('diagnose')} icon="troubleshoot" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={diagnoseRun} />
-            <OpsButton label={t('retryDryRun')} icon="restart_alt" busy={busy} workingLabel={t('working')} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(true)} />
-            <OpsButton label={t('retryReal')} icon="published_with_changes" busy={busy} workingLabel={t('working')} disabled={!activeRunId || !selectedNode} onClick={() => retrySelectedNode(false)} tone="danger" />
-            <OpsButton label={t('cancelDryRun')} icon="block" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={() => cancelRun(true)} />
-            <OpsButton label={t('cancelReal')} icon="dangerous" busy={busy} workingLabel={t('working')} disabled={!activeRunId} onClick={() => cancelRun(false)} tone="danger" />
-          </div>
-          {message && (
-            <div
-              className={`text-xs rounded p-sm border ${
-                message.kind === 'error'
-                  ? 'text-error bg-error-container/20 border-error/20'
-                  : 'text-on-surface-variant bg-surface-container-low border-white/10'
-              }`}
-            >
-              {message.text}
+        </div>
+      </Panel>
+
+      <section className="grid grid-cols-1 gap-gutter xl:grid-cols-1">
+        <Panel title="服务器状态" loading={loading && !status}>
+          {status ? (
+            <div className="space-y-sm text-sm">
+              <div className="flex flex-wrap gap-2">
+                <StatusPill active={scheduleEnabled} label={scheduleEnabled ? '调度运行中' : '调度已停止'} />
+                <StatusPill active={(status.active_runs ?? 0) > 0} label={`活跃 Run ${status.active_runs ?? 0}`} />
+              </div>
+              <SummaryRow label="服务器时间" value={formatTime(status.server_time_local)} />
+              <SummaryRow label="上次 Tick" value={status.last_tick_result || '-'} />
+              <SummaryRow label="下次 Tick" value={status.next_tick_at || '-'} />
+              <SummaryRow label="待补 FNL" value={`${status.pending_repairs ?? 0}`} danger={(status.pending_repairs ?? 0) > 0} />
             </div>
+          ) : (
+            <p className="text-sm text-amber-300">无法连接 smanager-server，请检查 backend/.env 中的 SERVER_API_BASE_URL</p>
+          )}
+        </Panel>
+      </section>
+
+      <Panel title={`预报区域 (${selectedRegions.length}/${regions.length})`}>
+        <div className="mb-md grid grid-cols-1 gap-sm md:grid-cols-2 xl:grid-cols-3">
+          {regions.map((r) => (
+            <label
+              key={r.region}
+              className="flex cursor-pointer items-center gap-2 rounded border border-white/10 bg-surface-container-low px-sm py-sm text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={selectedRegions.includes(r.region)}
+                onChange={() => toggleRegion(r.region)}
+              />
+              <span>
+                {r.display_name || r.region}
+                <span className="ml-1 text-xs text-outline">({r.slurm_code})</span>
+              </span>
+            </label>
+          ))}
+          {regions.length === 0 && !loading && (
+            <p className="text-sm text-outline">当前月份无可用区域，或服务器不可达。</p>
           )}
         </div>
+        <div className="flex flex-wrap gap-sm">
+          <button
+            type="button"
+            className="rounded border border-white/10 px-sm py-xs text-xs text-on-surface hover:bg-white/5"
+            onClick={() => setSelectedRegions(regions.map((r) => r.region))}
+          >
+            全选
+          </button>
+          <button
+            type="button"
+            className="rounded border border-white/10 px-sm py-xs text-xs text-on-surface hover:bg-white/5"
+            onClick={() => setSelectedRegions([])}
+          >
+            清空
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            className="rounded bg-primary-container px-md py-xs text-xs font-semibold text-on-primary-container disabled:opacity-40"
+            onClick={() => void handleSaveRegions()}
+          >
+            保存区域配置
+          </button>
+        </div>
+      </Panel>
 
-        <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
-          <div className="px-md py-sm bg-surface-container-high border-b border-white/10 flex items-center justify-between">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('workflowStatus')}</span>
-            <StatusPill status={workflow?.status ?? 'pending'} />
-          </div>
-          <div className="p-md">
-            <div className="grid grid-cols-3 gap-gutter mb-md">
-              <Metric label={t('runId')} value={workflow?.run_id || activeRunId || '-'} />
-              <Metric label={t('progress')} value={`${workflow?.progress ?? 0}%`} />
-              <Metric label={t('updated')} value={workflow?.updated_at ? new Date(workflow.updated_at).toLocaleString() : '-'} />
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="text-outline border-b border-white/10">
-                  <tr>
-                    <th className="px-sm py-sm text-[10px]">{t('node')}</th>
-                    <th className="px-sm py-sm text-[10px]">{t('status')}</th>
-                    <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
-                    <th className="px-sm py-sm text-[10px]">{t('job')}</th>
-                    <th className="px-sm py-sm text-[10px]">{t('message')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {sortedNodes.map((node) => (
-                    <tr
-                      key={node.node}
-                      onClick={() => setSelectedNode(node.node)}
-                      className={`cursor-pointer hover:bg-white/[0.03] ${selectedNode === node.node ? 'bg-cyan-400/5' : ''}`}
-                    >
-                      <td className="px-sm py-sm font-data-mono text-xs text-cyan-300">{node.node}</td>
-                      <td className="px-sm py-sm"><StatusPill status={node.status} /></td>
-                      <td className="px-sm py-sm text-xs text-on-surface">{node.progress}%</td>
-                      <td className="px-sm py-sm text-xs text-outline">{node.slurm_job_id || '-'}</td>
-                      <td className="px-sm py-sm text-xs text-on-surface-variant">{node.message}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <Panel title="手动操作">
+        <div className="flex flex-wrap gap-sm">
+          <ActionButton
+            icon="play_circle"
+            label="提交预报 (Tick)"
+            primary
+            disabled={!!busy}
+            onClick={() => void handleSubmitForecast(false)}
+          />
+          <ActionButton
+            icon="bolt"
+            label="强制提交 (force)"
+            disabled={!!busy}
+            onClick={() => void handleSubmitForecast(true)}
+          />
+          <ActionButton
+            icon="sync"
+            label="Reconcile"
+            disabled={!!busy}
+            onClick={() => void handleReconcile()}
+          />
         </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-gutter">
-        <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
-          <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('nodeLogs')}: {selectedNode}</span>
-          </div>
-          <pre className="p-md h-72 overflow-auto text-xs font-data-mono text-on-surface-variant whitespace-pre-wrap">{logs || t('noLogsLoaded')}</pre>
-        </div>
-        <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
-          <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('diagnostics')}</span>
-          </div>
-          <div className="p-md space-y-sm h-72 overflow-auto">
-            {diagnosis?.findings?.map((finding, index: number) => (
-              <div key={`${finding.node || 'run'}-${finding.code || index}`} className="border border-white/10 rounded p-sm bg-surface-container-low">
-                <div className="flex items-center justify-between gap-sm">
-                  <span className="font-data-mono text-xs text-cyan-300">{String(finding.node || 'run')}</span>
-                  <StatusPill status={String(finding.code || 'finding')} />
-                </div>
-                <p className="text-xs text-on-surface-variant mt-xs">{String(finding.message || '-')}</p>
-                <p className="text-[10px] text-outline mt-xs">{t('action')}: {String(finding.suggested_action || 'inspect_logs')}</p>
-              </div>
-            ))}
-            {diagnosis && (diagnosis.findings?.length ?? 0) === 0 && (
-              <p className="text-sm text-outline">{t('noFindings')}</p>
-            )}
-            {!diagnosis && <p className="text-sm text-outline">{t('noDiagnosticsLoaded')}</p>}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-gutter">
-        <div className="bg-surface-container border border-white/10 rounded-lg overflow-hidden">
-          <div className="px-md py-sm bg-surface-container-high border-b border-white/10">
-            <span className="font-label-caps text-label-caps text-on-surface-variant">{t('hermesActions')}</span>
-          </div>
-          <div className="p-md space-y-sm h-72 overflow-auto">
-            {actions.map((action) => (
-              <div key={action.id} className="border border-white/10 rounded p-sm bg-surface-container-low">
-                <div className="flex items-center justify-between">
-                  <span className="font-data-mono text-xs text-cyan-300">{action.action_type}</span>
-                  <StatusPill status={action.status} />
-                </div>
-                <p className="text-xs text-outline mt-xs">{action.reason || '-'}</p>
-              </div>
-            ))}
-            {actions.length === 0 && <p className="text-sm text-outline">{t('noActions')}</p>}
-          </div>
-        </div>
-      </section>
+        <p className="mt-md text-xs text-outline">
+          「提交预报」按当前月份自动季节与区域扫描缺失 FNL 并创建 Run；「强制提交」忽略部分重复检查。
+        </p>
+        <Link to="/admin" className="mt-sm inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200">
+          返回 Dashboard 查看 Run 列表
+          <span className="material-symbols-outlined text-sm">arrow_forward</span>
+        </Link>
+      </Panel>
     </div>
   );
 }
 
-function OpsButton({
-  label,
-  icon,
-  busy,
-  workingLabel,
+function Panel({ title, children, loading }: { title: string; children: ReactNode; loading?: boolean }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-surface-container p-md">
+      <h2 className="mb-md font-label-caps text-label-caps uppercase text-outline">{title}</h2>
+      {loading ? <p className="text-sm text-outline">加载中…</p> : children}
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-outline">{label}</span>
+      <span className={`font-data-mono text-xs ${danger ? 'text-error' : 'text-on-surface'}`}>{value}</span>
+    </div>
+  );
+}
+
+function StatusPill({ active, label }: { active: boolean; label: string }) {
+  return (
+    <span
+      className={`rounded-full px-sm py-0.5 text-[10px] font-semibold uppercase ${
+        active ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high text-outline'
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function Toggle({
+  checked,
   disabled,
-  onClick,
-  tone = 'primary',
+  onChange,
 }: {
-  label: string;
-  icon: string;
-  busy: string;
-  workingLabel: string;
+  checked: boolean;
   disabled?: boolean;
-  onClick: () => void;
-  tone?: 'primary' | 'danger';
+  onChange: (checked: boolean) => void;
 }) {
   return (
     <button
-      onClick={onClick}
-      disabled={disabled || !!busy}
-      className={`px-sm py-sm rounded-lg text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40 ${
-        tone === 'danger'
-          ? 'bg-error-container/30 text-error border border-error/30 hover:bg-error-container/40'
-          : 'bg-primary-container text-on-primary-container hover:shadow-[0_0_12px_rgba(0,102,255,0.25)]'
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-7 w-12 rounded-full transition-colors disabled:opacity-40 ${
+        checked ? 'bg-primary' : 'bg-surface-container-high'
       }`}
     >
-      <span className="material-symbols-outlined text-sm">{icon}</span>
-      {busy === label ? workingLabel : label}
+      <span
+        className={`absolute top-0.5 h-6 w-6 rounded-full bg-on-primary transition-transform ${
+          checked ? 'left-[22px]' : 'left-0.5'
+        }`}
+      />
     </button>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function ActionButton({
+  icon,
+  label,
+  primary,
+  disabled,
+  onClick,
+}: {
+  icon: string;
+  label: string;
+  primary?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="bg-surface-container-low border border-white/10 rounded p-sm">
-      <p className="font-label-caps text-[10px] text-outline">{label}</p>
-      <p className="font-data-mono text-sm text-on-surface truncate">{value}</p>
-    </div>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 rounded-lg px-md py-sm text-sm disabled:opacity-40 ${
+        primary
+          ? 'bg-primary text-on-primary hover:opacity-90'
+          : 'border border-white/10 bg-surface-container-high text-on-surface hover:bg-white/10'
+      }`}
+    >
+      <span className="material-symbols-outlined text-base">{icon}</span>
+      {label}
+    </button>
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const color = status === 'success' || status === 'server_ok' ? 'text-tertiary border-tertiary/30 bg-tertiary/10' : status === 'error' || status.includes('bad') || status === 'missing' ? 'text-error border-error/30 bg-error/10' : 'text-cyan-300 border-cyan-400/30 bg-cyan-400/10';
-  return <span className={`inline-flex px-2 py-0.5 rounded border text-[10px] uppercase font-data-mono ${color}`}>{status}</span>;
+function formatTime(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', { hour12: false });
 }

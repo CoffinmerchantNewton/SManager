@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.database import get_db
 from ..schemas.run_control import FlowResponse
+from ..services.server_client import server_client
 from ..services.storage import StorageService
 
 router = APIRouter()
@@ -42,13 +43,39 @@ def doctor(db: Session = Depends(get_db)):
     except Exception as exc:
         checks.append(check("database", "error", str(exc), {"error": exc.__class__.__name__}))
 
-    checks.append(
-        check(
-            "server_api",
-            "ok" if settings.SERVER_API_BASE_URL else "warning",
-            settings.SERVER_API_BASE_URL or "SERVER_API_BASE_URL is not configured yet",
+    if settings.SERVER_API_BASE_URL:
+        try:
+            health = server_client.health()
+            checks.append(
+                check(
+                    "server_api",
+                    "ok" if not health.stale else "warning",
+                    settings.SERVER_API_BASE_URL,
+                    {
+                        "source": health.source,
+                        "stale": health.stale,
+                        "payload": health.data,
+                    },
+                )
+            )
+        except Exception as exc:
+            cached = health if "health" in locals() else None
+            checks.append(
+                check(
+                    "server_api",
+                    "warning" if cached and cached.stale else "error",
+                    str(exc),
+                    {"base_url": settings.SERVER_API_BASE_URL},
+                )
+            )
+    else:
+        checks.append(
+            check(
+                "server_api",
+                "warning",
+                "SERVER_API_BASE_URL is not configured yet",
+            )
         )
-    )
     checks.append(
         check(
             "tunnel",
@@ -103,13 +130,20 @@ def cleanup_storage(payload: StorageCleanupRequest):
 @router.get("/preflight", response_model=FlowResponse)
 def preflight(db: Session = Depends(get_db)):
     doctor_result = doctor(db)
+    server_preflight = {"configured": server_client.configured}
+    if server_client.configured:
+        status_result = server_client.daemon_status()
+        server_preflight.update(
+            {
+                "source": status_result.source,
+                "stale": status_result.stale,
+                "daemon": status_result.data,
+            }
+        )
     return FlowResponse(
         ok=bool(doctor_result.ok),
         data={
             "doctor": doctor_result.data,
-            "server_preflight": {
-                "code": "server_first_migration_pending",
-                "message": "Server preflight will be implemented through smanager-server and the Docker tunnel.",
-            },
+            "server_preflight": server_preflight,
         },
     )

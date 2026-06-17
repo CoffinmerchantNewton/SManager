@@ -37,7 +37,9 @@ class FnlVerifyRequest(BaseModel):
 
 
 class FnlRepairRequest(FnlVerifyRequest):
-    pass
+    filenames: list[str] | None = None
+    dry_run: bool = False
+    use_cache: bool = True
 
 
 class FlowResponse(BaseModel):

@@ -1,15 +1,33 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { StatusPill } from '../components/RunDisplay';
 import { useI18n } from '../i18n';
-import { agentApi, productsApi, runsApi } from '../services/api';
-import type { AgentAction, ForecastProduct, ForecastRunWorkflowStatus } from '../types';
+import { useRunBackNavigation } from '../hooks/useRunNavigation';
+import { buildRunKey, productsApi, runsApi } from '../services/api';
+import type { ForecastProduct, ForecastRunWorkflowStatus, RunStateJson } from '../types';
 import { errorMessage } from '../utils/errors';
+
+const PIPELINE_STAGES = [
+  'geogrid',
+  'linkgrib',
+  'ungrib',
+  'metgrid',
+  'real',
+  'wrfchemi',
+  'wrf',
+  'postprocess',
+] as const;
 
 interface RunContext {
   run_id: string;
   generated_at?: string;
   run_dir?: string;
   status?: ForecastRunWorkflowStatus;
+  state?: RunStateJson;
+  effective_state?: Record<string, string>;
+  failure?: RunStateJson['failure'];
+  anomalies?: string[];
+  slurm_jobs?: Array<{ job_id: string; name: string; state: string; time?: string }>;
   diagnose?: {
     findings?: JsonRecord[];
   };
@@ -20,19 +38,18 @@ interface RunContext {
     size_bytes: number;
     tail: string[];
   }>;
-  product_manifest?: {
-    products?: JsonRecord[];
-  };
+  stale?: boolean;
 }
 
 type JsonRecord = Record<string, unknown>;
 
 export default function RunDetail() {
   const { t } = useI18n();
-  const { runId = '' } = useParams();
+  const { season = '', region = '', runId = '' } = useParams();
+  const { goBack, backLabel } = useRunBackNavigation('/admin/dashboard', t('back'));
+  const runKey = buildRunKey(season, region, runId);
   const [context, setContext] = useState<RunContext | null>(null);
   const [products, setProducts] = useState<ForecastProduct[]>([]);
-  const [actions, setActions] = useState<AgentAction[]>([]);
   const [selectedLog, setSelectedLog] = useState('');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -44,68 +61,82 @@ export default function RunDetail() {
   }, [logs, selectedLog]);
 
   const loadDetail = useCallback(async () => {
+    if (!runKey || runKey.includes('//')) return;
     setBusy('loading');
     setError('');
     try {
-      const [contextResponse, productsResponse, actionsResponse] = await Promise.all([
-        runsApi.context(runId, { tail: 160, event_limit: 120, max_logs: 12, live: true }),
-        productsApi.getAll({ run_id: runId, status: 'ready', limit: 100 }),
-        agentApi.actions({ run_id: runId, limit: 50 }),
+      const [contextResponse, productsResponse, diagnoseResponse] = await Promise.all([
+        runsApi.context(runKey, { tail: 160 }),
+        runsApi.products(runKey),
+        runsApi.diagnose(runKey),
       ]);
-      setContext(contextResponse.data.data);
-      setProducts(productsResponse.data as ForecastProduct[]);
-      setActions(actionsResponse.data.data.actions ?? []);
-      const nextLogs = contextResponse.data.data.logs ?? [];
+      const data = contextResponse.data.data;
+      setContext({
+        ...data,
+        diagnose: diagnoseResponse.data.data,
+      });
+      setProducts(productsResponse.data.data.products ?? []);
+      const nextLogs = data.logs ?? [];
       setSelectedLog((current) => current || nextLogs[0]?.name || '');
     } catch (err: unknown) {
       setError(errorMessage(err, 'Failed to load run detail'));
     } finally {
       setBusy('');
     }
-  }, [runId]);
-
-  const syncProducts = useCallback(async () => {
-    setBusy('sync');
-    setError('');
-    try {
-      await runsApi.syncProducts(runId);
-      await loadDetail();
-    } catch (err: unknown) {
-      setError(errorMessage(err, 'Failed to sync products'));
-      setBusy('');
-    }
-  }, [loadDetail, runId]);
+  }, [runKey]);
 
   useEffect(() => {
-    if (!runId) return;
     void loadDetail();
-  }, [loadDetail, runId]);
+  }, [loadDetail]);
+
+  const pipelineStages = useMemo(() => {
+    const effective = context?.effective_state ?? {};
+    const raw = context?.state;
+    const steps = raw?.steps ?? {};
+
+    return PIPELINE_STAGES.map((stage) => {
+      const stepEntry = steps[stage];
+      const stepDetail =
+        stepEntry && typeof stepEntry === 'object' ? stepEntry : undefined;
+      const status = effective[stage] ?? (typeof stepEntry === 'string' ? stepEntry : stepEntry?.status) ?? 'pending';
+      return {
+        stage,
+        status,
+        started_at: stepDetail?.started_at,
+        finished_at: stepDetail?.finished_at,
+      };
+    });
+  }, [context?.effective_state, context?.state]);
+
+  const failureText = useMemo(() => {
+    const failure = context?.failure ?? context?.state?.failure;
+    if (!failure) return null;
+    if (typeof failure === 'string') return failure;
+    const parts = [
+      failure.step || failure.stage,
+      failure.message || failure.error,
+    ].filter(Boolean);
+    return parts.join(': ');
+  }, [context?.failure, context?.state?.failure]);
 
   const workflow = context?.status;
-  const wrfProgress = workflow?.nodes?.find((node) => node.node === 'wrf_run')?.wrfout_progress;
   const findings = context?.diagnose?.findings ?? [];
-  const events = context?.events ?? [];
-  const manifestProducts = useMemo(() => context?.product_manifest?.products ?? [], [context?.product_manifest?.products]);
-  const stationProducts = useMemo(() => manifestProducts.filter((product) => productMatchesIntent(product, 'station')), [manifestProducts]);
-  const evaluationProducts = useMemo(() => manifestProducts.filter((product) => productMatchesIntent(product, 'evaluation')), [manifestProducts]);
-  const historyProducts = useMemo(() => {
-    const byManifest = manifestProducts.filter((product) => productMatchesIntent(product, 'history'));
-    const syncedHistory = products.filter((product) => productMatchesSyncedProductIntent(product, 'history'));
-    return [...byManifest, ...syncedHistory.map(productToRecord)];
-  }, [manifestProducts, products]);
 
   return (
     <div className="p-lg technical-grid min-h-full flex flex-col gap-gutter">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <Link to="/admin/runs" className="inline-flex items-center gap-1 text-xs text-outline hover:text-on-surface">
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex items-center gap-1 text-xs text-outline hover:text-on-surface"
+          >
             <span className="material-symbols-outlined text-sm">arrow_back</span>
-            {t('runDetailBack')}
-          </Link>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface mt-2 break-all">{runId}</h1>
-          <p className="text-outline font-body-md">
-            {t('runDetailSubtitle')}
-          </p>
+            {backLabel}
+          </button>
+          <h1 className="font-headline-xl text-headline-xl text-on-surface mt-2 break-all">{runKey}</h1>
+          <p className="text-outline font-body-md">{t('runDetailSubtitle')}</p>
+          {context?.stale && <p className="mt-1 text-xs text-amber-300">数据来自本地缓存（服务器暂不可达）</p>}
         </div>
         <div className="flex flex-wrap items-center gap-sm">
           <button
@@ -116,21 +147,6 @@ export default function RunDetail() {
             <span className="material-symbols-outlined align-middle mr-2 text-sm">refresh</span>
             {busy === 'loading' ? `${t('loading')}...` : t('refresh')}
           </button>
-          <button
-            onClick={syncProducts}
-            disabled={!!busy}
-            className="px-md py-sm bg-primary-container text-on-primary-container rounded-lg text-sm font-semibold disabled:opacity-40"
-          >
-            <span className="material-symbols-outlined align-middle mr-2 text-sm">download</span>
-            {busy === 'sync' ? `${t('syncing')}...` : t('syncProducts')}
-          </button>
-          <Link
-            to={`/admin/products?run_id=${encodeURIComponent(runId)}`}
-            className="px-md py-sm bg-surface-container-high border border-white/10 rounded-lg text-sm text-on-surface hover:bg-white/10"
-          >
-            <span className="material-symbols-outlined align-middle mr-2 text-sm">history</span>
-            {t('productHistory')}
-          </Link>
         </div>
       </header>
 
@@ -141,30 +157,77 @@ export default function RunDetail() {
       <section className="grid grid-cols-1 xl:grid-cols-4 gap-gutter">
         <Metric label={t('status')} value={workflow?.status ?? '-'} accent={<StatusPill status={workflow?.status ?? 'pending'} />} />
         <Metric label={t('progress')} value={`${workflow?.progress ?? 0}%`} />
-        <Metric label={t('events')} value={`${events.length}`} />
-        <Metric label={t('productsTitle')} value={`${products.length} ${t('synced')} / ${manifestProducts.length} ${t('manifest')}`} />
+        <Metric label={t('domain')} value={region || '-'} />
+        <Metric label="Slurm 活跃" value={`${context?.slurm_jobs?.filter((j) => ['RUNNING', 'PENDING', 'CONFIGURING'].includes((j.state || '').toUpperCase())).length ?? 0}`} />
       </section>
 
-      <Panel title={t('wrfOutputProgress')}>
-        {wrfProgress?.available ? (
-          <div className="grid grid-cols-1 gap-gutter xl:grid-cols-[0.8fr_1.2fr]">
-            <div className="grid grid-cols-2 gap-sm">
-              <Metric label={t('wrfProgress')} value={`${wrfProgress.progress ?? 0}%`} />
-              <Metric label={t('eta')} value={wrfProgress.eta_human || '-'} />
-              <Metric label={t('latestForecastTime')} value={formatUtc(wrfProgress.latest_forecast_time)} />
-              <Metric label={t('wrfoutCount')} value={`${wrfProgress.wrfout_count ?? 0}`} />
-            </div>
-            <div className="min-w-0 rounded border border-white/10 bg-surface-container-low p-sm">
-              <p className="font-label-caps text-[10px] uppercase text-outline">{t('latestWrfout')}</p>
-              <p className="mt-xs break-all font-data-mono text-xs text-cyan-300">{wrfProgress.latest_output_path || '-'}</p>
-              <p className="mt-sm text-xs text-on-surface-variant">
-                {t('fileTime')}: {formatUtc(wrfProgress.latest_output_mtime)} / {t('method')}: {wrfProgress.method || '-'}
-              </p>
-            </div>
+      {(context?.slurm_jobs?.length ?? 0) > 0 && (
+        <Panel title="Slurm 任务">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="border-b border-white/10 text-outline">
+                <tr>
+                  <th className="px-sm py-sm text-[10px]">Job ID</th>
+                  <th className="px-sm py-sm text-[10px]">Name</th>
+                  <th className="px-sm py-sm text-[10px]">{t('status')}</th>
+                  <th className="px-sm py-sm text-[10px]">Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {context?.slurm_jobs?.map((job) => (
+                  <tr key={job.job_id} className="hover:bg-white/[0.03]">
+                    <td className="px-sm py-sm font-data-mono text-xs text-cyan-300">{job.job_id}</td>
+                    <td className="px-sm py-sm text-xs text-on-surface">{job.name}</td>
+                    <td className="px-sm py-sm"><StatusPill status={job.state} /></td>
+                    <td className="px-sm py-sm text-xs text-outline">{job.time || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <div className="rounded border border-white/10 bg-surface-container-low p-sm text-sm text-outline">
-            {t('noWrfProgress')}{wrfProgress?.reason ? `: ${wrfProgress.reason}` : '.'}
+        </Panel>
+      )}
+
+      <Panel title="Pipeline State">
+        {context?.state?.updated_at && (
+          <p className="mb-sm text-[10px] text-outline">state.json 更新于 {context.state.updated_at}</p>
+        )}
+        {failureText && (
+          <div className="mb-md rounded border border-error/30 bg-error-container/10 p-sm text-xs text-error">
+            failure: {failureText}
+          </div>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="border-b border-white/10 text-outline">
+              <tr>
+                <th className="px-sm py-sm text-[10px]">Stage</th>
+                <th className="px-sm py-sm text-[10px]">{t('status')}</th>
+                <th className="px-sm py-sm text-[10px]">Started</th>
+                <th className="px-sm py-sm text-[10px]">Finished</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {pipelineStages.map((item) => (
+                <tr key={item.stage} className="hover:bg-white/[0.03]">
+                  <td className="px-sm py-sm font-data-mono text-xs text-cyan-300">{item.stage}</td>
+                  <td className="px-sm py-sm"><StatusPill status={item.status} /></td>
+                  <td className="px-sm py-sm text-xs text-outline">{item.started_at || '-'}</td>
+                  <td className="px-sm py-sm text-xs text-outline">{item.finished_at || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {pipelineStages.every((item) => item.status === 'pending') && !context?.state && (
+          <EmptyState text="No state.json stages yet." />
+        )}
+        {(context?.anomalies?.length ?? 0) > 0 && (
+          <div className="mt-md space-y-xs rounded border border-error/30 bg-error-container/10 p-sm">
+            <p className="text-[10px] font-semibold uppercase text-error">Reconcile 异常</p>
+            {(context?.anomalies ?? []).map((item) => (
+              <p key={item} className="text-xs text-on-surface-variant">{item}</p>
+            ))}
           </div>
         )}
       </Panel>
@@ -178,7 +241,8 @@ export default function RunDetail() {
                   <th className="px-sm py-sm text-[10px]">{t('node')}</th>
                   <th className="px-sm py-sm text-[10px]">{t('status')}</th>
                   <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
-                  <th className="px-sm py-sm text-[10px]">{t('attempt')}</th>
+                  <th className="px-sm py-sm text-[10px]">Started</th>
+                  <th className="px-sm py-sm text-[10px]">Finished</th>
                   <th className="px-sm py-sm text-[10px]">{t('job')}</th>
                   <th className="px-sm py-sm text-[10px]">{t('message')}</th>
                 </tr>
@@ -189,8 +253,9 @@ export default function RunDetail() {
                     <td className="px-sm py-sm font-data-mono text-xs text-cyan-300">{node.node}</td>
                     <td className="px-sm py-sm"><StatusPill status={node.status} /></td>
                     <td className="px-sm py-sm text-xs text-on-surface">{node.progress}%</td>
-                    <td className="px-sm py-sm text-xs text-outline">{node.attempt}</td>
-                    <td className="px-sm py-sm text-xs text-outline">{node.slurm_job_id || '-'}</td>
+                    <td className="px-sm py-sm text-xs text-outline">{node.started_at || '-'}</td>
+                    <td className="px-sm py-sm text-xs text-outline">{node.finished_at || '-'}</td>
+                    <td className="px-sm py-sm text-xs text-outline">{node.slurm_job_id || '-'}{node.slurm_state ? ` (${node.slurm_state})` : ''}</td>
                     <td className="px-sm py-sm text-xs text-on-surface-variant">{node.message || '-'}</td>
                   </tr>
                 ))}
@@ -209,7 +274,6 @@ export default function RunDetail() {
                   <StatusPill status={String(finding.code ?? finding.level ?? 'finding')} />
                 </div>
                 <p className="mt-xs text-xs text-on-surface-variant">{String(finding.message ?? '-')}</p>
-                <p className="mt-xs text-[10px] text-outline">{t('action')}: {String(finding.suggested_action ?? 'inspect_context')}</p>
               </div>
             ))}
             {findings.length === 0 && <EmptyState text={t('noDiagnosticFindings')} />}
@@ -237,92 +301,47 @@ export default function RunDetail() {
           <pre className="h-80 overflow-auto whitespace-pre-wrap rounded border border-white/10 bg-black/20 p-sm text-xs text-on-surface-variant">
             {activeLog?.tail?.join('\n') || t('noLogTail')}
           </pre>
+          <p className="mt-sm break-all text-[10px] text-outline">{context?.run_dir || '-'}</p>
         </Panel>
 
-        <Panel title={t('recentEvents')}>
-          <div className="max-h-[380px] overflow-auto divide-y divide-white/5">
-            {events.map((event, index) => (
-              <div key={`${event.created_at ?? 'event'}-${event.event_type ?? 'event'}-${event.node ?? 'run'}-${index}`} className="py-sm">
-                <div className="flex flex-wrap items-center justify-between gap-sm">
-                  <span className="font-data-mono text-xs text-cyan-300">{String(event.event_type ?? 'event')}</span>
-                  <span className="text-[10px] text-outline">{String(event.created_at ?? '-')}</span>
+        <Panel title="Slurm Jobs">
+          <div className="space-y-sm">
+            {(context?.slurm_jobs ?? []).map((job) => (
+              <div key={job.job_id} className="rounded border border-white/10 bg-surface-container-low p-sm">
+                <div className="flex items-center justify-between gap-sm">
+                  <span className="font-data-mono text-xs text-cyan-300">{job.job_id}</span>
+                  <StatusPill status={job.state} />
                 </div>
-                <p className="mt-xs text-xs text-on-surface-variant">{String(event.message ?? '-')}</p>
-                <p className="mt-xs text-[10px] text-outline">{String(event.node ?? 'run')} / {String(event.level ?? 'info')}</p>
+                <p className="mt-xs text-xs text-outline">{job.name}</p>
+                <p className="mt-xs text-[10px] text-on-surface-variant">{job.time || '-'}</p>
               </div>
             ))}
-            {events.length === 0 && <EmptyState text={t('noEvents')} />}
+            {(context?.slurm_jobs?.length ?? 0) === 0 && <EmptyState text="No matching Slurm jobs." />}
           </div>
         </Panel>
       </section>
 
-      <section className="grid grid-cols-1 2xl:grid-cols-2 gap-gutter">
-        <Panel title={t('stationCurvesAndEvaluation')}>
-          <div className="grid grid-cols-1 gap-sm xl:grid-cols-3">
-            <ProductInsightList title={t('stationCurves')} icon="show_chart" products={stationProducts} empty={t('noStationProducts')} />
-            <ProductInsightList title={t('errorEvaluation')} icon="analytics" products={evaluationProducts} empty={t('noEvaluationProducts')} />
-            <ProductInsightList title={t('historyCompare')} icon="compare_arrows" products={historyProducts} empty={t('noHistoryProducts')} />
-          </div>
-        </Panel>
-
-        <Panel title={t('manifestProducts')}>
-          <div className="space-y-sm max-h-96 overflow-auto">
-            {manifestProducts.map((product, index) => (
-              <div key={`${String(product.name ?? 'product')}-${index}`} className="rounded border border-white/10 bg-surface-container-low p-sm">
-                <div className="flex flex-wrap items-center justify-between gap-sm">
-                  <span className="font-data-mono text-xs text-cyan-300">{String(product.name ?? '-')}</span>
-                  <StatusPill status={String(product.type ?? 'product')} />
-                </div>
-                <p className="mt-xs break-all text-[10px] text-outline">{String(product.path ?? product.server_path ?? '-')}</p>
-                <div className="mt-xs flex flex-wrap gap-2 text-[10px] text-on-surface-variant">
-                  <span>subtype: {String(product.subtype ?? '-')}</span>
-                  <span>variable: {String(product.variable ?? '-')}</span>
-                  <span>unit: {String(product.unit ?? '-')}</span>
-                  <span>capability: {String(product.capability_status ?? 'generated')}</span>
-                </div>
+      <Panel title={t('syncedProducts')}>
+        <div className="space-y-sm max-h-96 overflow-auto">
+          {products.map((product) => (
+            <div key={product.id} className="flex items-center justify-between gap-sm rounded border border-white/10 bg-surface-container-low p-sm">
+              <div className="min-w-0">
+                <p className="truncate font-data-mono text-xs text-cyan-300">{product.product_name}</p>
+                <p className="text-[10px] text-outline">{product.product_type} / {product.pollen_type} / {product.resolution}</p>
               </div>
-            ))}
-            {manifestProducts.length === 0 && <EmptyState text={t('noManifestProducts')} />}
-          </div>
-        </Panel>
-
-        <Panel title={t('syncedProducts')}>
-          <div className="space-y-sm max-h-96 overflow-auto">
-            {products.map((product) => (
-              <div key={product.id} className="flex items-center justify-between gap-sm rounded border border-white/10 bg-surface-container-low p-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-data-mono text-xs text-cyan-300">{product.product_name}</p>
-                  <p className="text-[10px] text-outline">{product.product_type} / {product.pollen_type} / {product.resolution}</p>
-                </div>
+              {product.id ? (
                 <a
                   href={productsApi.downloadUrl(product.id)}
                   className="inline-flex items-center gap-1 rounded bg-primary-container px-2 py-1 text-[10px] font-semibold text-on-primary-container"
                 >
-                  <span className="material-symbols-outlined text-sm">download</span>
                   {t('download')}
                 </a>
-              </div>
-            ))}
-            {products.length === 0 && <EmptyState text={t('noSyncedDbProducts')} />}
-          </div>
-        </Panel>
-
-        <Panel title={t('hermesActions')}>
-          <div className="space-y-sm max-h-96 overflow-auto">
-            {actions.map((action) => (
-              <div key={action.id} className="rounded border border-white/10 bg-surface-container-low p-sm">
-                <div className="flex items-center justify-between gap-sm">
-                  <span className="font-data-mono text-xs text-cyan-300">{action.action_type}</span>
-                  <StatusPill status={action.status} />
-                </div>
-                <p className="mt-xs text-xs text-on-surface-variant">{action.reason || '-'}</p>
-                <p className="mt-xs text-[10px] text-outline">{action.created_at || '-'}</p>
-              </div>
-            ))}
-            {actions.length === 0 && <EmptyState text={t('noAgentActions')} />}
-          </div>
-        </Panel>
-      </section>
+              ) : null}
+            </div>
+          ))}
+          {products.length === 0 && <EmptyState text={t('noSyncedDbProducts')} />}
+        </div>
+      </Panel>
     </div>
   );
 }
@@ -350,98 +369,6 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const normalized = status.toLowerCase();
-  const color =
-    normalized === 'success' || normalized === 'ready'
-      ? 'text-tertiary border-tertiary/30 bg-tertiary/10'
-      : normalized === 'error' || normalized.includes('missing') || normalized.includes('bad')
-        ? 'text-error border-error/30 bg-error/10'
-        : 'text-cyan-300 border-cyan-400/30 bg-cyan-400/10';
-  return <span className={`inline-flex rounded border px-2 py-0.5 font-data-mono text-[10px] uppercase ${color}`}>{status}</span>;
-}
-
 function EmptyState({ text }: { text: string }) {
   return <p className="text-sm text-outline">{text}</p>;
-}
-
-function ProductInsightList({ title, icon, products, empty }: { title: string; icon: string; products: JsonRecord[]; empty: string }) {
-  return (
-    <div className="rounded border border-white/10 bg-surface-container-low p-sm">
-      <div className="mb-sm flex items-center justify-between gap-sm">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-base text-cyan-300">{icon}</span>
-          <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">{title}</span>
-        </div>
-        <span className="font-data-mono text-[10px] text-outline">{products.length}</span>
-      </div>
-      <div className="space-y-xs">
-        {products.slice(0, 5).map((product, index) => (
-          <div key={`${String(product.name ?? product.product_name ?? title)}-${index}`} className="rounded bg-black/10 p-xs">
-            <p className="truncate font-data-mono text-[11px] text-cyan-200">{String(product.name ?? product.product_name ?? '-')}</p>
-            <p className="mt-1 truncate text-[10px] text-outline">
-              {String(product.type ?? product.product_type ?? 'product')} / {String(product.subtype ?? '-')} / {String(product.variable ?? '-')}
-            </p>
-          </div>
-        ))}
-        {products.length === 0 && <p className="text-xs text-outline">{empty}</p>}
-      </div>
-    </div>
-  );
-}
-
-function productMatchesIntent(product: JsonRecord, intent: string) {
-  return matchProductText(
-    intent,
-    product.name,
-    product.product_name,
-    product.type,
-    product.product_type,
-    product.subtype,
-    product.variable,
-    product.path,
-    product.server_path,
-    product.capability_status,
-    product.source_run_id,
-  );
-}
-
-function productMatchesSyncedProductIntent(product: ForecastProduct, intent: string) {
-  return matchProductText(
-    intent,
-    product.product_name,
-    product.product_type,
-    product.subtype,
-    product.variable,
-    product.file_path,
-    product.capability_status,
-    product.source_run_id,
-  );
-}
-
-function matchProductText(intent: string, ...parts: unknown[]) {
-  const haystack = parts.filter(Boolean).join(' ').toLowerCase();
-  if (intent === 'station') return /station|site|city|curve|timeseries|time_series|forecast_json/.test(haystack);
-  if (intent === 'evaluation') return /eval|error|rmse|mae|bias|score/.test(haystack);
-  if (intent === 'history') return /history|archive|compare|previous/.test(haystack) || haystack.includes('_official');
-  return false;
-}
-
-function productToRecord(product: ForecastProduct): JsonRecord {
-  return {
-    name: product.product_name,
-    type: product.product_type,
-    subtype: product.subtype,
-    variable: product.variable,
-    path: product.file_path,
-    source_run_id: product.source_run_id,
-    capability_status: product.capability_status,
-  };
-}
-
-function formatUtc(value?: string | null) {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().replace('T', ' ').replace('.000Z', 'Z');
 }

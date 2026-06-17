@@ -2,10 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
-import WorkflowEditor from './pages/WorkflowEditor';
-import TaskScheduler from './pages/TaskScheduler';
 import ProductsManagement from './pages/ProductsManagement';
 import RunOperations from './pages/RunOperations';
+import RunsList from './pages/RunsList';
 import RunDetail from './pages/RunDetail';
 import FnlManagement from './pages/FnlManagement';
 import Portal from './pages/Portal';
@@ -34,11 +33,10 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="runs/:runId" element={<RunDetail />} />
+                    <Route path="runs/list" element={<RunsList />} />
+                    <Route path="runs/:season/:region/:runId" element={<RunDetail />} />
                     <Route path="runs" element={<RunOperations />} />
                     <Route path="fnl" element={<FnlManagement />} />
-                    <Route path="workflow" element={<WorkflowEditor />} />
-                    <Route path="scheduler" element={<TaskScheduler />} />
                     <Route path="products" element={<ProductsManagement />} />
                     <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
                   </Routes>

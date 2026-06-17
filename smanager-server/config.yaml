@@ -1,0 +1,58 @@
+server:
+  host: 0.0.0.0
+  port: 8765
+  api_token: ''
+schedule:
+  enabled: true
+  tick_time: 07:30
+  timezone: Asia/Shanghai
+  repair_deadline: 07:50
+  poll_interval: 60
+tianqing:
+  enabled: true
+  start_time: 02:00
+  timezone: Asia/Shanghai
+  script_path: /g7/anxq/Zhangjt/workspace/auto-pollen-lijt/Tianqing_data_download/music-sdk-scriptFile-v2.0/download_dates.sh
+  data_dir: /g7/anxq/Zhangjt/workspace/pollen_emission/Mete_Data/Tianqing_TEM_Avg_download
+  min_lines: 100
+  timeout_seconds: 3600
+forecast:
+  season: autumn
+  pre: pre7
+  regions:
+  - Beijing
+  - InnerMG
+  - Shaanxi
+  - Yulin
+  - China
+  fnl_gfs_default: 2
+  fnl_gfs_fallback: 3
+  task_dup_action: continue
+paths:
+  project_root: /g7/anxq/Zhangjt/workspace/auto-pollen-lijt
+  fnl_staging: /g7/anxq/Zhangjt/static/fnl/staging
+  fnl_archive: /g7/anxq/Zhangjt/static/fnl
+  wgrib2: /g1/app/mathlib/wgrib2/2.0.6/intel/bin/wgrib2
+  fnl_min_mb: 5.0
+file_tree:
+  roots:
+    project:
+      path: .
+      label: 项目根目录
+      writable: false
+    runs:
+      path: runs
+      label: 运行目录
+      writable: false
+    output:
+      path: output
+      label: 输出目录
+      writable: false
+    logs:
+      path: logs
+      label: 日志目录
+      writable: false
+    fnl:
+      path: /g7/anxq/Zhangjt/static/fnl
+      label: FNL 补给目录
+      writable: false

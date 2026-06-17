@@ -22,10 +22,17 @@ class Settings(BaseSettings):
 
     SERVER_API_BASE_URL: Optional[str] = None
     SERVER_API_TOKEN: Optional[str] = None
+    SERVER_REQUEST_TIMEOUT: int = 30
+    SERVER_TICK_TIMEOUT: int = 3600
     TUNNEL_HEALTH_URL: Optional[str] = None
     SERVER_FNL_ROOTS: Optional[str] = None
     SERVER_FNL_REPAIR_ROOT: Optional[str] = None
     FNL_DOWNLOAD_COMMAND: Optional[str] = None
+    FNL_GDEX_BASE_URL: str = "https://osdf-director.osg-htc.org/ncar/gdex/d083002/grib2"
+    FNL_DOWNLOAD_MAX_RETRIES: int = 5
+    FNL_DOWNLOAD_RETRY_DELAY: int = 10
+    FNL_DOWNLOAD_CHUNK_SIZE: int = 262144
+    FNL_UPLOAD_TIMEOUT: int = 600
     LOCAL_FNL_CACHE_DIR: str = "runtime/fnl"
     FNL_MIN_MB: float = 5.0
     LOCAL_PRODUCTS_DIR: str = "runtime/products"
@@ -37,5 +44,6 @@ class Settings(BaseSettings):
     NOTIFICATION_WEBHOOK_TIMEOUT: int = 10
     STORAGE_RETENTION_DAYS: int = 30
     STORAGE_MAX_GB: float = 50.0
+    FNL_REPAIR_POLL_INTERVAL_SECONDS: int = 0
 
 settings = Settings()

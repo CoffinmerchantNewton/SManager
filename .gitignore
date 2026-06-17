@@ -48,3 +48,7 @@ wrf-pollen/auto-pollen/WRF/**
 wrf-pollen/auto-pollen/logs/**
 /__pycache__
 *.pyc
+
+连接信息.txt
+/auto-pollen-lijt
+/backend/runtime

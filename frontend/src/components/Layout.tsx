@@ -11,8 +11,6 @@ const navItems = [
   { path: '/admin/dashboard', match: 'dashboard', labelKey: 'navDashboard', icon: 'dashboard' },
   { path: '/admin/runs', match: 'runs', labelKey: 'navRuns', icon: 'rocket_launch' },
   { path: '/admin/fnl', match: 'fnl', labelKey: 'navFnl', icon: 'cloud_sync' },
-  { path: '/admin/workflow', match: 'workflow', labelKey: 'navWorkflow', icon: 'account_tree' },
-  { path: '/admin/scheduler', match: 'scheduler', labelKey: 'navScheduler', icon: 'schedule' },
   { path: '/admin/products', match: 'products', labelKey: 'navProducts', icon: 'analytics' },
 ];
 
@@ -78,10 +76,6 @@ export default function Layout({ children }: LayoutProps) {
               ))}
             </div>
           </div>
-          <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container-high py-3 text-on-surface transition-colors hover:bg-surface-variant">
-            <span className="material-symbols-outlined text-[18px]">add_box</span>
-            {t('newSimulation')}
-          </button>
         </div>
       </aside>
 

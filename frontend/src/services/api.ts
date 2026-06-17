@@ -53,23 +53,6 @@ export const authApi = {
   me: () => api.get('/auth/me'),
 };
 
-export const workflowsApi = {
-  getAll: () => api.get('/workflows'),
-  getById: (id: number) => api.get(`/workflows/${id}`),
-  create: (data: ApiPayload) => api.post('/workflows', data),
-  getNodes: (id: number) => api.get(`/workflows/${id}/nodes`),
-  updateStatus: (id: number, status: string) => api.patch(`/workflows/${id}/status`, { status }),
-};
-
-export const tasksApi = {
-  getAll: () => api.get('/tasks'),
-  getById: (id: number) => api.get(`/tasks/${id}`),
-  create: (data: ApiPayload) => api.post('/tasks', data),
-  updateStatus: (id: number, status: string) => api.patch(`/tasks/${id}/status`, { status }),
-  runNow: (id: number, data?: ApiPayload) => api.post(`/tasks/${id}/run`, data ?? {}),
-  delete: (id: number) => api.delete(`/tasks/${id}`),
-};
-
 export const productsApi = {
   getAll: (params?: ApiParams) => api.get('/products', { params }),
   getById: (id: number) => api.get(`/products/${id}`),
@@ -87,29 +70,61 @@ export const dashboardApi = {
 };
 
 export const runsApi = {
-  list: () => api.get('/runs'),
+  list: (params?: ApiParams) => api.get('/runs', { params }),
   plan: (data: ApiPayload) => api.post('/runs/', data),
-  status: (runId: string) => api.get(`/runs/${runId}/status`),
-  fnlVerify: (runId: string) => api.post(`/runs/${runId}/fnl-verify`, {}),
-  submit: (runId: string, data: ApiPayload) => api.post(`/runs/${runId}/submit`, data),
-  logs: (runId: string, params?: ApiParams) => api.get(`/runs/${runId}/logs`, { params }),
-  diagnose: (runId: string) => api.get(`/runs/${runId}/diagnose`),
-  context: (runId: string, params?: ApiParams) => api.get(`/runs/${runId}/context`, { params }),
-  retry: (runId: string, data: ApiPayload) => api.post(`/runs/${runId}/retry`, data),
-  cancel: (runId: string, data: ApiPayload) => api.post(`/runs/${runId}/cancel`, data),
-  products: (runId: string) => api.get(`/runs/${runId}/products`),
-  syncProducts: (runId: string) => api.post(`/runs/${runId}/sync-products`, {}),
+  status: (runKey: string) => api.get(`/runs/${encodeRunKey(runKey)}/status`),
+  fnlVerify: (runKey: string) => api.post(`/runs/${encodeRunKey(runKey)}/fnl-verify`, {}),
+  submit: (runKey: string, data: ApiPayload) => api.post(`/runs/${encodeRunKey(runKey)}/submit`, data),
+  logs: (runKey: string, params?: ApiParams) => api.get(`/runs/${encodeRunKey(runKey)}/logs`, { params }),
+  diagnose: (runKey: string) => api.get(`/runs/${encodeRunKey(runKey)}/diagnose`),
+  context: (runKey: string, params?: ApiParams) => api.get(`/runs/${encodeRunKey(runKey)}/context`, { params }),
+  retry: (runKey: string, data: ApiPayload) => api.post(`/runs/${encodeRunKey(runKey)}/retry`, data),
+  cancel: (runKey: string, data: ApiPayload) => api.post(`/runs/${encodeRunKey(runKey)}/cancel`, data),
+  products: (runKey: string) => api.get(`/runs/${encodeRunKey(runKey)}/products`),
+  syncProducts: (runKey: string) => api.post(`/runs/${encodeRunKey(runKey)}/sync-products`, {}),
+};
+
+export const serverApi = {
+  health: () => api.get('/server/health'),
+  status: () => api.get('/server/status'),
+  config: () => api.get('/server/config'),
+  updateConfig: (data: ApiPayload) => api.put('/server/config', data),
+  regions: () => api.get('/server/regions'),
+  slurmJobs: () => api.get('/server/slurm/jobs'),
+  tick: (params?: ApiParams) => api.post('/server/tick', null, { params }),
+  submitForecast: (data: ApiPayload) => api.post('/server/forecast/submit', data),
+  enableSchedule: () => api.post('/server/schedule/enable'),
+  disableSchedule: () => api.post('/server/schedule/disable'),
+  reconcile: () => api.post('/server/reconcile'),
 };
 
 export const fnlApi = {
   verifyServer: (data: ApiPayload) => api.post('/fnl/verify-server', data),
-  repair: (data: ApiPayload) => api.post('/fnl/repair', data),
+  repair: (data?: ApiPayload) => api.post('/fnl/repair', data ?? {}),
+  repairOne: (filename: string, params?: ApiParams) =>
+    api.post(`/fnl/repair/${encodeURIComponent(filename)}`, null, { params }),
+  downloadOne: (filename: string, params?: ApiParams) =>
+    api.post(`/fnl/download/${encodeURIComponent(filename)}`, null, { params }),
   coverage: (params?: ApiParams) => api.get('/fnl/coverage', { params }),
+  repairRequests: (params?: ApiParams) => api.get('/fnl/repair-requests', { params }),
 };
 
-export const agentApi = {
-  tick: (data: ApiPayload) => api.post('/agent/tick', data),
-  actions: (params?: ApiParams) => api.get('/agent/actions', { params }),
-};
+export function encodeRunKey(runKey: string) {
+  return runKey.split('/').map((part) => encodeURIComponent(part)).join('/');
+}
+
+export function buildRunKey(season: string, region: string, runId: string) {
+  return `${season}/${region}/${runId}`;
+}
+
+export function runDetailPath(run: { run_key?: string; season?: string; region?: string; run_id?: string }) {
+  if (run.run_key) {
+    return `/admin/runs/${run.run_key.split('/').map((part) => encodeURIComponent(part)).join('/')}`;
+  }
+  if (run.season && run.region && run.run_id) {
+    return `/admin/runs/${encodeURIComponent(run.season)}/${encodeURIComponent(run.region)}/${encodeURIComponent(run.run_id)}`;
+  }
+  return `/admin/runs/${encodeURIComponent(run.run_id || '')}`;
+}
 
 export default api;

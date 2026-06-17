@@ -90,9 +90,92 @@ export interface DashboardStats {
   failed_workflows: number;
 }
 
-export interface DashboardRunSummary {
+export interface ServerRegionInfo {
+  region: string;
+  display_name: string;
+  seasons: string[];
+  slurm_code: string;
+}
+
+export interface ServerForecastConfig {
+  season: string;
+  pre: string;
+  regions: string[];
+  fnl_gfs_default: number;
+  fnl_gfs_fallback: number;
+  task_dup_action?: string;
+}
+
+export interface ServerScheduleConfig {
+  enabled: boolean;
+  tick_time: string;
+  timezone: string;
+  repair_deadline: string;
+  poll_interval: number;
+}
+
+export interface ServerConfig {
+  schedule: ServerScheduleConfig;
+  forecast: ServerForecastConfig;
+}
+
+export interface ServerDaemonStatus {
+  started_at?: string;
+  schedule_enabled?: boolean;
+  last_tick_at?: string | null;
+  last_tick_result?: string | null;
+  next_tick_at?: string | null;
+  last_reconcile_at?: string | null;
+  active_runs?: number;
+  pending_repairs?: number;
+  server_time_utc?: string;
+  server_time_local?: string;
+}
+
+export interface RunStateStep {
+  status?: string;
+  started_at?: string;
+  finished_at?: string;
+}
+
+export interface RunStateJson {
+  version?: number;
+  tag?: string;
+  updated_at?: string;
+  steps?: Record<string, RunStateStep | string>;
+  failure?: string | { step?: string; stage?: string; message?: string; error?: string } | null;
+  geogrid?: string;
+  linkgrib?: string;
+  ungrib?: string;
+  metgrid?: string;
+  real?: string;
+  wrfchemi?: string;
+  wrf?: string;
+  postprocess?: string;
+  wps?: string;
+}
+
+export interface ServerRunSummary {
+  run_key: string;
   run_id: string;
+  season: string;
+  region: string;
+  pre?: string;
+  start_date?: string;
   status: ForecastRunStatus;
+  progress: number;
+  server_run_dir?: string | null;
+  state?: RunStateJson;
+  effective_state?: Record<string, string>;
+  failure?: RunStateJson['failure'];
+  slurm_jobs?: Array<{ job_id: string; name: string; state: string; time?: string }>;
+  nodes?: ForecastRunNodeStatus[];
+}
+
+export interface DashboardRunSummary {
+  run_key?: string;
+  run_id: string;
+  status: ForecastRunStatus | string;
   progress: number;
   start_time?: string | null;
   end_time?: string | null;
@@ -103,6 +186,10 @@ export interface DashboardRunSummary {
   last_error?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  slurm_jobs?: Array<{ job_id: string; name: string; state: string; time?: string; exit_code?: string }>;
+  slurm_job_ids?: string[];
+  slurm_active_count?: number;
+  anomalies?: string[];
 }
 
 export interface DashboardProductSummary {
@@ -121,6 +208,7 @@ export interface DashboardFnlSummary {
   server_ok: number;
   uploaded: number;
   needs_repair: number;
+  pending_requests?: Array<Record<string, unknown>>;
 }
 
 export interface DashboardOverview {
@@ -135,6 +223,22 @@ export interface DashboardOverview {
   fnl: DashboardFnlSummary;
   actions: AgentAction[];
   logs: SystemLog[];
+  server?: {
+    daemon?: ServerDaemonStatus;
+    config?: {
+      season?: string;
+      regions?: string[];
+      schedule_enabled?: boolean;
+      tick_time?: string;
+      timezone?: string;
+    };
+    source?: string;
+    stale?: boolean;
+    server_time_local?: string;
+    server_time_utc?: string;
+  };
+  source?: string;
+  stale?: boolean;
 }
 
 export type ForecastRunStatus =
@@ -167,12 +271,15 @@ export interface WrfoutProgress {
 }
 
 export interface ForecastRunNodeStatus {
-  run_id: string;
+  run_id?: string;
   node: string;
+  stage?: string;
   status: ForecastRunStatus | 'skipped';
   progress: number;
   attempt: number;
   slurm_job_id?: string | null;
+  slurm_job_name?: string | null;
+  slurm_state?: string | null;
   started_at?: string | null;
   updated_at: string;
   finished_at?: string | null;
@@ -200,11 +307,14 @@ export interface FnlFileStatus {
   server_path?: string | null;
   local_path?: string | null;
   size_bytes?: number | null;
-  valid_grib: boolean;
+  valid_grib?: boolean;
   uploaded?: boolean;
   repair_attempt?: number;
   error_message?: string | null;
   checked_at?: string | null;
+  region?: string | null;
+  date?: string | null;
+  hour?: string | null;
 }
 
 export interface AgentAction {
