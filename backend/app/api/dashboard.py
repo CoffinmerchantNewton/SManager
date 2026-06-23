@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
@@ -31,11 +31,12 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 
 @router.get("/overview")
 def get_dashboard_overview(
+    background_tasks: BackgroundTasks,
     recent_limit: int = Query(default=8, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
     if server_client.configured:
-        return build_server_overview(db, recent_limit)
+        return build_server_overview(db, recent_limit, background_tasks)
 
     recent_runs = (
         db.query(ForecastRun)
@@ -68,10 +69,13 @@ def get_dashboard_overview(
     }
 
 
-def build_server_overview(db: Session, recent_limit: int) -> dict:
+def build_server_overview(db: Session, recent_limit: int, background_tasks: BackgroundTasks | None = None) -> dict:
     daemon_result = server_client.daemon_status()
     config_result = server_client.get_config()
-    runs_result = server_client.list_runs(limit=max(recent_limit, 100))
+    run_limit = max(recent_limit, 100)
+    runs_result = server_client.list_runs(limit=run_limit, prefer_cache=True)
+    if runs_result.source == "cache" and background_tasks is not None:
+        background_tasks.add_task(server_client.refresh_runs_cache, run_limit)
     repair_result = server_client.repair_requests(status="pending")
 
     daemon = daemon_result.data or {}
@@ -116,7 +120,7 @@ def build_server_overview(db: Session, recent_limit: int) -> dict:
                 "timezone": schedule.get("timezone"),
             },
             "source": daemon_result.source,
-            "stale": daemon_result.stale or config_result.stale,
+            "stale": bool(daemon_result.error or config_result.error),
             "server_time_local": daemon.get("server_time_local"),
             "server_time_utc": daemon.get("server_time_utc"),
         },
@@ -156,7 +160,12 @@ def build_server_overview(db: Session, recent_limit: int) -> dict:
         "actions": [],
         "logs": server_logs,
         "source": runs_result.source,
-        "stale": runs_result.stale or daemon_result.stale or config_result.stale,
+        "stale": bool(
+            runs_result.error
+            or daemon_result.error
+            or config_result.error
+            or repair_result.error
+        ),
     }
 
 

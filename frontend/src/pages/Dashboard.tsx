@@ -4,7 +4,7 @@ import { SlurmSummary, StatusPill } from '../components/RunDisplay';
 import { useI18n } from '../i18n';
 import { runNavState } from '../hooks/useRunNavigation';
 import { dashboardApi, productsApi, runDetailPath } from '../services/api';
-import type { AgentAction, DashboardOverview, DashboardRunSummary, SystemLog } from '../types/index';
+import type { AgentAction, DashboardOverview, SystemLog } from '../types/index';
 import { errorMessage } from '../utils/errors';
 
 export default function Dashboard() {

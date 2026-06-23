@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -11,6 +12,8 @@ from fastapi import HTTPException
 
 from ..core.config import settings
 from .server_cache import read_cache, write_cache
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -143,14 +146,22 @@ class ServerClient:
     def daemon_status(self) -> ServerResult:
         return self.get("server_daemon_status", "/api/status")
 
-    def list_runs(self, limit: int = 50, *, live: bool = True) -> ServerResult:
+    def list_runs(self, limit: int = 50, *, live: bool = True, prefer_cache: bool = False) -> ServerResult:
+        cached = read_cache("server_runs")
+        if prefer_cache and cached is not None:
+            return ServerResult(data=cached.get("payload"), source="cache", stale=False)
+
         if live:
             try:
-                data = self._request("GET", "/api/runs", params={"limit": limit})
+                data = self._request(
+                    "GET",
+                    "/api/runs",
+                    params={"limit": limit},
+                    timeout=float(settings.SERVER_RUNS_REQUEST_TIMEOUT),
+                )
                 write_cache("server_runs", data)
                 return ServerResult(data=data, source="server")
             except HTTPException as exc:
-                cached = read_cache("server_runs")
                 if cached is not None:
                     return ServerResult(
                         data=cached.get("payload"),
@@ -160,6 +171,12 @@ class ServerClient:
                     )
                 raise
         return self.get("server_runs", "/api/runs", params={"limit": limit})
+
+    def refresh_runs_cache(self, limit: int = 50) -> None:
+        try:
+            self.list_runs(limit=limit, live=True)
+        except HTTPException:
+            logger.warning("background runs cache refresh failed", exc_info=True)
 
     def run_detail(self, season: str, region: str, run_id: str) -> ServerResult:
         cache_name = f"server_run_{season}_{region}_{run_id}"

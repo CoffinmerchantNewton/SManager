@@ -36,7 +36,7 @@ export default function RunsList() {
       const response = await runsApi.list(params);
       const data = response.data?.data;
       setRuns((data?.runs ?? []) as RunRow[]);
-      setStale(Boolean(data?.stale));
+      setStale(Boolean(data?.stale && data?.error));
     } catch (err: unknown) {
       setError(errorMessage(err, '加载运行列表失败'));
     } finally {

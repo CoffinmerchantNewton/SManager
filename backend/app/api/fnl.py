@@ -186,6 +186,7 @@ def fnl_coverage(
 
     files: list[dict] = []
     scan = None
+    scan_result = None
     if start:
         start_date = start[:8]
         scan_result = server_client.fnl_scan(start_date)
@@ -235,7 +236,12 @@ def fnl_coverage(
             "scan": scan,
             "source": "server",
             "repair_source": repair_result.source,
-            "stale": repair_result.stale,
+            "stale": bool(
+                (scan_result.error if scan_result else False)
+                or repair_result.error
+                or staging_result.error
+            ),
+            "error": scan_result.error if scan_result else repair_result.error or staging_result.error,
         },
     )
 

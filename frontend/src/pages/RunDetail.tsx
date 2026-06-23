@@ -136,7 +136,9 @@ export default function RunDetail() {
           </button>
           <h1 className="font-headline-xl text-headline-xl text-on-surface mt-2 break-all">{runKey}</h1>
           <p className="text-outline font-body-md">{t('runDetailSubtitle')}</p>
-          {context?.stale && <p className="mt-1 text-xs text-amber-300">数据来自本地缓存（服务器暂不可达）</p>}
+          {context?.stale && context?.error && (
+            <p className="mt-1 text-xs text-amber-300">数据来自本地缓存（服务器暂不可达）</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-sm">
           <button

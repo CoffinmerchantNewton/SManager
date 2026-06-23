@@ -35,7 +35,7 @@ export default function FnlManagement() {
     const response = await fnlApi.coverage(params);
     setFiles(response.data.data.files ?? []);
     setScanSummary(response.data.data.scan ?? null);
-    setStale(Boolean(response.data.data.stale));
+    setStale(Boolean(response.data.data.stale && response.data.data.error));
   }, [query.start_date, query.status]);
 
   const verifyServer = useCallback(() =>

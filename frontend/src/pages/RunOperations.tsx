@@ -60,7 +60,10 @@ export default function RunOperations() {
       setStatus(st || null);
       setConfig(cfg || null);
       setRegions(mergeRegionList(regList, cfg?.forecast?.regions));
-      setStale(Boolean(statusRes.data?.data?.stale || configRes.data?.data?.stale));
+      setStale(Boolean(
+        (statusRes.data?.data?.stale && statusRes.data?.data?.error)
+        || (configRes.data?.data?.stale && configRes.data?.data?.error),
+      ));
       if (cfg?.forecast?.regions?.length) {
         setSelectedRegions(cfg.forecast.regions);
       } else {

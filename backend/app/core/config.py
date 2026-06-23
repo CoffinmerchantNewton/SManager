@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     SERVER_API_BASE_URL: Optional[str] = None
     SERVER_API_TOKEN: Optional[str] = None
     SERVER_REQUEST_TIMEOUT: int = 30
+    SERVER_RUNS_REQUEST_TIMEOUT: int = 20
     SERVER_TICK_TIMEOUT: int = 3600
     TUNNEL_HEALTH_URL: Optional[str] = None
     SERVER_FNL_ROOTS: Optional[str] = None
@@ -44,6 +45,6 @@ class Settings(BaseSettings):
     NOTIFICATION_WEBHOOK_TIMEOUT: int = 10
     STORAGE_RETENTION_DAYS: int = 30
     STORAGE_MAX_GB: float = 50.0
-    FNL_REPAIR_POLL_INTERVAL_SECONDS: int = 0
+    FNL_REPAIR_POLL_INTERVAL_SECONDS: int = 120
 
 settings = Settings()

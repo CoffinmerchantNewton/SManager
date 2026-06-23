@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
@@ -59,17 +59,20 @@ def plan_run(payload: RunPlanRequest):
 
 @router.get("/", response_model=FlowResponse)
 def list_runs(
+    background_tasks: BackgroundTasks,
     status_filter: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     if server_client.configured:
-        result = server_client.list_runs(limit=limit)
+        result = server_client.list_runs(limit=limit, prefer_cache=True)
+        if result.source == "cache":
+            background_tasks.add_task(server_client.refresh_runs_cache, limit)
         runs = sort_runs_newest_first([serialize_server_run(item) for item in (result.data or [])])
         if status_filter:
             runs = [item for item in runs if item["status"] == status_filter]
         return FlowResponse(
-            ok=not result.stale,
+            ok=result.error is None,
             data={"runs": runs, **_server_payload(result)},
         )
 
