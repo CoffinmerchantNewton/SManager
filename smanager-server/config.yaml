@@ -28,6 +28,7 @@ forecast:
   fnl_gfs_default: 2
   fnl_gfs_fallback: 3
   task_dup_action: continue
+  innermg_autumn_variant: both
 paths:
   project_root: /g7/anxq/Zhangjt/workspace/auto-pollen-lijt
   fnl_staging: /g7/anxq/Zhangjt/static/fnl/staging

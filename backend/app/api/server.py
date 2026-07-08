@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from ..core.security import require_admin
 from ..schemas.run_control import FlowResponse
 from ..schemas.server_control import ServerConfigUpdate, ServerTickRequest
 from ..services.server_client import server_client
+from ..services.server_products import PRODUCT_ROOT_KEY
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -160,3 +162,44 @@ def disable_schedule():
 def server_reconcile():
     result = server_client.reconcile()
     return wrap(result)
+
+
+@router.get("/files/roots", response_model=FlowResponse)
+def server_file_roots():
+    result = server_client.file_roots()
+    return wrap(result)
+
+
+@router.get("/files/list/{root_key}", response_model=FlowResponse)
+def server_file_list(root_key: str, path: str = Query(default="")):
+    try:
+        entries = server_client.list_directory(root_key, path)
+    except HTTPException as exc:
+        return FlowResponse(ok=False, data={"message": str(exc.detail), "entries": []})
+    return FlowResponse(ok=True, data={"entries": entries, "root_key": root_key, "path": path})
+
+
+@router.get("/files/tree/{root_key}", response_model=FlowResponse)
+def server_file_tree(
+    root_key: str,
+    path: str = Query(default=""),
+    depth: int = Query(default=3, ge=0, le=5),
+):
+    try:
+        tree = server_client.file_tree(root_key, path, depth=depth)
+    except HTTPException as exc:
+        return FlowResponse(ok=False, data={"message": str(exc.detail)})
+    return FlowResponse(ok=True, data={"tree": tree, "root_key": root_key, "path": path})
+
+
+@router.get("/files/download/{root_key}")
+def server_file_download(root_key: str, path: str = Query(...)):
+    if root_key != PRODUCT_ROOT_KEY and root_key not in {"output", "runs", "logs", "project", "fnl"}:
+        raise HTTPException(status_code=400, detail=f"不支持的根目录: {root_key}")
+    content = server_client.download_file(root_key, path)
+    filename = path.replace("\\", "/").split("/")[-1]
+    return Response(
+        content=content,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

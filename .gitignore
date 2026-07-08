@@ -52,3 +52,4 @@ wrf-pollen/auto-pollen/logs/**
 连接信息.txt
 /auto-pollen-lijt
 /backend/runtime
+.superpowers/

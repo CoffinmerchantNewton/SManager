@@ -90,4 +90,6 @@ def apply_config_update(config: AppConfig, update: ConfigUpdate) -> AppConfig:
         config.forecast.fnl_gfs_default = update.fnl_gfs_default
     if update.fnl_gfs_fallback is not None:
         config.forecast.fnl_gfs_fallback = update.fnl_gfs_fallback
+    if update.innermg_autumn_variant is not None:
+        config.forecast.innermg_autumn_variant = update.innermg_autumn_variant
     return config

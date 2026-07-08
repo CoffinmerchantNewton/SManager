@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     SERVER_API_TOKEN: Optional[str] = None
     SERVER_REQUEST_TIMEOUT: int = 30
     SERVER_RUNS_REQUEST_TIMEOUT: int = 20
+    SERVER_PRODUCT_DOWNLOAD_TIMEOUT: int = 900
     SERVER_TICK_TIMEOUT: int = 3600
     TUNNEL_HEALTH_URL: Optional[str] = None
     SERVER_FNL_ROOTS: Optional[str] = None
@@ -40,7 +41,8 @@ class Settings(BaseSettings):
     LOCAL_LOGS_DIR: str = "runtime/logs"
     LOCAL_MANIFESTS_DIR: str = "runtime/manifests"
     LOCAL_CACHE_DIR: str = "runtime/cache"
-    PRODUCT_INLINE_MAX_MB: float = 20.0
+    PRODUCT_INLINE_MAX_MB: float = 512.0
+    SERVER_PRODUCT_DOWNLOAD_TIMEOUT: int = 900
     NOTIFICATION_WEBHOOK_URL: Optional[str] = None
     NOTIFICATION_WEBHOOK_TIMEOUT: int = 10
     STORAGE_RETENTION_DAYS: int = 30

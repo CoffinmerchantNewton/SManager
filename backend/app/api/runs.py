@@ -284,6 +284,7 @@ def collect_run_context(
             ok=not result.stale,
             data={
                 "run_id": run_key,
+                "variant": run.get("variant") or "",
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "run_dir": run.get("server_run_dir"),
                 "status": {
@@ -363,18 +364,63 @@ def cancel_run(run_key: str, payload: CancelRunRequest):
 
 @router.get("/{run_key:path}/products", response_model=FlowResponse)
 def get_run_products(run_key: str, db: Session = Depends(get_db)):
-    products = (
+    from ..services.server_products import list_run_products, merge_db_and_server_products, serialize_db_product
+
+    db_products = (
         db.query(ForecastProduct)
-        .filter(ForecastProduct.product_name.like(f"%{run_key.split('/')[-1]}%"))
+        .filter(ForecastProduct.product_name.like(f"{run_key}:%"))
         .order_by(ForecastProduct.release_time.desc())
         .all()
     )
-    return FlowResponse(data={"run_id": run_key, "products": [serialize_product(product) for product in products]})
+
+    if server_client.configured:
+        try:
+            server_products = list_run_products(run_key)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except HTTPException as exc:
+            if db_products:
+                return FlowResponse(
+                    ok=False,
+                    data={
+                        "run_id": run_key,
+                        "products": [serialize_db_product(item) for item in db_products],
+                        "source": "mysql",
+                        "error": str(exc.detail),
+                    },
+                )
+            raise
+        products = merge_db_and_server_products(db_products, server_products)
+        return FlowResponse(
+            data={
+                "run_id": run_key,
+                "products": products,
+                "source": "server+mysql" if server_products else "mysql",
+            }
+        )
+
+    return FlowResponse(
+        data={
+            "run_id": run_key,
+            "products": [serialize_db_product(item) for item in db_products],
+            "source": "mysql",
+        }
+    )
 
 
 @router.post("/{run_key:path}/sync-products", response_model=FlowResponse, status_code=status.HTTP_202_ACCEPTED)
-def sync_run_products(run_key: str):
-    return not_migrated("product sync will be rebuilt on top of the new tunnel/server API", {"run_key": run_key})
+def sync_run_products(run_key: str, db: Session = Depends(get_db)):
+    from ..services.server_products import sync_products
+
+    if not server_client.configured:
+        return not_migrated("product sync requires smanager-server", {"run_key": run_key})
+
+    try:
+        result = sync_products(db, run_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    result["run_key"] = run_key
+    return FlowResponse(ok=True, data=result)
 
 
 def require_run(db: Session, run_id: str) -> ForecastRun:

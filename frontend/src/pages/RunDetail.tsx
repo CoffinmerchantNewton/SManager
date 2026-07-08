@@ -39,6 +39,8 @@ interface RunContext {
     tail: string[];
   }>;
   stale?: boolean;
+  error?: string;
+  variant?: string;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -52,6 +54,7 @@ export default function RunDetail() {
   const [products, setProducts] = useState<ForecastProduct[]>([]);
   const [selectedLog, setSelectedLog] = useState('');
   const [busy, setBusy] = useState('');
+  const [syncingProducts, setSyncingProducts] = useState(false);
   const [error, setError] = useState('');
 
   const logs = useMemo(() => context?.logs ?? [], [context?.logs]);
@@ -89,6 +92,21 @@ export default function RunDetail() {
     void loadDetail();
   }, [loadDetail]);
 
+  const syncProducts = async () => {
+    if (!runKey) return;
+    setSyncingProducts(true);
+    setError('');
+    try {
+      await runsApi.syncProducts(runKey);
+      const productsResponse = await runsApi.products(runKey);
+      setProducts(productsResponse.data.data.products ?? []);
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to sync products'));
+    } finally {
+      setSyncingProducts(false);
+    }
+  };
+
   const pipelineStages = useMemo(() => {
     const effective = context?.effective_state ?? {};
     const raw = context?.state;
@@ -121,6 +139,7 @@ export default function RunDetail() {
 
   const workflow = context?.status;
   const findings = context?.diagnose?.findings ?? [];
+  const variant = context?.variant || (runId.toLowerCase().includes('_caoditu') ? 'caoditu' : '');
 
   return (
     <div className="p-lg technical-grid min-h-full flex flex-col gap-gutter">
@@ -156,10 +175,11 @@ export default function RunDetail() {
         <div className="rounded-lg border border-error/30 bg-error-container/20 p-md text-sm text-error">{error}</div>
       )}
 
-      <section className="grid grid-cols-1 xl:grid-cols-4 gap-gutter">
+      <section className="grid grid-cols-1 xl:grid-cols-5 gap-gutter">
         <Metric label={t('status')} value={workflow?.status ?? '-'} accent={<StatusPill status={workflow?.status ?? 'pending'} />} />
         <Metric label={t('progress')} value={`${workflow?.progress ?? 0}%`} />
         <Metric label={t('domain')} value={region || '-'} />
+        <Metric label={t('variant')} value={variant || '-'} />
         <Metric label="Slurm 活跃" value={`${context?.slurm_jobs?.filter((j) => ['RUNNING', 'PENDING', 'CONFIGURING'].includes((j.state || '').toUpperCase())).length ?? 0}`} />
       </section>
 
@@ -324,16 +344,30 @@ export default function RunDetail() {
       </section>
 
       <Panel title={t('syncedProducts')}>
+        <div className="mb-sm flex items-center justify-between gap-sm">
+          <p className="text-[11px] text-outline">{products.length} {t('totalItems')}</p>
+          <button
+            type="button"
+            onClick={() => void syncProducts()}
+            disabled={syncingProducts}
+            className="rounded border border-white/10 bg-surface-container-high px-2 py-1 text-[10px] text-on-surface hover:bg-white/10 disabled:opacity-40"
+          >
+            {syncingProducts ? t('syncing') : t('syncRunProducts')}
+          </button>
+        </div>
         <div className="space-y-sm max-h-96 overflow-auto">
           {products.map((product) => (
-            <div key={product.id} className="flex items-center justify-between gap-sm rounded border border-white/10 bg-surface-container-low p-sm">
+            <div key={product.product_name} className="flex items-center justify-between gap-sm rounded border border-white/10 bg-surface-container-low p-sm">
               <div className="min-w-0">
                 <p className="truncate font-data-mono text-xs text-cyan-300">{product.product_name}</p>
                 <p className="text-[10px] text-outline">{product.product_type} / {product.pollen_type} / {product.resolution}</p>
+                {product.server_path && (
+                  <p className="truncate text-[10px] text-on-surface-variant">{product.server_path}</p>
+                )}
               </div>
-              {product.id ? (
+              {productsApi.downloadUrl(product) ? (
                 <a
-                  href={productsApi.downloadUrl(product.id)}
+                  href={productsApi.downloadUrl(product)}
                   className="inline-flex items-center gap-1 rounded bg-primary-container px-2 py-1 text-[10px] font-semibold text-on-primary-container"
                 >
                   {t('download')}

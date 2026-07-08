@@ -110,6 +110,35 @@
     @apply bg-background text-on-background font-body-md;
   }
 
+  html,
+  body,
+  #root,
+  #root * {
+    cursor: url('/zhizhen.png') 25 18, auto;
+  }
+
+  a,
+  button,
+  select,
+  summary,
+  [role='button'],
+  [type='button'],
+  [type='submit'],
+  [type='reset'] {
+    cursor: url('/zhizhen.png') 25 18, pointer;
+  }
+
+  input,
+  textarea,
+  [contenteditable='true'] {
+    cursor: url('/zhizhen.png') 25 18, text;
+  }
+
+  :disabled,
+  [aria-disabled='true'] {
+    cursor: url('/zhizhen.png') 25 18, not-allowed !important;
+  }
+
   ::-webkit-scrollbar {
     width: 4px;
     height: 4px;

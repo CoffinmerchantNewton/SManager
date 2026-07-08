@@ -267,5 +267,40 @@ class ServerClient:
     def reconcile(self) -> ServerResult:
         return self.post("server_last_reconcile", "/api/reconcile")
 
+    def file_roots(self) -> ServerResult:
+        return self.get("server_file_roots", "/api/files/roots")
+
+    def list_directory(self, root_key: str, path: str = "") -> list[dict[str, Any]]:
+        data = self._request("GET", f"/api/files/list/{root_key}", params={"path": path})
+        return data or []
+
+    def file_tree(self, root_key: str, path: str = "", *, depth: int = 3) -> dict[str, Any]:
+        data = self._request(
+            "GET",
+            f"/api/files/tree/{root_key}",
+            params={"path": path, "depth": depth},
+        )
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=502, detail="Invalid file tree response from smanager-server")
+        return data
+
+    def download_file(self, root_key: str, path: str, *, timeout: float | None = None) -> bytes:
+        if not self.configured:
+            raise HTTPException(status_code=503, detail="SERVER_API_BASE_URL is not configured")
+        query = self._encode_params({"path": path})
+        url = f"{self.base_url}/api/files/download/{root_key}{query}"
+        request = urllib.request.Request(url, headers=self._headers(), method="GET")
+        effective_timeout = timeout if timeout is not None else float(settings.SERVER_REQUEST_TIMEOUT)
+        try:
+            with urllib.request.urlopen(request, timeout=effective_timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise HTTPException(status_code=exc.code, detail=detail or exc.reason) from exc
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="smanager-server 文件下载超时") from exc
+        except urllib.error.URLError as exc:
+            raise HTTPException(status_code=502, detail=f"Server unreachable: {exc.reason}") from exc
+
 
 server_client = ServerClient()

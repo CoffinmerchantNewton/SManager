@@ -215,7 +215,6 @@ async def api_tick(
     start_date: Optional[str] = Query(None, pattern=r"^\d{8}$"),
     season: Optional[str] = Query(None, description="手动指定季节 spring/autumn，默认按月份自动"),
 ):
-    logger.info("POST /api/tick force=%s start_date=%s season=%s", force, start_date, season)
     config = load_config()
     return await asyncio.to_thread(run_tick, config, force, start_date, season)
 

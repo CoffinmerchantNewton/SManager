@@ -62,6 +62,8 @@ class ForecastConfig(BaseModel):
     fnl_gfs_default: int = 2
     fnl_gfs_fallback: int = 1
     task_dup_action: Literal["continue", "overwrite", "new"] = "continue"
+    # InnerMG 秋季：standard=仅标准版 | caoditu=仅草地TIF | both=两个都跑
+    innermg_autumn_variant: Literal["standard", "caoditu", "both"] = "both"
 
 
 class AppConfig(BaseModel):
@@ -85,6 +87,7 @@ class ConfigUpdate(BaseModel):
     pre: Optional[str] = None
     fnl_gfs_default: Optional[int] = None
     fnl_gfs_fallback: Optional[int] = None
+    innermg_autumn_variant: Optional[Literal["standard", "caoditu", "both"]] = None
 
 
 class TreeNode(BaseModel):
@@ -148,6 +151,7 @@ class RunSummary(BaseModel):
     season: str
     pre: str
     start_date: str
+    variant: str = ""
     run_root: str
     state: Optional[Dict[str, Any]] = None
     effective_state: Optional[Dict[str, Any]] = None

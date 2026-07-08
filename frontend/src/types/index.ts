@@ -44,7 +44,7 @@ export interface ScheduledTask {
 }
 
 export interface ForecastProduct {
-  id: number;
+  id: number | null;
   product_name: string;
   product_type: string;
   status: 'ready' | 'archived' | 'error';
@@ -71,6 +71,8 @@ export interface ForecastProduct {
   is_published: boolean;
   release_time: string;
   created_at: string;
+  server_path?: string;
+  download_url?: string;
 }
 
 export interface SystemLog {
@@ -104,6 +106,7 @@ export interface ServerForecastConfig {
   fnl_gfs_default: number;
   fnl_gfs_fallback: number;
   task_dup_action?: string;
+  innermg_autumn_variant?: 'standard' | 'caoditu' | 'both';
 }
 
 export interface ServerScheduleConfig {
@@ -161,6 +164,7 @@ export interface ServerRunSummary {
   season: string;
   region: string;
   pre?: string;
+  variant?: string;
   start_date?: string;
   status: ForecastRunStatus;
   progress: number;

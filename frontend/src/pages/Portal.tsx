@@ -6,6 +6,16 @@ import { LanguageSelector, type Locale, useI18n } from '../i18n';
 import { productsApi } from '../services/api';
 import type { ForecastProduct } from '../types';
 
+const DEFAULT_SERVER_SUBPATH = 'spring/beijing/2026/0621';
+
+const PORTAL_REGIONS = [
+  { key: 'beijing', code: 'Beijing', label: '北京' },
+  { key: 'innermg', code: 'InnerMG', label: '内蒙古' },
+  { key: 'shaanxi', code: 'Shaanxi', label: '陕西' },
+  { key: 'yulin', code: 'Yulin', label: '榆林' },
+  { key: 'china', code: 'China', label: '全国' },
+] as const;
+
 const SPECIES_LABELS: Record<Locale, Record<number, string>> = {
   en: {
     1: 'Evergreen conifer',
@@ -53,12 +63,26 @@ const RISK_STYLE: Record<string, { color: string; bg: string; rank: number }> = 
 interface ProductBundle {
   key: string;
   runId: string;
+  region: string;
+  regionKey: string;
+  subpath?: string;
   label: string;
   releaseTime: string;
   products: ForecastProduct[];
   cityProduct?: ForecastProduct;
-  overlayMetadataProduct?: ForecastProduct;
+  animationMapProduct?: ForecastProduct;
+  forecastMapProduct?: ForecastProduct;
   inlineMapProduct?: ForecastProduct;
+}
+
+interface LatestServerBundle {
+  region: string;
+  region_key: string;
+  season: string;
+  subpath: string;
+  day: string;
+  release_time?: string;
+  products: ForecastProduct[];
 }
 
 export default function Portal() {
@@ -66,10 +90,11 @@ export default function Portal() {
   const { locale, t } = useI18n();
   const [productLayer, setProductLayer] = useState<MapProductLayer | null>(null);
   const [cityForecast, setCityForecast] = useState<CityForecastPayload | null>(null);
+  const [forecastMapAnimationPayload, setForecastMapAnimationPayload] = useState<PollenMapAnimationPayload | null>(null);
+  const [forecastMapPayload, setForecastMapPayload] = useState<PollenMapForecastPayload | null>(null);
   const [productBundles, setProductBundles] = useState<ProductBundle[]>([]);
+  const [activeRegionKey, setActiveRegionKey] = useState<string>(PORTAL_REGIONS[0].key);
   const [activeBundleKey, setActiveBundleKey] = useState('');
-  const [productStatus, setProductStatus] = useState(t('waitingMapProducts'));
-  const [cityStatus, setCityStatus] = useState(t('waitingCityProducts'));
   const [query, setQuery] = useState('');
   const [selectedCityName, setSelectedCityName] = useState(fallbackCities[0]?.name ?? '');
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -82,11 +107,24 @@ export default function Portal() {
     const loadProductCatalog = async () => {
       setIsLoading(true);
       try {
-        const response = await productsApi.getAll({ status: 'ready', limit: 80 });
-        const products = response.data as ForecastProduct[];
-        const bundles = buildProductBundles(products, locale);
+        const latestResponse = await productsApi.latestServerBundles();
+        const latestBundles = normalizeLatestServerBundles(latestResponse.data?.bundles, locale);
+        let bundles = latestBundles;
+        if (bundles.length === 0) {
+          let response = await productsApi.getAll({ status: 'ready', limit: 80 });
+          let products = response.data as ForecastProduct[];
+          if (products.length === 0) {
+            response = await productsApi.getAll({ status: 'ready', limit: 80, subpath: DEFAULT_SERVER_SUBPATH });
+            products = response.data as ForecastProduct[];
+          }
+          bundles = buildProductBundles(products, locale);
+        }
         if (cancelled) return;
         setProductBundles(bundles);
+        setActiveRegionKey((current) => {
+          if (bundles.some((bundle) => bundle.regionKey === current)) return current;
+          return bundles[0]?.regionKey ?? PORTAL_REGIONS[0].key;
+        });
         setActiveBundleKey((current) => {
           if (bundles.some((bundle) => bundle.key === current)) return current;
           return bundles[0]?.key ?? '';
@@ -94,15 +132,9 @@ export default function Portal() {
         if (bundles.length === 0) {
           setProductLayer(null);
           setCityForecast(null);
-          setProductStatus(t('noRenderableMapProducts'));
-          setCityStatus(t('noCityForecastJson'));
         }
       } catch (error) {
         console.warn('Latest pollen products are unavailable:', error);
-        if (!cancelled) {
-          setProductStatus(t('mapProductsUnavailable'));
-          setCityStatus(t('cityForecastUnavailable'));
-        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -114,10 +146,22 @@ export default function Portal() {
     };
   }, [locale, t]);
 
-  const activeBundle = useMemo(
-    () => productBundles.find((bundle) => bundle.key === activeBundleKey) ?? productBundles[0],
-    [activeBundleKey, productBundles],
+  const regionBundles = useMemo(
+    () => productBundles.filter((bundle) => bundle.regionKey === activeRegionKey),
+    [activeRegionKey, productBundles],
   );
+  const activeBundle = useMemo(
+    () => regionBundles.find((bundle) => bundle.key === activeBundleKey) ?? regionBundles[0] ?? productBundles[0],
+    [activeBundleKey, productBundles, regionBundles],
+  );
+
+  useEffect(() => {
+    if (!regionBundles.length) return;
+    setActiveBundleKey((current) => {
+      if (regionBundles.some((bundle) => bundle.key === current)) return current;
+      return regionBundles[0]?.key ?? '';
+    });
+  }, [regionBundles]);
 
   useEffect(() => {
     if (!activeBundle) return;
@@ -127,15 +171,15 @@ export default function Portal() {
       setIsLoading(true);
       setProductLayer(null);
       setCityForecast(null);
+      setForecastMapAnimationPayload(null);
+      setForecastMapPayload(null);
       setSelectedDayIndex(0);
       try {
         if (activeBundle.cityProduct) {
-          const content = await productsApi.content(activeBundle.cityProduct.id);
-          if (!cancelled && isCityForecastPayload(content.data)) {
-            const payload = content.data;
+          const payload = await loadProductJson(activeBundle.cityProduct);
+          if (!cancelled && isCityForecastPayload(payload)) {
             setCityForecast(payload);
             setSelectedDayIndex(firstSignalDayIndex(payload));
-            setCityStatus(`${t('cityForecast')}: ${activeBundle.label}`);
             const firstCity = payload.cities[0];
             if (firstCity) {
               setSelectedCityName((current) =>
@@ -143,38 +187,32 @@ export default function Portal() {
               );
             }
           }
-        } else if (!cancelled) {
-          setCityStatus(t('currentBundleNoCity'));
         }
 
-        if (activeBundle.overlayMetadataProduct) {
-          const content = await productsApi.content(activeBundle.overlayMetadataProduct.id);
-          const overlayLayer = buildOverlayLayer(activeBundle.overlayMetadataProduct, content.data, activeBundle.products);
-          if (cancelled) return;
-          if (overlayLayer) {
-            setProductLayer(overlayLayer);
-            setProductStatus(`${t('concentrationBaseMap')}: ${activeBundle.label}`);
+        if (activeBundle.animationMapProduct) {
+          const payload = await loadProductJson(activeBundle.animationMapProduct);
+          if (!cancelled && isPollenMapAnimationPayload(payload)) {
+            setForecastMapAnimationPayload(payload);
+            return;
+          }
+        }
+
+        if (activeBundle.forecastMapProduct) {
+          const payload = await loadProductJson(activeBundle.forecastMapProduct);
+          if (!cancelled && isPollenMapForecastPayload(payload)) {
+            setForecastMapPayload(payload);
             return;
           }
         }
 
         if (activeBundle.inlineMapProduct) {
-          const content = await productsApi.content(activeBundle.inlineMapProduct.id);
+          const geojson = await loadProductJson(activeBundle.inlineMapProduct);
           if (cancelled) return;
-          setProductLayer({ kind: 'geojson', name: activeBundle.inlineMapProduct.product_name, geojson: content.data });
-          setProductStatus(`${t('sampleLayer')}: ${activeBundle.label}`);
+          setProductLayer({ kind: 'geojson', name: activeBundle.inlineMapProduct.product_name, geojson });
           return;
-        }
-
-        if (!cancelled) {
-          setProductStatus(t('noMapLayerInBundle'));
         }
       } catch (error) {
         console.warn('Selected pollen products are unavailable:', error);
-        if (!cancelled) {
-          setProductStatus(t('selectedMapUnavailable'));
-          setCityStatus(t('selectedCityUnavailable'));
-        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -186,6 +224,50 @@ export default function Portal() {
     };
   }, [activeBundle, t]);
 
+  const dailyAnimationFrames = useMemo(
+    () => (forecastMapAnimationPayload ? pickDailyAnimationFrames(forecastMapAnimationPayload.frames) : []),
+    [forecastMapAnimationPayload],
+  );
+  const dailyMapFrames = useMemo(
+    () => (forecastMapPayload ? pickDailyMapFrames(forecastMapPayload.frames) : []),
+    [forecastMapPayload],
+  );
+
+  useEffect(() => {
+    if (dailyAnimationFrames.length && activeBundle) {
+      const dayIndex = clampIndex(selectedDayIndex, dailyAnimationFrames.length);
+      const frame = dailyAnimationFrames[dayIndex] ?? dailyAnimationFrames[0];
+      const bounds = frame.bounds ?? forecastMapAnimationPayload?.bounds;
+      if (!frame?.image_path || !bounds) return;
+      setProductLayer({
+        kind: 'image_overlay',
+        name: `${forecastMapAnimationPayload?.variable ?? 'pollen'}-d${frame.forecast_day}`,
+        imageUrl: buildBundleAssetUrl(activeBundle, frame.image_path, forecastMapAnimationPayload?.generated_at),
+        bounds,
+        opacity: frame.opacity ?? forecastMapAnimationPayload?.color_scale?.opacity ?? 0.75,
+      });
+      return;
+    }
+    if (!dailyMapFrames.length) return;
+    const dayIndex = clampIndex(selectedDayIndex, dailyMapFrames.length);
+    const frame = dailyMapFrames[dayIndex] ?? dailyMapFrames[0];
+    if (!frame?.geojson) return;
+    setProductLayer({
+      kind: 'geojson',
+      name: `${forecastMapPayload?.variable ?? 'pollen'}-d${frame.forecast_day}`,
+      geojson: frame.geojson,
+    });
+  }, [
+    activeBundle,
+    dailyAnimationFrames,
+    dailyMapFrames,
+    forecastMapAnimationPayload?.bounds,
+    forecastMapAnimationPayload?.color_scale?.opacity,
+    forecastMapAnimationPayload?.variable,
+    forecastMapPayload?.variable,
+    selectedDayIndex,
+  ]);
+
   const forecastCities = useMemo(() => cityForecast?.cities ?? [], [cityForecast]);
   const hasForecast = forecastCities.length > 0;
   const selectedCity = useMemo(
@@ -196,10 +278,44 @@ export default function Portal() {
     () => fallbackCities.find((city) => city.name === selectedCityName) ?? fallbackCities[0],
     [selectedCityName],
   );
-  const activeForecast = selectedCity?.forecast ?? [];
-  const activeDayIndex = clampIndex(selectedDayIndex, activeForecast.length || 1);
-  const activeStep = activeForecast[activeDayIndex] ?? fallbackStep(selectedFallbackCity);
-  const timeline = activeForecast.length > 0 ? activeForecast : fallbackTimeline(selectedFallbackCity);
+  const cityDailyTimeline = useMemo(
+    () => (selectedCity?.forecast?.length ? collapseForecastToDailySteps(selectedCity.forecast) : []),
+    [selectedCity],
+  );
+  const animationPeakTimeline = useMemo(
+    () => (dailyAnimationFrames.length ? buildAnimationPeakTimeline(dailyAnimationFrames) : []),
+    [dailyAnimationFrames],
+  );
+  const mapSampleTimeline = useMemo(() => {
+    if (!dailyMapFrames.length) return [];
+    const lon = selectedCity?.longitude ?? selectedFallbackCity.longitude;
+    const lat = selectedCity?.latitude ?? selectedFallbackCity.latitude;
+    return buildMapSampleTimeline(dailyMapFrames, lon, lat);
+  }, [dailyMapFrames, selectedCity, selectedFallbackCity]);
+  const mapPeakTimeline = useMemo(
+    () => (dailyMapFrames.length ? buildMapDomainPeakTimeline(dailyMapFrames) : []),
+    [dailyMapFrames],
+  );
+  const cityPollenFlat = cityDailyTimeline.length > 0 && maxForecastValue(cityDailyTimeline) === 0;
+  const useMapPeakTimeline =
+    cityPollenFlat && mapPeakTimeline.length > 0 && maxForecastValue(mapPeakTimeline) > 0;
+  const useMapSampleTimeline =
+    cityPollenFlat && !useMapPeakTimeline && mapSampleTimeline.length > 0 && maxForecastValue(mapSampleTimeline) > 0;
+  const timeline = animationPeakTimeline.length > 0
+    ? animationPeakTimeline
+    : useMapPeakTimeline
+      ? mapPeakTimeline
+      : useMapSampleTimeline
+        ? mapSampleTimeline
+        : cityDailyTimeline.length > 0
+          ? cityDailyTimeline
+          : fallbackTimeline(selectedFallbackCity);
+  const activeDayIndex = clampIndex(selectedDayIndex, timeline.length || 1);
+  const rawActiveStep = timeline[activeDayIndex] ?? fallbackStep(selectedFallbackCity);
+  const activeStep = mergeTimelineDisplayStep(
+    rawActiveStep,
+    cityDailyTimeline.find((step) => step.forecast_day === rawActiveStep.forecast_day) ?? cityDailyTimeline[activeDayIndex],
+  );
   const cityOptions = useMemo(() => {
     const source = hasForecast
       ? forecastCities.map((city) => ({ name: city.name, longitude: city.longitude, latitude: city.latitude }))
@@ -212,7 +328,8 @@ export default function Portal() {
     () =>
       hasForecast
         ? forecastCities.map((city) => {
-            const step = city.forecast[activeDayIndex] ?? city.forecast[0];
+            const daily = collapseForecastToDailySteps(city.forecast);
+            const step = daily[activeDayIndex] ?? daily[0];
             return {
               name: city.name,
               longitude: city.longitude,
@@ -232,7 +349,7 @@ export default function Portal() {
   useEffect(() => {
     if (!isPlaying) return;
     const timer = window.setInterval(() => {
-      setSelectedDayIndex((current) => (current + 1) % Math.max(1, timeline.slice(0, 7).length));
+      setSelectedDayIndex((current) => (current + 1) % Math.max(1, timeline.length));
     }, 1200);
     return () => window.clearInterval(timer);
   }, [isPlaying, timeline]);
@@ -269,6 +386,7 @@ export default function Portal() {
           cities={mapCities}
           productLayer={productLayer}
           selectedCityName={selectedCityName}
+          cityMarkerMode={dailyAnimationFrames.length ? 'compact' : 'concentration'}
           onCitySelect={(cityName) => {
             setSelectedCityName(cityName);
             setQuery('');
@@ -279,6 +397,32 @@ export default function Portal() {
         <section className="absolute left-4 top-4 z-20 hidden w-72 flex-col gap-3 lg:flex">
           <Panel title={t('layers')}>
             <div className="space-y-3">
+              <div>
+                <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-slate-500">Region</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {PORTAL_REGIONS.map((region) => {
+                    const available = productBundles.some((bundle) => bundle.regionKey === region.key);
+                    const active = activeRegionKey === region.key;
+                    return (
+                      <button
+                        key={region.key}
+                        type="button"
+                        onClick={() => setActiveRegionKey(region.key)}
+                        disabled={!available}
+                        className={`rounded border px-2 py-2 text-left text-xs font-semibold transition-colors ${
+                          active
+                            ? 'border-cyan-300/70 bg-cyan-300/15 text-white'
+                            : available
+                              ? 'border-outline-variant bg-surface-container-high text-on-surface-variant hover:border-white/25'
+                              : 'border-white/5 bg-surface-container-low text-slate-600'
+                        }`}
+                      >
+                        {region.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {productBundles.length > 0 ? (
                 <label className="block">
                   <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-slate-500">{t('forecastProduct')}</span>
@@ -287,7 +431,7 @@ export default function Portal() {
                     onChange={(event) => setActiveBundleKey(event.target.value)}
                     className="w-full rounded border border-outline-variant bg-surface-container-high px-2 py-2 text-xs text-on-surface outline-none focus:border-secondary-container/60"
                   >
-                    {productBundles.map((bundle) => (
+                    {(regionBundles.length ? regionBundles : productBundles).map((bundle) => (
                       <option key={bundle.key} value={bundle.key} className="bg-surface text-on-surface">
                         {bundle.label}
                       </option>
@@ -295,10 +439,6 @@ export default function Portal() {
                   </select>
                 </label>
               ) : null}
-              <StatusLine icon="layers" label={t('baseMap')} value={productStatus} />
-              <StatusLine icon="location_city" label={t('cityForecast')} value={cityStatus} />
-              <StatusLine icon="schedule" label={t('forecastLength')} value={`${timeline.length} ${t('dayUnit')}`} />
-              <StatusLine icon="touch_app" label={t('mapPick')} value={t('mapPickHint')} />
             </div>
           </Panel>
           <Panel title={t('colorRamp')}>
@@ -359,7 +499,7 @@ export default function Portal() {
                   <span className="rounded px-2 py-1 text-sm font-bold" style={{ color: risk.color, background: risk.bg }}>
                     {risk.label}
                   </span>
-                  <span className="text-xs text-slate-400">{t('day', { day: activeStep.forecast_day })}</span>
+                  <span className="text-xs text-slate-400">{formatTimelineDate(activeStep, activeBundle, locale)}</span>
                 </div>
               </div>
               <div className="text-right">
@@ -407,7 +547,7 @@ export default function Portal() {
             </div>
 
             <div className="grid grid-cols-7 gap-2">
-              {timeline.slice(0, 7).map((step, index) => {
+              {timeline.map((step, index) => {
                 const meta = riskMeta(step.risk, t);
                 const height = peak > 0 ? Math.max(8, Math.round((safeNumber(step.pollen_total) / peak) * 46)) : 8;
                 return (
@@ -421,7 +561,7 @@ export default function Portal() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-white">D+{index}</span>
+                      <span className="text-xs font-semibold text-white">{formatTimelineDate(step, activeBundle, locale)}</span>
                       <span className="text-[10px]" style={{ color: meta.color }}>
                         {meta.label}
                       </span>
@@ -446,18 +586,6 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
     <div className="rounded-lg border border-outline-variant bg-surface-container-lowest/82 p-4 shadow-2xl backdrop-blur-md">
       <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{title}</h2>
       {children}
-    </div>
-  );
-}
-
-function StatusLine({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <span className="material-symbols-outlined mt-0.5 text-base text-cyan-300">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{label}</p>
-        <p className="break-words text-xs text-slate-200">{value}</p>
-      </div>
     </div>
   );
 }
@@ -504,10 +632,65 @@ function ThemeSwitch({ theme, onChange }: { theme: ThemeMode; onChange: (theme: 
   );
 }
 
+function loadProductJson(product: ForecastProduct) {
+  if (product.id != null) {
+    return productsApi.content(product.id).then((response) => response.data);
+  }
+  if (product.server_path) {
+    return productsApi.serverContent(product.server_path).then((response) => response.data);
+  }
+  return Promise.resolve(null);
+}
+
+function buildBundleAssetUrl(bundle: ProductBundle, relativePath: string, cacheKey?: string) {
+  const cleanPath = relativePath.replace(/^\/+/, '');
+  if (!bundle.subpath) return cleanPath;
+  const url = productsApi.serverDownloadUrl(`${bundle.subpath}/${cleanPath}`);
+  if (!cacheKey) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}v=${encodeURIComponent(cacheKey)}`;
+}
+
+function normalizeLatestServerBundles(value: unknown, locale: Locale): ProductBundle[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(isLatestServerBundle)
+    .map((bundle) => {
+      const sorted = [...bundle.products].sort(compareProductTimeDesc);
+      const key = bundle.subpath;
+      return {
+        key,
+        runId: key,
+        region: bundle.region,
+        regionKey: normalizeRegionKey(bundle.region_key || bundle.region),
+        subpath: bundle.subpath,
+        label: formatBundleLabel(key, sorted, locale),
+        releaseTime: bundle.release_time || sorted[0]?.release_time || '',
+        products: sorted,
+        cityProduct: sorted.find(isCityForecastProduct),
+        animationMapProduct: sorted.find(isAnimationMapProduct),
+        forecastMapProduct: sorted.find(isForecastMapProduct),
+        inlineMapProduct: sorted.find(isInlineMapProduct),
+      };
+    })
+    .filter((bundle) => bundle.cityProduct || bundle.animationMapProduct || bundle.forecastMapProduct || bundle.inlineMapProduct)
+    .sort((a, b) => compareNullableTimeDesc(a.releaseTime, b.releaseTime));
+}
+
+function isLatestServerBundle(value: unknown): value is LatestServerBundle {
+  const candidate = value as LatestServerBundle;
+  return (
+    typeof candidate?.region === 'string' &&
+    typeof candidate?.region_key === 'string' &&
+    typeof candidate?.subpath === 'string' &&
+    Array.isArray(candidate?.products)
+  );
+}
+
 function buildProductBundles(products: ForecastProduct[], locale: Locale): ProductBundle[] {
   const groups = new Map<string, ForecastProduct[]>();
   products
-    .filter((product) => isCityForecastProduct(product) || isOverlayMetadataProduct(product) || isOverlayImageProduct(product) || isInlineMapProduct(product))
+    .filter((product) => isCityForecastProduct(product) || isAnimationMapProduct(product) || isForecastMapProduct(product) || isInlineMapProduct(product))
     .forEach((product) => {
       const key = productRunKey(product);
       groups.set(key, [...(groups.get(key) ?? []), product]);
@@ -519,16 +702,25 @@ function buildProductBundles(products: ForecastProduct[], locale: Locale): Produ
       return {
         key,
         runId: key,
+        region: sorted[0]?.region ?? '',
+        regionKey: normalizeRegionKey(sorted[0]?.region ?? key.split('/')[1] ?? ''),
         label: formatBundleLabel(key, sorted, locale),
         releaseTime: sorted[0]?.release_time ?? '',
         products: sorted,
         cityProduct: sorted.find(isCityForecastProduct),
-        overlayMetadataProduct: sorted.find(isOverlayMetadataProduct),
+        animationMapProduct: sorted.find(isAnimationMapProduct),
+        forecastMapProduct: sorted.find(isForecastMapProduct),
         inlineMapProduct: sorted.find(isInlineMapProduct),
       };
     })
-    .filter((bundle) => bundle.cityProduct || bundle.overlayMetadataProduct || bundle.inlineMapProduct)
+    .filter((bundle) => bundle.cityProduct || bundle.animationMapProduct || bundle.forecastMapProduct || bundle.inlineMapProduct)
     .sort((a, b) => compareNullableTimeDesc(a.releaseTime, b.releaseTime));
+}
+
+function normalizeRegionKey(value: string) {
+  const normalized = value.toLowerCase().replace(/[_\s-]/g, '');
+  if (normalized === 'innermg' || normalized === 'inner mongolia') return 'innermg';
+  return normalized;
 }
 
 function productRunKey(product: ForecastProduct) {
@@ -559,55 +751,36 @@ function isCityForecastProduct(product: ForecastProduct) {
   return type.includes('city_forecast') || path.endsWith('city_forecast.json');
 }
 
+function isForecastMapProduct(product: ForecastProduct) {
+  const type = product.product_type.toLowerCase();
+  const path = product.file_path.toLowerCase();
+  return type.includes('pollen_map_forecast') || path.endsWith('pollen_map_forecast.json');
+}
+
+function isAnimationMapProduct(product: ForecastProduct) {
+  const type = product.product_type.toLowerCase();
+  const path = product.file_path.toLowerCase();
+  return type.includes('pollen_map_animation') || path.endsWith('pollen_map_animation.json');
+}
+
 function isInlineMapProduct(product: ForecastProduct) {
+  if (isCityForecastProduct(product) || isAnimationMapProduct(product) || isForecastMapProduct(product)) return false;
   const type = product.product_type.toLowerCase();
   const path = product.file_path.toLowerCase();
   return type.includes('geojson') || path.endsWith('.geojson');
 }
 
-function isOverlayMetadataProduct(product: ForecastProduct) {
-  const type = product.product_type.toLowerCase();
-  const path = product.file_path.toLowerCase();
-  return type.includes('png_overlay_metadata') || path.endsWith('.overlay.json');
-}
-
-function isOverlayImageProduct(product: ForecastProduct) {
-  const type = product.product_type.toLowerCase();
-  const path = product.file_path.toLowerCase();
-  return type === 'png_overlay' || type === 'map_png' || path.endsWith('.png');
-}
-
-function buildOverlayLayer(
-  metadataProduct: ForecastProduct,
-  metadata: unknown,
-  products: ForecastProduct[],
-): MapProductLayer | null {
-  if (!isOverlayMetadata(metadata)) return null;
-  const imageProduct = findOverlayImageProduct(metadataProduct, metadata, products);
-  if (!imageProduct) return null;
+function mergeTimelineDisplayStep(primary: CityForecastStep, cityStep?: CityForecastStep): CityForecastStep {
+  if (!cityStep) return primary;
   return {
-    kind: 'image_overlay',
-    name: metadataProduct.product_name,
-    imageUrl: `${productsApi.downloadUrl(imageProduct.id)}?v=${encodeURIComponent(metadata.generated_at ?? metadataProduct.release_time ?? String(imageProduct.id))}`,
-    bounds: metadata.bounds,
-    opacity: metadata.opacity,
+    ...primary,
+    t2_c: primary.t2_c ?? cityStep.t2_c ?? null,
+    wind10_ms: primary.wind10_ms ?? cityStep.wind10_ms ?? null,
+    precip_step_mm: primary.precip_step_mm ?? cityStep.precip_step_mm ?? null,
+    precip_accum_mm: primary.precip_accum_mm ?? cityStep.precip_accum_mm ?? null,
+    dominant_species_index: primary.dominant_species_index ?? cityStep.dominant_species_index ?? null,
+    dominant_species: primary.dominant_species ?? cityStep.dominant_species ?? null,
   };
-}
-
-function findOverlayImageProduct(
-  metadataProduct: ForecastProduct,
-  metadata: PngOverlayMetadata,
-  products: ForecastProduct[],
-) {
-  const runId = metadataProduct.product_name.split(':')[0];
-  const expectedProductName = `${runId}:${metadata.image.name}`;
-  return products.find((product) => {
-    const path = product.file_path.toLowerCase();
-    return (
-      isOverlayImageProduct(product) &&
-      (product.product_name === expectedProductName || path.endsWith(`/${metadata.image.name.toLowerCase()}`))
-    );
-  });
 }
 
 function riskMeta(risk: string | undefined, t: (key: string) => string) {
@@ -629,6 +802,30 @@ function formatNumber(value: number | null | undefined) {
   if (Math.abs(value) >= 1000) return Math.round(value).toLocaleString();
   if (Math.abs(value) >= 100) return value.toFixed(0);
   return value.toFixed(1);
+}
+
+function formatTimelineDate(step: CityForecastStep, bundle: ProductBundle | undefined, locale: Locale) {
+  const date = dateFromStep(step, bundle);
+  if (!date) return `D+${Math.max(0, step.forecast_day - 1)}`;
+  return new Intl.DateTimeFormat(locale, {
+    month: 'numeric',
+    day: 'numeric',
+  }).format(date);
+}
+
+function dateFromStep(step: CityForecastStep, bundle: ProductBundle | undefined) {
+  if (step.valid_time) {
+    const parsed = new Date(step.valid_time);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const parts = bundle?.subpath?.split('/') ?? [];
+  const year = Number(parts[2]);
+  const day = parts[3] ?? '';
+  if (!Number.isFinite(year) || !/^\d{4}$/.test(day)) return null;
+  const month = Number(day.slice(0, 2));
+  const date = Number(day.slice(2, 4));
+  if (!month || !date) return null;
+  return new Date(year, month - 1, date + Math.max(0, step.forecast_day - 1));
 }
 
 function formatUnit(value: number | null | undefined, unit: string) {
@@ -675,30 +872,90 @@ function fallbackTimeline(city: (typeof fallbackCities)[number]) {
   }));
 }
 
-interface PngOverlayMetadata {
-  type: 'png_overlay';
+interface PollenMapForecastPayload {
+  type: 'pollen_map_forecast';
+  variable?: string;
+  unit?: string;
   generated_at?: string;
-  image: {
-    name: string;
+  frames: PollenMapForecastFrame[];
+}
+
+interface PollenMapAnimationPayload {
+  type: 'pollen_map_animation';
+  variable?: string;
+  unit?: string;
+  generated_at?: string;
+  bounds?: MapFrameBounds;
+  color_scale?: {
+    opacity?: number;
   };
-  bounds: {
-    west: number;
-    south: number;
-    east: number;
-    north: number;
-  };
+  frames: PollenMapAnimationFrame[];
+}
+
+interface PollenMapAnimationFrame {
+  forecast_day: number;
+  lead_hours: number;
+  time_index: number;
+  valid_time?: string;
+  image_path: string;
+  bounds?: MapFrameBounds;
+  max_value?: number;
   opacity?: number;
 }
 
-function isOverlayMetadata(value: unknown): value is PngOverlayMetadata {
-  const candidate = value as PngOverlayMetadata;
+interface MapFrameBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+interface PollenMapForecastFrame {
+  forecast_day: number;
+  lead_hours: number;
+  time_index: number;
+  valid_time?: string;
+  geojson: Record<string, unknown>;
+}
+
+function isPollenMapAnimationPayload(value: unknown): value is PollenMapAnimationPayload {
+  const candidate = value as PollenMapAnimationPayload;
   return (
-    candidate?.type === 'png_overlay' &&
-    typeof candidate?.image?.name === 'string' &&
-    typeof candidate?.bounds?.west === 'number' &&
-    typeof candidate?.bounds?.south === 'number' &&
-    typeof candidate?.bounds?.east === 'number' &&
-    typeof candidate?.bounds?.north === 'number'
+    candidate?.type === 'pollen_map_animation' &&
+    Array.isArray(candidate.frames) &&
+    candidate.frames.length > 0 &&
+    (!candidate.bounds || isMapFrameBounds(candidate.bounds)) &&
+    candidate.frames.every(
+      (frame) =>
+        typeof frame?.forecast_day === 'number' &&
+        typeof frame?.image_path === 'string' &&
+        (!frame.bounds || isMapFrameBounds(frame.bounds)),
+    )
+  );
+}
+
+function isMapFrameBounds(value: unknown): value is MapFrameBounds {
+  const candidate = value as MapFrameBounds;
+  return (
+    typeof candidate?.west === 'number' &&
+    typeof candidate?.south === 'number' &&
+    typeof candidate?.east === 'number' &&
+    typeof candidate?.north === 'number'
+  );
+}
+
+function isPollenMapForecastPayload(value: unknown): value is PollenMapForecastPayload {
+  const candidate = value as PollenMapForecastPayload;
+  return (
+    candidate?.type === 'pollen_map_forecast' &&
+    Array.isArray(candidate.frames) &&
+    candidate.frames.length > 0 &&
+    candidate.frames.every(
+      (frame) =>
+        typeof frame?.forecast_day === 'number' &&
+        frame.geojson &&
+        typeof frame.geojson === 'object',
+    )
   );
 }
 
@@ -721,6 +978,7 @@ interface CityForecastStep {
   time_index: number;
   forecast_day: number;
   lead_hours: number;
+  valid_time?: string;
   pollen_total: number | null;
   risk: string;
   dominant_species_index?: number | null;
@@ -747,10 +1005,200 @@ function isCityForecastPayload(value: unknown): value is CityForecastPayload {
 }
 
 function firstSignalDayIndex(payload: CityForecastPayload) {
-  const maxLength = Math.max(0, ...payload.cities.map((city) => city.forecast.length));
-  for (let index = 0; index < maxLength; index += 1) {
-    const hasSignal = payload.cities.some((city) => safeNumber(city.forecast[index]?.pollen_total) > 0);
-    if (hasSignal) return index;
+  for (const city of payload.cities) {
+    const daily = collapseForecastToDailySteps(city.forecast);
+    for (let index = 0; index < daily.length; index += 1) {
+      if (safeNumber(daily[index]?.pollen_total) > 0) return index;
+    }
   }
   return 0;
+}
+
+function collapseForecastToDailySteps(forecast: CityForecastStep[]): CityForecastStep[] {
+  const grouped = new Map<number, CityForecastStep[]>();
+  for (const step of forecast) {
+    const bucket = grouped.get(step.forecast_day) ?? [];
+    bucket.push(step);
+    grouped.set(step.forecast_day, bucket);
+  }
+  return Array.from(grouped.entries())
+    .sort(([left], [right]) => left - right)
+    .slice(0, 7)
+    .map(([, steps]) => {
+      const peak = [...steps].sort((left, right) => safeNumber(right.pollen_total) - safeNumber(left.pollen_total))[0];
+      if (safeNumber(peak?.pollen_total) > 0) return peak;
+      const midday = steps.find((step) => step.lead_hours % 24 === 12);
+      return midday ?? steps[steps.length - 1];
+    });
+}
+
+function pickDailyAnimationFrames(frames: PollenMapAnimationFrame[]): PollenMapAnimationFrame[] {
+  const grouped = new Map<number, PollenMapAnimationFrame[]>();
+  for (const frame of frames) {
+    const bucket = grouped.get(frame.forecast_day) ?? [];
+    bucket.push(frame);
+    grouped.set(frame.forecast_day, bucket);
+  }
+  return Array.from(grouped.entries())
+    .sort(([left], [right]) => left - right)
+    .slice(0, 7)
+    .map(([, dayFrames]) =>
+      dayFrames.reduce((best, current) =>
+        safeNumber(current.max_value) > safeNumber(best.max_value) ? current : best,
+      ),
+    );
+}
+
+function buildAnimationPeakTimeline(frames: PollenMapAnimationFrame[]): CityForecastStep[] {
+  return frames.map((frame, index) => {
+    const pollenTotal = safeNumber(frame.max_value);
+    return {
+      time_index: frame.time_index ?? index,
+      forecast_day: frame.forecast_day,
+      lead_hours: frame.lead_hours,
+      valid_time: frame.valid_time,
+      pollen_total: pollenTotal,
+      risk: riskFromPollenValue(pollenTotal),
+      dominant_species_index: null,
+      dominant_species: null,
+      t2_c: null,
+      wind10_ms: null,
+      precip_step_mm: null,
+      precip_accum_mm: null,
+    };
+  });
+}
+
+function pickDailyMapFrames(frames: PollenMapForecastFrame[]): PollenMapForecastFrame[] {
+  const grouped = new Map<number, PollenMapForecastFrame[]>();
+  for (const frame of frames) {
+    const bucket = grouped.get(frame.forecast_day) ?? [];
+    bucket.push(frame);
+    grouped.set(frame.forecast_day, bucket);
+  }
+  return Array.from(grouped.entries())
+    .sort(([left], [right]) => left - right)
+    .slice(0, 7)
+    .map(([, dayFrames]) =>
+      dayFrames.reduce((best, current) =>
+        maxGeoJsonPollen(current.geojson) > maxGeoJsonPollen(best.geojson) ? current : best,
+      ),
+    );
+}
+
+function riskFromPollenValue(value: number) {
+  if (value < 50) return 'low';
+  if (value < 200) return 'medium';
+  if (value < 500) return 'high';
+  return 'critical';
+}
+
+function maxGeoJsonPollen(geojson: Record<string, unknown>): number {
+  const features = (geojson as { features?: Array<{ properties?: Record<string, unknown> }> }).features ?? [];
+  let peak = 0;
+  for (const feature of features) {
+    const value = feature.properties?.pollen_total;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      peak = Math.max(peak, value);
+    }
+  }
+  return peak;
+}
+
+function buildMapDomainPeakTimeline(frames: PollenMapForecastFrame[]): CityForecastStep[] {
+  return frames.map((frame, index) => {
+    const peakFeature = findPeakGeoJsonFeature(frame.geojson);
+    const properties = peakFeature?.properties ?? {};
+    const pollenTotal = properties.pollen_total;
+    const risk = properties.risk;
+    const speciesIndex = properties.species_index;
+    return {
+      time_index: frame.time_index ?? index,
+      forecast_day: frame.forecast_day,
+      lead_hours: frame.lead_hours,
+      valid_time: frame.valid_time,
+      pollen_total: typeof pollenTotal === 'number' && Number.isFinite(pollenTotal) ? pollenTotal : 0,
+      risk: typeof risk === 'string' ? risk : 'unknown',
+      dominant_species_index: typeof speciesIndex === 'number' ? speciesIndex : null,
+      dominant_species: null,
+      t2_c: null,
+      wind10_ms: null,
+      precip_step_mm: null,
+      precip_accum_mm: null,
+    };
+  });
+}
+
+function findPeakGeoJsonFeature(geojson: Record<string, unknown>) {
+  const features =
+    (geojson as { features?: Array<{ properties?: Record<string, unknown> }> }).features ?? [];
+  let peakFeature = features[0];
+  let peakValue = -1;
+  for (const feature of features) {
+    const value = feature.properties?.pollen_total;
+    if (typeof value === 'number' && Number.isFinite(value) && value > peakValue) {
+      peakValue = value;
+      peakFeature = feature;
+    }
+  }
+  return peakFeature;
+}
+
+function buildMapSampleTimeline(
+  frames: PollenMapForecastFrame[],
+  longitude: number,
+  latitude: number,
+): CityForecastStep[] {
+  return frames.map((frame, index) => {
+    const sample = sampleGeoJsonPoint(frame.geojson, longitude, latitude);
+    return {
+      time_index: frame.time_index ?? index,
+      forecast_day: frame.forecast_day,
+      lead_hours: frame.lead_hours,
+      valid_time: frame.valid_time,
+      pollen_total: sample?.pollen_total ?? 0,
+      risk: sample?.risk ?? 'unknown',
+      dominant_species_index: sample?.species_index ?? null,
+      dominant_species: null,
+      t2_c: null,
+      wind10_ms: null,
+      precip_step_mm: null,
+      precip_accum_mm: null,
+    };
+  });
+}
+
+function sampleGeoJsonPoint(
+  geojson: Record<string, unknown>,
+  longitude: number,
+  latitude: number,
+): { pollen_total: number; risk: string; species_index: number | null } | null {
+  const features =
+    (geojson as { features?: Array<{ geometry?: { type?: string; coordinates?: number[] }; properties?: Record<string, unknown> }> })
+      .features ?? [];
+  if (!features.length) return null;
+
+  let nearest = features[0];
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const feature of features) {
+    const coordinates = feature.geometry?.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+    const [lon, lat] = coordinates;
+    if (typeof lon !== 'number' || typeof lat !== 'number') continue;
+    const distance = (lon - longitude) ** 2 + (lat - latitude) ** 2;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = feature;
+    }
+  }
+
+  const properties = nearest.properties ?? {};
+  const pollenTotal = properties.pollen_total;
+  const risk = properties.risk;
+  const speciesIndex = properties.species_index;
+  return {
+    pollen_total: typeof pollenTotal === 'number' && Number.isFinite(pollenTotal) ? pollenTotal : 0,
+    risk: typeof risk === 'string' ? risk : 'unknown',
+    species_index: typeof speciesIndex === 'number' ? speciesIndex : null,
+  };
 }

@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from file_tree import ensure_state_dir
 from models import AppConfig, FnlScanResult, RunSummary, TickResult
 
-RUN_NAME_RE = re.compile(r"^(\d{8})(pre\d+)(?:_\d+)?$")
+RUN_NAME_RE = re.compile(r"^(\d{8})(pre\d+)(?:_(caoditu))?(?:_(\d+))?$")
 FNL_RELEASE_LAG_HOURS = 8  # FNL 通常滞后约 6-8 小时发布
 
 
@@ -143,16 +143,46 @@ def scan_fnl_for_date(
     )
 
 
-def _run_exists(config: AppConfig, region: str, start_date: str, season: str) -> bool:
+def _innermg_autumn_variants(config: AppConfig, season: str) -> List[str]:
+    """返回 InnerMG 秋季需提交的 variant 列表（''=标准，'caoditu'=草地TIF）。"""
+    if season != "autumn":
+        return [""]
+    mode = config.forecast.innermg_autumn_variant
+    if mode == "both":
+        return ["", "caoditu"]
+    if mode == "caoditu":
+        return ["caoditu"]
+    return [""]
+
+
+def _region_tick_label(region: str, variant: str) -> str:
+    if variant == "caoditu":
+        return f"{region}(caoditu)"
+    return region
+
+
+def _run_exists(
+    config: AppConfig,
+    region: str,
+    start_date: str,
+    season: str,
+    variant: str = "",
+) -> bool:
     root = _project_root(config)
+    sys.path.insert(0, str(root))
+    from config.layout import predict_run_name, predict_variant_suffix  # noqa: WPS433
+
     season_key = season.lower()
     region_key = region.lower()
     pre = config.forecast.pre
     base = root / "runs" / "predict" / season_key / region_key
     if not base.is_dir():
         return False
-    prefix = f"{start_date}{pre}"
-    return any(p.is_dir() and p.name.startswith(prefix) for p in base.iterdir())
+
+    suffix = predict_variant_suffix(variant)
+    target = predict_run_name(pre, start_date, suffix)
+    pattern = re.compile(rf"^{re.escape(target)}(?:_\d+)?$")
+    return any(p.is_dir() and pattern.match(p.name) for p in base.iterdir())
 
 
 def _submit_region(
@@ -161,6 +191,7 @@ def _submit_region(
     start_date: str,
     season: str,
     fnl_gfs: int,
+    variant: str = "",
 ) -> tuple[bool, str]:
     root = _project_root(config)
     pre = config.forecast.pre
@@ -181,6 +212,8 @@ def _submit_region(
         "--fnl-gfs",
         str(fnl_gfs),
     ]
+    if variant:
+        cmd.extend(["--variant", variant])
 
     try:
         proc = subprocess.run(
@@ -334,18 +367,29 @@ def run_tick(
                 return result
 
     for region in regions:
-        if not force and _run_exists(config, region, date, effective_season):
-            skipped.append(region)
-            messages.append(f"{region} 已有 {date} 运行目录，跳过")
-            continue
-        ok, msg = _submit_region(config, region, date, effective_season, fnl_gfs)
-        if ok:
-            submitted.append(region)
-            messages.append(f"{region} 提交成功")
-        else:
-            skipped.append(region)
-            messages.append(f"{region} 提交失败: {msg}")
-            _append_event(f"{region} 提交失败", level="error", extra={"msg": msg})
+        variants = (
+            _innermg_autumn_variants(config, effective_season)
+            if region == "InnerMG"
+            else [""]
+        )
+        for variant in variants:
+            label = _region_tick_label(region, variant)
+            if not force and _run_exists(
+                config, region, date, effective_season, variant=variant
+            ):
+                skipped.append(label)
+                messages.append(f"{label} 已有 {date} 运行目录，跳过")
+                continue
+            ok, msg = _submit_region(
+                config, region, date, effective_season, fnl_gfs, variant=variant
+            )
+            if ok:
+                submitted.append(label)
+                messages.append(f"{label} 提交成功")
+            else:
+                skipped.append(label)
+                messages.append(f"{label} 提交失败: {msg}")
+                _append_event(f"{label} 提交失败", level="error", extra={"msg": msg})
 
     result = TickResult(
         date=date,
@@ -422,11 +466,13 @@ def query_slurm_jobs() -> list[dict[str, str]]:
     return jobs
 
 
-def _parse_run_dir(path: Path) -> Optional[Tuple[str, str, str]]:
+def _parse_run_dir(path: Path) -> Optional[Tuple[str, str, str, str]]:
     m = RUN_NAME_RE.match(path.name)
     if not m:
         return None
-    return m.group(1), m.group(2), path.name
+    start_date, pre = m.group(1), m.group(2)
+    variant = m.group(3) or ""
+    return start_date, pre, path.name, variant
 
 
 def _read_state_json(run_dir: Path) -> Optional[Dict]:
@@ -685,6 +731,7 @@ def _build_run_summary(
     run_id: str,
     start_date: str,
     pre: str,
+    variant: str = "",
     slurm_jobs: list[dict[str, str]],
     sacct_jobs: Optional[list[dict[str, str]]] = None,
 ) -> RunSummary:
@@ -704,6 +751,7 @@ def _build_run_summary(
         season=season.lower(),
         pre=pre,
         start_date=start_date,
+        variant=variant,
         run_root=str(run_dir),
         state=state,
         effective_state=effective,
@@ -735,7 +783,7 @@ def list_runs(config: AppConfig, limit: int = 30) -> list[RunSummary]:
                 parsed = _parse_run_dir(run_dir)
                 if not parsed:
                     continue
-                start_date, pre, run_id = parsed
+                start_date, pre, run_id, variant = parsed
                 summaries.append(
                     _build_run_summary(
                         run_dir,
@@ -744,6 +792,7 @@ def list_runs(config: AppConfig, limit: int = 30) -> list[RunSummary]:
                         run_id=run_id,
                         start_date=start_date,
                         pre=pre,
+                        variant=variant,
                         slurm_jobs=slurm_jobs,
                         sacct_jobs=sacct_jobs,
                     )
@@ -763,7 +812,7 @@ def get_run_detail(config: AppConfig, season: str, region: str, run_id: str) -> 
     parsed = _parse_run_dir(run_dir)
     if not parsed:
         raise HTTPException(status_code=400, detail="无法解析 run 目录名")
-    start_date, pre, _ = parsed
+    start_date, pre, _, variant = parsed
     slurm_jobs = query_slurm_jobs()
     return _build_run_summary(
         run_dir,
@@ -772,5 +821,6 @@ def get_run_detail(config: AppConfig, season: str, region: str, run_id: str) -> 
         run_id=run_id,
         start_date=start_date,
         pre=pre,
+        variant=variant,
         slurm_jobs=slurm_jobs,
     )

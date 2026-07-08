@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,7 @@ class ServerConfigUpdate(BaseModel):
     pre: Optional[str] = None
     fnl_gfs_default: Optional[int] = Field(default=None, ge=0, le=3)
     fnl_gfs_fallback: Optional[int] = Field(default=None, ge=0, le=3)
+    innermg_autumn_variant: Optional[Literal["standard", "caoditu", "both"]] = None
 
 
 class ServerTickRequest(BaseModel):

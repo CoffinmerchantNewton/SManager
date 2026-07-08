@@ -1,0 +1,4 @@
+Portal display regression expectations:
+- Timeline cards render calendar dates with formatTimelineDate, not D+ labels.
+- Timeline display values merge animation pollen peaks with selected-city weather fields.
+- Left product status rows for base map, city forecast, forecast length, and map pick are not rendered.

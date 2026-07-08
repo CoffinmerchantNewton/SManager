@@ -218,6 +218,7 @@ def serialize_server_run(run: dict[str, Any]) -> dict[str, Any]:
     active_jobs = [job for job in slurm_jobs if (job.get("state") or "").upper() in SLURM_ACTIVE_STATES]
     raw_state = run.get("state") or {}
     failure = raw_state.get("failure")
+    variant = str(run.get("variant") or "")
 
     return {
         "run_key": build_run_key(season, region, run_id),
@@ -225,6 +226,7 @@ def serialize_server_run(run: dict[str, Any]) -> dict[str, Any]:
         "season": season,
         "region": region,
         "pre": run.get("pre"),
+        "variant": variant,
         "start_date": run.get("start_date"),
         "status": status,
         "progress": progress,
@@ -241,7 +243,6 @@ def serialize_server_run(run: dict[str, Any]) -> dict[str, Any]:
         "domain": region,
         "start_time": run.get("start_date"),
         "end_time": None,
-        "variant": run.get("pre"),
         "last_error": _last_error(run, failure),
     }
 

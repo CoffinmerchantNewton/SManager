@@ -12,6 +12,7 @@ type RunRow = DashboardRunSummary & {
   season?: string;
   region?: string;
   start_date?: string;
+  variant?: string | null;
   anomalies?: string[];
 };
 
@@ -120,6 +121,7 @@ export default function RunsList() {
                 <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
                 <th className="px-sm py-sm text-[10px]">Slurm</th>
                 <th className="px-sm py-sm text-[10px]">{t('season')}</th>
+                <th className="px-sm py-sm text-[10px]">{t('variant')}</th>
                 <th className="px-sm py-sm text-[10px]">{t('domain')}</th>
                 <th className="px-sm py-sm text-[10px]">{t('startDate')}</th>
                 <th className="px-sm py-sm text-[10px]">{t('notes')}</th>
@@ -145,6 +147,9 @@ export default function RunsList() {
                     <SlurmSummary run={run} />
                   </td>
                   <td className="px-sm py-sm text-xs text-outline">{run.season || run.period || '-'}</td>
+                  <td className="px-sm py-sm text-xs text-outline">
+                    <VariantBadge variant={run.variant} />
+                  </td>
                   <td className="px-sm py-sm text-xs text-outline">{run.region || run.domain || '-'}</td>
                   <td className="px-sm py-sm text-xs text-outline">{run.start_date || run.start_time || '-'}</td>
                   <td className="max-w-[240px] px-sm py-sm text-[10px] text-on-surface-variant">
@@ -160,5 +165,15 @@ export default function RunsList() {
         </div>
       </div>
     </div>
+  );
+}
+
+function VariantBadge({ variant }: { variant?: string | null }) {
+  if (!variant) return <span>-</span>;
+  const isCaoditu = variant.toLowerCase() === 'caoditu';
+  return (
+    <span className={isCaoditu ? 'rounded border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-emerald-200' : ''}>
+      {isCaoditu ? 'caoditu' : variant}
+    </span>
   );
 }

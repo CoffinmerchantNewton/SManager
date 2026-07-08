@@ -30,17 +30,26 @@ interface CesiumMapProps {
   }>;
   productLayer?: MapProductLayer | null;
   selectedCityName?: string;
+  cityMarkerMode?: CityMarkerMode;
   onCitySelect?: (cityName: string) => void;
 }
 
 export type GeoJsonObject = Record<string, unknown>;
+type CityMarkerMode = 'concentration' | 'compact';
 
-export default function CesiumMap({ cities, productLayer, selectedCityName, onCitySelect }: CesiumMapProps) {
+export default function CesiumMap({
+  cities,
+  productLayer,
+  selectedCityName,
+  cityMarkerMode = 'concentration',
+  onCitySelect,
+}: CesiumMapProps) {
   const cesiumContainer = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const citySourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const productSourceRef = useRef<Cesium.GeoJsonDataSource | null>(null);
   const productImageLayerRef = useRef<Cesium.ImageryLayer | null>(null);
+  const productImageBoundsKeyRef = useRef<string>('');
   const onCitySelectRef = useRef(onCitySelect);
 
   useEffect(() => {
@@ -156,7 +165,8 @@ export default function CesiumMap({ cities, productLayer, selectedCityName, onCi
     cities.forEach((city) => {
       const color = getRiskColorCesium(city.risk);
       const isSelected = city.name === selectedCityName;
-      const markerRadius = markerRadiusMeters(city.concentration, isSelected);
+      const markerRadius = markerRadiusMeters(city.concentration, isSelected, cityMarkerMode);
+      const fillAlpha = cityMarkerMode === 'compact' ? (isSelected ? 0.28 : 0.14) : (isSelected ? 0.48 : 0.28);
 
       citySource.entities.add({
         properties: { cityName: city.name },
@@ -165,7 +175,7 @@ export default function CesiumMap({ cities, productLayer, selectedCityName, onCi
           semiMinorAxis: markerRadius,
           semiMajorAxis: markerRadius,
           height: 0,
-          material: color.withAlpha(isSelected ? 0.48 : 0.28),
+          material: color.withAlpha(fillAlpha),
           outline: true,
           outlineColor: isSelected ? Cesium.Color.WHITE : color,
           outlineWidth: isSelected ? 3 : 2,
@@ -176,7 +186,7 @@ export default function CesiumMap({ cities, productLayer, selectedCityName, onCi
         properties: { cityName: city.name },
         position: Cesium.Cartesian3.fromDegrees(city.longitude, city.latitude, 50000),
         label: {
-          text: `${city.name}\n${formatConcentration(city.concentration)}`,
+          text: cityMarkerMode === 'compact' ? city.name : `${city.name}\n${formatConcentration(city.concentration)}`,
           font: '14px sans-serif',
           fillColor: color,
           outlineColor: Cesium.Color.BLACK,
@@ -196,7 +206,7 @@ export default function CesiumMap({ cities, productLayer, selectedCityName, onCi
 
     citySourceRef.current = citySource;
     void viewer.dataSources.add(citySource);
-  }, [cities, selectedCityName]);
+  }, [cities, selectedCityName, cityMarkerMode]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -238,10 +248,19 @@ export default function CesiumMap({ cities, productLayer, selectedCityName, onCi
       );
       layer.alpha = productLayer.opacity ?? 0.72;
       productImageLayerRef.current = layer;
-      void viewer.camera.flyTo({
-        destination: rectangle,
-        duration: 0.8,
-      });
+      const boundsKey = [
+        productLayer.bounds.west,
+        productLayer.bounds.south,
+        productLayer.bounds.east,
+        productLayer.bounds.north,
+      ].join(',');
+      if (productImageBoundsKeyRef.current !== boundsKey) {
+        productImageBoundsKeyRef.current = boundsKey;
+        void viewer.camera.flyTo({
+          destination: rectangle,
+          duration: 0.8,
+        });
+      }
       return;
     }
 
@@ -305,31 +324,48 @@ function applyBoundaryStyle(
 
 function applyProductLayerStyle(dataSource: Cesium.GeoJsonDataSource) {
   for (const entity of dataSource.entities.values) {
+    const pollenTotal = readEntityNumber(entity.properties?.pollen_total);
+    const risk = readEntityString(entity.properties?.risk);
+    const fillColor = pollenTotal != null ? colorForPollenValue(pollenTotal) : Cesium.Color.fromCssColorString('#ff8a4c').withAlpha(0.32);
+    const strokeColor = risk ? getRiskColorCesium(risk) : Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.95);
+
     if (entity.polygon) {
       entity.polygon.fill = new Cesium.ConstantProperty(true);
-      entity.polygon.material = new Cesium.ColorMaterialProperty(
-        Cesium.Color.fromCssColorString('#ff8a4c').withAlpha(0.32),
-      );
+      entity.polygon.material = new Cesium.ColorMaterialProperty(fillColor);
       entity.polygon.height = new Cesium.ConstantProperty(0);
       entity.polygon.outline = new Cesium.ConstantProperty(true);
-      entity.polygon.outlineColor = new Cesium.ConstantProperty(
-        Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.95),
-      );
+      entity.polygon.outlineColor = new Cesium.ConstantProperty(strokeColor);
       entity.polygon.outlineWidth = new Cesium.ConstantProperty(2);
     }
     if (entity.polyline) {
-      entity.polyline.material = new Cesium.ColorMaterialProperty(
-        Cesium.Color.fromCssColorString('#ffcc66').withAlpha(0.9),
-      );
+      entity.polyline.material = new Cesium.ColorMaterialProperty(strokeColor);
       entity.polyline.width = new Cesium.ConstantProperty(2);
     }
     if (entity.point) {
-      entity.point.pixelSize = new Cesium.ConstantProperty(9);
-      entity.point.color = new Cesium.ConstantProperty(Cesium.Color.fromCssColorString('#ffcc66'));
-      entity.point.outlineColor = new Cesium.ConstantProperty(Cesium.Color.BLACK);
+      entity.point.pixelSize = new Cesium.ConstantProperty(pollenTotal != null ? 7 + Math.min(12, pollenTotal / 50) : 9);
+      entity.point.color = new Cesium.ConstantProperty(strokeColor);
+      entity.point.outlineColor = new Cesium.ConstantProperty(Cesium.Color.WHITE);
       entity.point.outlineWidth = new Cesium.ConstantProperty(1);
     }
   }
+}
+
+function readEntityNumber(value: Cesium.Property | undefined): number | null {
+  const raw = value?.getValue?.(Cesium.JulianDate.now());
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+}
+
+function readEntityString(value: Cesium.Property | undefined): string | null {
+  const raw = value?.getValue?.(Cesium.JulianDate.now());
+  return typeof raw === 'string' ? raw : null;
+}
+
+function colorForPollenValue(value: number): Cesium.Color {
+  if (value >= 300) return Cesium.Color.fromCssColorString('#dc2626').withAlpha(0.45);
+  if (value >= 150) return Cesium.Color.fromCssColorString('#fb923c').withAlpha(0.42);
+  if (value >= 60) return Cesium.Color.fromCssColorString('#fde047').withAlpha(0.38);
+  if (value >= 20) return Cesium.Color.fromCssColorString('#22c55e').withAlpha(0.34);
+  return Cesium.Color.fromCssColorString('#2563eb').withAlpha(0.3);
 }
 
 function getRiskColorCesium(risk: string): Cesium.Color {
@@ -347,7 +383,10 @@ function getRiskColorCesium(risk: string): Cesium.Color {
   }
 }
 
-function markerRadiusMeters(concentration: number, selected: boolean): number {
+function markerRadiusMeters(concentration: number, selected: boolean, mode: CityMarkerMode): number {
+  if (mode === 'compact') {
+    return selected ? 28000 : 18000;
+  }
   const value = Number.isFinite(concentration) ? Math.max(0, concentration) : 0;
   const base = Math.sqrt(value) * 5500;
   const capped = Math.max(14000, Math.min(180000, base));

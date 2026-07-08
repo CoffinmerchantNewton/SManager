@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { ForecastProduct } from '../types';
 
 const configuredApiUrl = import.meta.env.VITE_API_URL;
 const API_BASE_URL =
@@ -59,7 +60,14 @@ export const productsApi = {
   create: (data: ApiPayload) => api.post('/products', data),
   togglePublish: (id: number, is_published: boolean) => api.patch(`/products/${id}/publish`, { is_published }),
   content: (id: number) => api.get(`/products/${id}/content`),
-  downloadUrl: (id: number) => `${API_BASE_URL}/products/${id}/download`,
+  serverContent: (path: string) =>
+    api.get('/products/server/content', { params: { path }, timeout: 900000 }),
+  latestServerBundles: (params?: ApiParams) =>
+    api.get('/products/server/latest', { params, timeout: 900000 }),
+  sync: (params: { subpath?: string; run_id?: string }) => api.post('/products/sync', null, { params }),
+  serverDownloadUrl: (path: string) => `${API_BASE_URL}/products/server/download?${new URLSearchParams({ path }).toString()}`,
+  downloadUrl: (product: Pick<ForecastProduct, 'id' | 'download_url'>) =>
+    product.download_url || (product.id != null ? `${API_BASE_URL}/products/${product.id}/download` : ''),
   delete: (id: number) => api.delete(`/products/${id}`),
 };
 

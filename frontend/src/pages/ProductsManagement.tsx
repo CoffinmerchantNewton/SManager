@@ -16,12 +16,15 @@ export default function ProductsManagement() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [category, setCategory] = useState('all');
 
-  const loadProducts = useCallback(async (targetRunId: string) => {
-    const normalizedRunId = targetRunId.trim();
+  const loadProducts = useCallback(async (targetRef: string) => {
+    const normalizedRef = targetRef.trim();
     try {
       setLoading(true);
       setErrorMessage(null);
-      const response = await productsApi.getAll(normalizedRunId ? { run_id: normalizedRunId } : undefined);
+      const params = normalizedRef
+        ? { subpath: normalizedRef, limit: 100 }
+        : { limit: 100 };
+      const response = await productsApi.getAll(params);
       setProducts(response.data);
     } catch (error) {
       console.error('Failed to load products:', error);
@@ -35,7 +38,8 @@ export default function ProductsManagement() {
     void loadProducts(initialRunId);
   }, [initialRunId, loadProducts]);
 
-  const togglePublish = async (productId: number, currentStatus: boolean) => {
+  const togglePublish = async (productId: number | null, currentStatus: boolean) => {
+    if (productId == null) return;
     try {
       await productsApi.togglePublish(productId, !currentStatus);
       void loadProducts(runId);
@@ -44,7 +48,8 @@ export default function ProductsManagement() {
     }
   };
 
-  const deleteProduct = async (productId: number) => {
+  const deleteProduct = async (productId: number | null) => {
+    if (productId == null) return;
     if (confirm(t('deleteProductConfirm'))) {
       try {
         await productsApi.delete(productId);
@@ -59,6 +64,10 @@ export default function ProductsManagement() {
     const normalizedRunId = runId.trim();
     if (!normalizedRunId) {
       setErrorMessage(t('enterRunId'));
+      return;
+    }
+    if (!normalizedRunId.includes('/')) {
+      setErrorMessage(t('enterFullRunKey'));
       return;
     }
 
@@ -157,7 +166,7 @@ export default function ProductsManagement() {
                 }
               }}
               className="w-full bg-surface-container-high border border-outline-variant rounded-lg px-3 py-2 font-data-mono text-data-mono text-on-surface focus:outline-none focus:border-cyan-500/60"
-              placeholder="2026060400"
+              placeholder="spring/beijing/2026/0621"
             />
           </label>
           <button
@@ -224,7 +233,7 @@ export default function ProductsManagement() {
         {/* List Items */}
         {visibleProducts.map((product) => (
           <div
-            key={product.id}
+            key={product.product_name}
             className="grid grid-cols-12 gap-gutter bg-surface-container-low border border-white/5 p-3 rounded-xl items-center hover:bg-surface-container transition-all group"
           >
             <div className="col-span-5 flex items-center gap-4">
@@ -297,39 +306,47 @@ export default function ProductsManagement() {
               </div>
             </div>
             <div className="col-span-2 flex justify-end items-center gap-3">
-              <div className="flex items-center gap-2 mr-4">
-                <span className="text-[10px] text-on-surface-variant font-label-caps">{t('live')}</span>
-                <button
-                  onClick={() => togglePublish(product.id, product.is_published)}
-                  className={`w-8 h-4 rounded-full relative ${
-                    product.is_published ? 'bg-tertiary/40' : 'bg-slate-700'
-                  }`}
+              {product.id != null ? (
+                <>
+                  <div className="flex items-center gap-2 mr-4">
+                    <span className="text-[10px] text-on-surface-variant font-label-caps">{t('live')}</span>
+                    <button
+                      onClick={() => togglePublish(product.id, product.is_published)}
+                      className={`w-8 h-4 rounded-full relative ${
+                        product.is_published ? 'bg-tertiary/40' : 'bg-slate-700'
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
+                          product.is_published
+                            ? 'right-0.5 bg-tertiary'
+                            : 'left-0.5 bg-slate-500'
+                        }`}
+                      ></div>
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => deleteProduct(product.id)}
+                    className="p-2 bg-surface-container-high border border-outline-variant hover:border-error/50 hover:text-error transition-all rounded-lg"
+                  >
+                    <span className="material-symbols-outlined scale-90">delete</span>
+                  </button>
+                </>
+              ) : (
+                <span className="text-[10px] text-on-surface-variant">{t('serverOnly')}</span>
+              )}
+              {productsApi.downloadUrl(product) ? (
+                <a
+                  href={productsApi.downloadUrl(product)}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Download ${product.product_name}`}
+                  title={product.server_path || product.file_path}
+                  className="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg"
                 >
-                  <div
-                    className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
-                      product.is_published
-                        ? 'right-0.5 bg-tertiary'
-                        : 'left-0.5 bg-slate-500'
-                    }`}
-                  ></div>
-                </button>
-              </div>
-              <a
-                href={productsApi.downloadUrl(product.id)}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Download ${product.product_name}`}
-                title={`Download ${product.file_path}`}
-                className="p-2 bg-surface-container-high border border-outline-variant hover:border-cyan-500/50 hover:text-cyan-400 transition-all rounded-lg"
-              >
-                <span className="material-symbols-outlined scale-90">download</span>
-              </a>
-              <button
-                onClick={() => deleteProduct(product.id)}
-                className="p-2 bg-surface-container-high border border-outline-variant hover:border-error/50 hover:text-error transition-all rounded-lg"
-              >
-                <span className="material-symbols-outlined scale-90">delete</span>
-              </button>
+                  <span className="material-symbols-outlined scale-90">download</span>
+                </a>
+              ) : null}
             </div>
           </div>
         ))}

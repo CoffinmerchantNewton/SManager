@@ -45,6 +45,8 @@ forecast:
   fnl_gfs_fallback: 1
   # 非交互重复目录策略
   task_dup_action: "continue"
+  # InnerMG 秋季自动 tick：standard | caoditu | both
+  innermg_autumn_variant: both
 
 paths:
   project_root: "/g7/anxq/Zhangjt/workspace/auto-pollen-lijt"

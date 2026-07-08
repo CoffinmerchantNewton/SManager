@@ -124,6 +124,7 @@ export default function Dashboard() {
                   <th className="px-sm py-sm text-[10px]">{t('progress')}</th>
                   <th className="px-sm py-sm text-[10px]">Slurm</th>
                   <th className="px-sm py-sm text-[10px]">{t('window')}</th>
+                  <th className="px-sm py-sm text-[10px]">{t('variant')}</th>
                   <th className="px-sm py-sm text-[10px]">{t('domain')}</th>
                 </tr>
               </thead>
@@ -148,6 +149,7 @@ export default function Dashboard() {
                       <SlurmSummary run={run} />
                     </td>
                     <td className="px-sm py-sm text-xs text-outline">{run.period || '-'} / {run.start_time || '-'}</td>
+                    <td className="px-sm py-sm text-xs text-outline">{run.variant || '-'}</td>
                     <td className="px-sm py-sm text-xs text-outline">{run.domain || '-'}</td>
                   </tr>
                 ))}
@@ -181,7 +183,7 @@ export default function Dashboard() {
                   <p className="text-[10px] text-outline">{product.product_type} / {product.pollen_type || 'unknown'} / {product.resolution || 'unknown'}</p>
                 </div>
                 <a
-                  href={productsApi.downloadUrl(product.id)}
+                  href={productsApi.downloadUrl(product)}
                   className="rounded bg-primary-container px-2 py-1 text-[10px] font-semibold text-on-primary-container"
                 >
                   {t('download')}
